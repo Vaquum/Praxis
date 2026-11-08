@@ -854,6 +854,28 @@ nothing of what they are given.
 | N16-05 | What a mismatch refuses | written | [what-a-mismatch-refuses.md](atoms/what-a-mismatch-refuses.md) |
 | N16-06 | The named values copied from the other side | written | [the-named-values-copied-from-the-other-side.md](atoms/the-named-values-copied-from-the-other-side.md) |
 
+### Re-seed, after writing package 16
+
+What verifying the six articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The three lists neither side checks against the other | `nexus/core/domain/order_types.py` 18-24, 30-37 and 43-45 declare seven ways of working an order, eight kinds of order and three preferences, and `praxis/core/domain/enums.py` 119-125, 66-73 and 147-149 declare the same words. Running both sets at the pins gives three identical lists. Nothing in either checkout compares them: the words travel as text in a command and are read back into the other side's own set, so a word added on one side and not the other would be refused only when a command carrying it arrived. N16-06 has that each is a copy and that nothing checks they agree; where the mismatch would actually surface, and that it would surface at a command rather than at a build, is in no article |
+| What the direction held as text costs | `nexus/infrastructure/praxis_connector/fund_transaction.py` 62-65 checks a word against a fixed pair, where the records beside it hold a kind as named values and refuse anything that is not a member. Running the record with the right word in the wrong case is refused, which a named value would have caught at the call rather than at the check. N16-04 has the check and the comparison with its neighbours; that the cost falls at a different moment is in no article |
+
+Two candidates. Both are a comparison the writing had in hand and stated one side
+of, which is now the third package in a row to leave that shape behind.
+
+A note on verification. The two external readers were still unavailable, so this
+package was checked by the gate, a reading of the pinned source, and running the
+pinned records on the cases each claim turns on. That caught four things the reading
+had passed: a hypothetical sixth kind of action that does not exist, where the five
+are four mapped and one refused; a claim that an exit always reaches the trading
+side with its three fields named, which holds of this road and was not shown of any
+other; a pair of citations into the Praxis enums that pointed at docstrings rather
+than at the members; and the two lists said to be the same without that having been
+run. The articles carry status `written`, as 271 of the 272 do.
+
 ## Nexus package 15 — health, and the mode it settles
 
 Scope: the three modules that decide whether an account may trade — the snapshot of
@@ -2678,4 +2700,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 18:00 UTC
