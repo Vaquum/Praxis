@@ -834,6 +834,34 @@ Stopping comes second.
 | P14-01 | The moments a replay request names | written | [the-moments-a-replay-request-names.md](atoms/the-moments-a-replay-request-names.md) |
 | P14-02 | What stopping the replay listener does | written | [what-stopping-the-replay-listener-does.md](atoms/what-stopping-the-replay-listener-does.md) |
 
+### Re-seed, after writing package 14
+
+What verifying the two articles turned up that neither of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The same amount is refused as a number and kept as text | `praxis/replay/replay_api.py` 235 turns whatever arrived into a decimal through its written form, and 237 then asks that decimal to be finite and above nought. A JSON number of ten to the four hundredth is read as a floating-point infinity, whose written form is refused; the same figure written as text becomes a decimal of ten to the four hundredth, which answers finite and passes. Handing that decimal to anything expecting a floating-point number gives back an infinity. This applies to the starting money and to each of the five rules for the pair, all five going through the same helper at 249-253. The article on asking for a replay says the figures must be finite numbers above nought; that finite means finite as a decimal rather than representable as a number is in no article |
+| The fields that must be text are converted rather than checked | `praxis/replay/replay_api.py` 197, 221, 224 and 227 take the series, the account, the pair and the strategy's own text through the conversion to written form, which turns anything into something. A pair given as a JSON null becomes the four letters of the word for nothing, and a strategy given as a number becomes its digits; both pass the whole request stage and are answered with a name, the run failing later under that name rather than as a bad request. The article on asking for a replay lists what a request must carry and the refusals for the figures; that the text fields have no refusal at all is in no article |
+| A missing field is refused with the field's name and nothing else | `praxis/replay/replay_api.py` 197 and 221-227 reach into the body by name, so a body without one of them raises the missing-key complaint, whose words are the name alone in quotes. 129-130 then answers with those words, so the asker is told `'symbol'` and no more. P14-01 states that the refusals come back as the raiser's own words; that for a missing field those words are only the name is in no article |
+
+Three candidates. All three are what the request stage admits rather than what it
+refuses, and the first belongs to the run of records the register has been
+collecting that compare a figure where their neighbours ask after its kind — with
+the direction reversed here, since the check is for finiteness and what slips
+through is a figure no number can hold.
+
+A note on method. The gap map still reports sixteen modules marked `full` with an
+uncited statement, this module having fallen from seventeen of seventy-three to
+seven while a module elsewhere gained a gap as the ledger's cells were resynced.
+The widest left is `praxis/metrics/limen_snapshot.py` at sixteen of a hundred.
+
+A note on verification, as for the ten packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the service's own readers on the cases each claim turns
+on. Running them is what showed a lower-case trailing letter refused where the
+capital is rewritten, a bare date taken as midnight, and the mixed pair raising at
+the comparison rather than at the refusal that comparison is written for.
+
 ## Package 13 — what the tracker refuses, and what its lock covers
 
 Scope: the tracker keeping the figures a health report is made from, which the
@@ -3395,4 +3423,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 13:30 UTC
