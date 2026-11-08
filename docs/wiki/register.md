@@ -857,6 +857,26 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 33 — the last statements in the book and the store
+
+Scope: the two modules the packages before this left close to the line. One
+statement carries behaviour; the rest is plumbing around checks already written.
+
+### Merge and promote, package 33
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-626 | A replacement of binsim's book with nothing on either side is refused before any level is looked at. | Add to the article on binsim's book, which has the replacing and the refusal of an interval, and not this |
+
+Nothing promotes and nothing is declined.
+
+What is left is recorded as an exclusion. In the book, the two properties handing
+back the snapshot's own number and moment, the choice of which side to walk, and
+the running totals the walks keep. In the store, one protocol body standing empty,
+the calls into the record decoder the package before this wrote, and the attempts
+around the two roads' failures that the article on where credentials come from
+already names. No behaviour hangs on any of these, so both cells go to `full`.
+
 ## Package 32 — what a credential record must hold
 
 Scope: the store credentials are read from, which the ledger marks `partial` with
@@ -4407,8 +4427,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-623 | The key and the secret must each be text and must each be true, so a key of blank space is kept where an empty one is refused. | `praxis/infrastructure/secret_store.py` 161-170 | Praxis package thirty-two | folds into P32-01 |
 | H-624 | Anything else the record holds is ignored. | `praxis/infrastructure/secret_store.py` 161-162 and 172, which read two keys and carry two | Praxis package thirty-two | folds into P32-01 |
 | H-625 | The file road reads and decodes every record once and keeps them, so a file changed afterwards is not read again. | `praxis/infrastructure/secret_store.py` 288-289 against 307-311 | Praxis package thirty-two | is P32-02 |
+| H-626 | A replacement of binsim's book with nothing on either side is refused before any level is looked at. | `praxis/binsim/book.py` 75-76, or 78-79 | Praxis package thirty-three | added to binsim's book |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 15:30 UTC

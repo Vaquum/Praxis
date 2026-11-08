@@ -2,10 +2,12 @@
 row: P3-06
 baseline: 49aa659
 created: 2026-09-28 10:46 UTC
-modified: 2026-10-11 20:01 UTC
+modified: 2026-11-11 15:30 UTC
 evidence:
   - claim: "The book is replaced whole rather than changed in part"
     source: "`book.py` 115-116"
+  - claim: "A replacement with nothing on either side is refused before any level is looked at"
+    source: "`book.py` 75-76, or 78-79"
   - claim: "A background poller fetches and replaces it, waiting between goes"
     source: "`feed.py` 157 into 267, waiting at 303-329"
   - claim: "An interval at or below zero is refused"
@@ -28,6 +30,8 @@ evidence:
 The book [the simulated venue](binsim.md) fills against is a list of prices it is handed, rather than one it builds. A background poller fetches a fresh one, replaces the whole thing, waits, and goes again — refusing an interval at or below zero.
 
 So nothing anyone sends to binsim ever joins its book. The book comes from outside and is only ever read.
+
+A replacement must bring both sides. One arriving with no buyers, or none with no sellers, is refused before a single level is looked at — so the book either holds two sides or holds what it held before.
 
 ## Filling against it
 
