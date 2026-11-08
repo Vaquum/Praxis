@@ -267,6 +267,10 @@ the others where it appears.
 - [What an entry in the log refuses](atoms/what-an-entry-in-the-log-refuses.md) — a single log record needs a recognised kind, a timestamp with no zone required, and bytes for its payload, while its ordering number is rejected only below zero and never checked for type, so a true-or-false or a fraction stands as a number there.
 - [The two cuts across the kinds of outcome](atoms/the-two-cuts-across-the-kinds-of-outcome.md) — six outcome kinds are answered by two questions that do not line up: four count as finished and two as having filled, with the full fill answering yes to both and the acknowledgement yes to neither.
 - [What stands where nothing was set](atoms/what-stands-where-nothing-was-set.md) — a signal hands a missing key back to the caller's own fallback, while the risk limits are simply empty until set so an unconfigured policy disables every breaker, and neither record notes anywhere that a default was taken.
+- [The questions a record answers about itself](atoms/the-questions-a-record-answers-about-itself.md) — four records answer something about themselves in a single line: which accounts increase on the debit side and which do not, whether a command or an order was sized in money (answered by the presence of a money amount rather than a flag), and whether a position has closed (answered by its quantity equalling zero).
+- [The escape in the shared check for a name](atoms/the-escape-in-the-shared-check-for-a-name.md) — one check holds every identifier on this side: it lets a missing value through when the caller marked the field optional, otherwise rejects a missing value and an empty string together, and never trims — so an identifier of spaces alone is kept here and rejected on the other side.
+- [What a clock refuses and what stands in](atoms/what-a-clock-refuses-and-what-stands-in.md) — the replay clock rejects a start with no zone and keeps whatever zone it is given without converting it, while a price store given no clock uses one reporting the current moment in universal time.
+- [The severity an alert gives back](atoms/the-severity-an-alert-gives-back.md) — telling an alert returns the severity actually recorded after an unknown one is turned into a warning, and the call that also posts reads that return rather than its own argument, so the logged line and the posted payload agree.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -380,7 +384,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 283
+Both sides are the subject, and Praxis is the side that has been written. 287
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -391,4 +395,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 01:30 UTC

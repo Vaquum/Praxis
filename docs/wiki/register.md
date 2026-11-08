@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 282 not.**
+**6 of them reviewed, 286 not.**
 
 ## Package 1
 
@@ -831,6 +831,13 @@ The questions the records answer come first, because four records share the shap
 and nothing states any of them. The shared check for a name follows, with what it
 does not do and what that costs at the seam. The clocks come next, one refusing and
 one standing in. The severity handed back comes last.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P8-01 | The questions a record answers about itself | written | [the-questions-a-record-answers-about-itself.md](atoms/the-questions-a-record-answers-about-itself.md) |
+| P8-02 | The escape in the shared check for a name | written | [the-escape-in-the-shared-check-for-a-name.md](atoms/the-escape-in-the-shared-check-for-a-name.md) |
+| P8-03 | What a clock refuses and what stands in | written | [what-a-clock-refuses-and-what-stands-in.md](atoms/what-a-clock-refuses-and-what-stands-in.md) |
+| P8-04 | The severity an alert gives back | written | [the-severity-an-alert-gives-back.md](atoms/the-severity-an-alert-gives-back.md) |
 
 ## Nexus package 18 — the last corners of the small records
 
@@ -2940,4 +2947,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 01:30 UTC
