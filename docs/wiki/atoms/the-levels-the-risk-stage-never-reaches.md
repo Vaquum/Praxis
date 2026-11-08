@@ -2,7 +2,7 @@
 row: N19-02
 baseline: 49aa659
 created: 2026-11-10 22:00 UTC
-modified: 2026-11-10 22:00 UTC
+modified: 2026-11-10 23:00 UTC
 evidence:
   - claim: "The walk answers with a breach where a figure is over its limit, and with nothing where none is"
     source: "`nexus/core/validator/risk_stage.py` 115-119, or else 121"
@@ -10,6 +10,8 @@ evidence:
     source: "`nexus/core/domain/enums.py` 41-44"
   - claim: "The test the answer meets turns a breach or a halt into a refusal, and a halt cannot arrive from this walk"
     source: "`nexus/core/validator/risk_stage.py` 133-139, against 115-119, or else 121, as the only answers"
+  - claim: "An answer of nothing allows the decision"
+    source: "`nexus/core/validator/risk_stage.py` 141"
   - claim: "The health stage, under the same test, does produce a halt"
     source: "`nexus/core/validator/health_stage.py` 257, tested at 359"
   - claim: "The figures weighed are taken from the account's own risk record as the stage begins"
@@ -23,7 +25,7 @@ The walk over [the account's losses](what-each-check-weighs.md) answers with a b
 
 A warning, a breach, a halt, and nothing. The walk produces a breach or nothing.
 
-The test its answer then meets turns a breach or a halt into a refusal. Half of that test is dead: no halt can arrive from this walk, so the refusal always comes from the breach arm.
+The test its answer then meets turns a breach or a halt into a refusal. Half of that test is dead: no halt can arrive from this walk, so a refusal always comes from the breach arm. An answer of nothing allows the decision.
 
 ## Where that test is alive
 

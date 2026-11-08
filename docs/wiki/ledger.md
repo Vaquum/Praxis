@@ -122,7 +122,7 @@ Every Praxis module is named here: 49 are `full` and 39 `partial`, with none `un
 | `nexus/core/validator/health_stage.py` | partial | N19-02, N2-03 |
 | `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
 | `nexus/core/validator/platform_limits_stage.py` | partial | N2-03, N2-06 |
-| `nexus/core/validator/risk_stage.py` | partial | N19-01, N19-02, N2-03, N2-04 |
+| `nexus/core/validator/risk_stage.py` | full | N19-01, N19-02, N2-03, N2-04 |
 | `nexus/core/validator/price_stage.py` | partial | N2-03, N2-07, P2-26 |
 | `nexus/core/health_loop.py` | partial | N6-01, N6-11, N15-05, N15-06, P3-15 |
 | `nexus/core/mode_controller.py` | partial | N2-04, N6-01, N7-09, N8-03, P3-20, P4-43, N15-06 |
@@ -178,8 +178,8 @@ Every Praxis module is named here: 49 are `full` and 39 `partial`, with none `un
 
 Modules are listed individually as tracing reaches them, and every one of Nexus's 70 is now listed. Six are marked `full` as shapes: five sets of named values across three of them, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types. Each declares names or a shape, or keeps what it was handed, and makes no check of its own, so there is no behaviour for an article to trace; a value outside one of those sets is refused by the machinery the set is built on rather than by anything in the module. Package 7 recorded that, and it is an exclusion rather than work outstanding.
 
-6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 25 are accounted for in full and 39 are not.
+6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 26 are accounted for in full and 38 are not.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 22:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 23:00 UTC

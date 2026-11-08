@@ -1627,6 +1627,36 @@ is set. What the stage can answer with comes second.
 | N19-01 | What a risk limit must be | written | [what-a-risk-limit-must-be.md](atoms/what-a-risk-limit-must-be.md) |
 | N19-02 | The levels the risk stage never reaches | written | [the-levels-the-risk-stage-never-reaches.md](atoms/the-levels-the-risk-stage-never-reaches.md) |
 
+### Re-seed, after writing Nexus package 19
+
+This is the first package written with a reader available again, and it went to
+the reader before the articles were committed rather than after. Three reports
+came back, all three on one article and all three on sentences the citations did
+not carry.
+
+| What it found | What came of it |
+|---|---|
+| A limit left out does not stop its figure being read. All seven are worked out from the account's record and paired with their limits before the walk begins; what an absent limit saves is the comparison. | N19-01 now says so, with the pairing and the working-out cited |
+| A limit of nought does not catch the first loss of any size. A loss need not move the measure that limit stands against — the share of the high mark is nought where that mark is nought, and the worst-ever figures are measured on closed money alone. | The gloss is cut. Both facts it got wrong are already written, in the article on how far down the account is |
+| A figure of nought passing a limit of nought does not mean nothing has been lost. The figures worked out fresh fall back to nought when the value recovers. | That clause is cut too, for the same reason |
+
+All three are the same defect: a sentence added to carry the reader from what the
+line says to what it means for the account, where what it means is another
+article's subject and is already written there. The fix in each was to cut, not to
+rephrase.
+
+Nothing else is left open on this module. Its last uncited statement — the stage
+allowing a decision where the walk answers with nothing — is now stated in N19-02,
+and the cell moves to `full`.
+
+A note on method. The order of work changes from here: the articles go to the
+reader while the tree is frozen, and the write stage is committed only after its
+reports are acted on. The gate also refuses a commit now. It had always been run
+by hand before one, and once that run was piped into something that swallowed its
+status, a register with a failed check reached a commit — so the commit wrapper
+runs the gate itself and refuses on any failure. The refusal was proved by putting
+the same defect back and watching nothing be staged.
+
 ## Nexus package 18 — the last corners of the small records
 
 Scope: the behaviour left uncited in thirteen small records on the Nexus side, found
@@ -3812,4 +3842,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 22:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 23:00 UTC
