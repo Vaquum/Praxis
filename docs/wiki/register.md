@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 352 not.**
+**6 of them reviewed, 353 not.**
 
 ## Package 1
 
@@ -856,6 +856,46 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 48 — the two ways the signed figures change
+
+Scope: the two modules the packages before this left a handful of statements
+short. One statement is added to an article that holds its subject, one subject
+promotes, and both cells move to `full`.
+
+### Merge and promote, Nexus package 48
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-677 | The account's two signed figures each have a call that refuses a figure which is not finite, sets it, and works the falls out again — and both fields can also be written straight, which recomputes nothing. | Promote. How these figures change is in no article. The seeding had the two calls as the only roads; the reader's pass found the straight writes and the one caller that uses them |
+| Row H-678 | The mapping of what to do when protection fails is checked as the credentials mapping is: keys text with something left once trimmed, values of the one kind. | Add to the article on what the host's configuration record refuses, which has the other mapping's checks |
+
+One subject promotes and one statement is added.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N48-01 | The two ways the signed figures change | written | [the-two-ways-the-signed-figures-change.md](atoms/the-two-ways-the-signed-figures-change.md) |
+
+### Re-seed, after writing Nexus package 48
+
+The reader had the article before it was committed and returned three reports,
+all against one assumption: that a call being the only one written for a job makes
+it the only road to the job.
+
+| What it found | What came of it |
+|---|---|
+| The record is an ordinary changeable one and both fields can be written straight. A restoring from the log does exactly that, as the record is built. | The article has a section for the road that skips both, which turns out to explain why a recovery ends by handing the realized total back through the call |
+| The falls are therefore not recomputed when the figures change, but when one of those calls is made. | Said in those terms |
+| Two readings between calls agree only in the absence of a straight write or another thread: neither call takes a lock, and the recomputing writes its fields one at a time. | The guarantee is gone |
+
+The first report turned the article's weakest claim into its best section. A call
+that validates and recomputes reads like the only way in; the fields beside it are
+public, and the one caller that matters uses them.
+
+
+What is left is recorded as an exclusion: in the risk record, the builder handing
+the fall figures out to a reader; in the configuration record, the two lines
+opening the walks over its mappings.
 
 ## Nexus package 47 — how a call across the seam is made and waited on
 
@@ -5015,8 +5055,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-674 | Most of them hand the call to the host's loop from another thread and wait on it for one span, cancelling and raising on where the wait runs out. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 256-264 into 266-271, or 311-321 into 323-328, or 404-409 into 411-416 | Nexus package forty-seven | folds into N47-01 |
 | H-675 | Two of them call straight through instead — registering an account, and pulling its positions — with no loop and no wait. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 347-348, or 438 | Nexus package forty-seven | folds into N47-01 |
 | H-676 | A wait that runs out cancels the pending call, reports it, and raises on. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 268-271, or 326-328, or 413-416 | Nexus package forty-seven | folds into N47-01 |
+| H-677 | The account's two signed figures each have a call that refuses a figure which is not finite, sets it, and works the falls out again, while both fields can also be written straight. | `nexus/core/domain/risk_state.py` 276-281, or 286-291, against 98-99 and 144-145 | Nexus package forty-eight | is N48-01 |
+| H-678 | The mapping of what to do when protection fails is checked as the credentials mapping is: keys text with something left once trimmed, values of the one kind. | `praxis/trading_config.py` 182-187, or 189-194 | Nexus package forty-eight | added to what the host's configuration record refuses |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 06:00 UTC

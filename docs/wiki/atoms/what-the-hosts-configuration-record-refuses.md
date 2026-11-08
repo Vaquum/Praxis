@@ -2,7 +2,7 @@
 row: P43-01
 baseline: 49aa659
 created: 2026-11-12 00:30 UTC
-modified: 2026-11-12 00:30 UTC
+modified: 2026-11-12 05:30 UTC
 evidence:
   - claim: "The three venue addresses are each tested for truth alone, so an address of blank space is kept"
     source: "`trading_config.py` 119-121, or 123-125, or 127-129"
@@ -14,6 +14,8 @@ evidence:
     source: "`trading_config.py` 148-150"
   - claim: "Its values must be of the credentials kind, and each key and secret is tested for truth alone"
     source: "`trading_config.py` 152-154, or 156-161"
+  - claim: "The mapping of what to do when protection fails is checked like the credentials mapping: keys text with something left once trimmed, values of the one kind"
+    source: "`trading_config.py` 182-187, or 189-194"
   - claim: "The ways of working it is given must each be a way of working"
     source: "`trading_config.py` 169-172"
 ---
@@ -36,6 +38,10 @@ Nothing is asked of their kind, and the comparison answers for them in two ways.
 Each key in the mapping must be text with something left once the blank space is trimmed off — the trimming testing it only, so a padded account name is kept as it arrived.
 
 Each value must be of [the credentials kind](where-credentials-come-from.md), and each key and secret within it is tested for truth. A secret of blank space alone therefore passes here, as it does [where the store reads one](what-a-credential-record-must-hold.md).
+
+## The second mapping
+
+What to do when a bracket's protection fails is given per account, and that mapping is checked as the credentials mapping is: each key text with something left once trimmed, each value of the one kind that answers the question.
 
 ## The ways of working
 

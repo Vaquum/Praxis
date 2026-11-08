@@ -337,6 +337,7 @@ the others where it appears.
 - [The worst fall a replay reports](atoms/the-worst-fall-a-replay-reports.md) — the peak is seeded from the series' own first value rather than from the stake, so a run starting below its stake reports nothing of that; the worst drop is kept as a fraction of the running peak, a peak at or below zero is skipped instead of divided by, and an empty series answers zero.
 - [When the risk-adjusted figure is absent](atoms/when-the-risk-adjusted-figure-is-absent.md) — it is left empty for a non-positive interval, for fewer than two returns, and for a zero variance; a step whose previous equity is at or below zero forms no return at all, which can starve the count, and otherwise the answer is the mean over the standard deviation, annualised by a square root.
 - [How a call across the seam is made](atoms/how-a-call-across-the-seam-is-made.md) — each call is refused outright if its function was never wired, four are bridged onto Praxis's event loop and awaited for one shared span after which the pending call is asked to stop, without that asking being waited for or checked, and registering an account and pulling its positions cross directly with no span at all.
+- [The two ways the signed figures change](atoms/the-two-ways-the-signed-figures-change.md) — each signed P&L figure has a setter that rejects a non-finite value and recomputes the drawdowns, but the record is a plain mutable dataclass, so a restore from the log writes both fields directly and leaves the drawdowns answering to the last setter call instead.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -450,7 +451,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 353
+Both sides are the subject, and Praxis is the side that has been written. 354
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -461,4 +462,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 05:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 06:00 UTC
