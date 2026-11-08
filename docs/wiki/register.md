@@ -803,6 +803,29 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 16 — the window a backfill opens, and what an even split refuses
+
+Scope: two small modules the ledger marks `full`, each left with a handful of
+uncited statements and each reached by articles that cover the road through them
+rather than its edges. One pages the venue for trades Praxis missed, nine of its
+twenty statements uncited; the other splits a quantity into equal children, eight
+of nineteen uncited.
+
+### Merge and promote, package 16
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-559 | Where there is no mark, the first page is asked by time with no latest time ever sent, so the pass walks from that moment forward to the newest trade the venue holds. | Promote. The article on backfilling says the asking starts a day back, which reads as a day of trades; that the window has no far edge is in no article |
+| Row H-560 | The choice between asking by mark and asking by time is made afresh for each page, and the time is reachable only while no mark is held. | Merge with H-559. One road is taken once and the other every time after, which is what makes the window a starting point rather than a span |
+| Row H-561 | The mark and the time can never be sent together, the venue's reader refusing the pair outright. | Merge with H-559. Why the two roads are a choice rather than a pair belongs with the window they open |
+| Row H-562 | A total that is not a finite decimal above nought is refused, a figure of another kind among them. | Promote. What the even split refuses is in no article, and this record asks after the kind of its figure where its neighbours on this side only compare |
+| Row H-563 | The count of children is refused below two and asked nothing else, so a count with a fraction reaches the division and the division is what raises. | Merge with H-562. The pair of checks reads as one gate, and the half that is missing is only visible beside the half that is there |
+| Row H-564 | Where no lot size is known the children divide the total exactly, with no size below which a child is refused. | Merge with H-562. The road with no lot size has no refusal of its own, which is the answer to what the split refuses on that road |
+
+Two subjects promote and four rows merge, with nothing declined.
+
+The window comes first, as the earlier of the two in a day's work.
+
 ## Package 15 — what the figures are measured from, and what the series are read as
 
 Scope: the module reproducing the training side's own distribution figures, which
@@ -3487,8 +3510,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-556 | A value that is no number at all becomes not-a-number: as a prediction it refuses the call, as any of the three prices it marks that bar's price unknown and the bar is passed over. | `praxis/metrics/limen_snapshot.py` 96-99 into 119-120, or into 122 and 133 | Praxis package fifteen | folds into P15-01 |
 | H-557 | Each bar is filed under the calendar day of its own moment, so which bars share a day follows the zone the moments arrived in. | `praxis/metrics/limen_snapshot.py` 220, the zone kept at `praxis/replay/replay_clock.py` 33 | Praxis package fifteen | is P15-03 |
 | H-558 | On the module's one path a held bar's run number is never nought, the entry marks being derived from the held bars themselves. | `praxis/metrics/limen_snapshot.py` 142 into 194 and 198 | Praxis package fifteen | declined; the twelfth package's re-seed row is corrected |
+| H-559 | Where there is no mark, the first page is asked by time with no latest time ever sent, so the pass walks from that moment forward to the newest trade the venue holds. | `praxis/infrastructure/mytrades_backfill.py` 88-90, leaving `praxis/infrastructure/binance_adapter.py` 1911-1912 unreached | Praxis package sixteen | is P16-01 |
+| H-560 | The choice between asking by mark and asking by time is made afresh for each page, and the time is reachable only while no mark is held. | `praxis/infrastructure/mytrades_backfill.py` 82-83, the mark moved at 112 | Praxis package sixteen | folds into P16-01 |
+| H-561 | The mark and the time can never be sent together, the venue's reader refusing the pair outright. | `praxis/infrastructure/binance_adapter.py` 1896-1898 | Praxis package sixteen | folds into P16-01 |
+| H-562 | A total that is not a finite decimal above nought is refused, a figure of another kind among them. | `praxis/core/plan_even_slices.py` 46-48 | Praxis package sixteen | is P16-02 |
+| H-563 | The count of children is refused below two and asked nothing else, so a count with a fraction reaches the division and the division is what raises. | `praxis/core/plan_even_slices.py` 50-52, raising at 55 or at 60 | Praxis package sixteen | folds into P16-02 |
+| H-564 | Where no lot size is known the children divide the total exactly, with no size below which a child is refused. | `praxis/core/plan_even_slices.py` 54-56 | Praxis package sixteen | folds into P16-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 15:30 UTC
