@@ -699,6 +699,42 @@ The money held is written up elsewhere as the controller's work: what refuses a
 request for it, and the walk that gives it back when it runs out. What the record
 itself refuses is a separate matter and is in no article.
 
+### Merge and promote, package 13
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-374 | Every capital lock is refused unless its own reference and the reference of the strategy that asked for it are each text with something left in them once trimmed. | Promote. What the record of money held is checked for is in no article, the articles beside it covering what refuses a request for money rather than what refuses the record |
+| Row H-375 | The two sums it holds must each be a finite figure at or above nought, so a lock holding nothing at all is allowed. | Merge with H-374. That a lock may hold nothing is the sharpest of its checks and reads only beside the rest of them |
+| Row H-376 | Both its moments must be moments, and each must carry the UTC marker itself. | Promote. The two moments are a subject of their own: they are the only pair the record weighs against each other |
+| Row H-377 | The moment it runs out at must stand strictly after the moment it was made at, so a lock that runs out as it is made is refused. | Merge with H-376, the one check that puts two of the record's fields side by side |
+| Row H-378 | The sum a lock holds altogether is its two sums added, worked out on each reading rather than kept. | Promote. A lock is asked two things after it exists, and neither is part of building it: this one adds two of its fields together and nothing checks the answer |
+| Row H-379 | Asking whether a lock has run out refuses a moment that does not carry the UTC marker, and answers yes at the moment it runs out as well as past it. | Merge with H-378, the lock's second question. It refuses a moment the lock does not hold, where every other refusal of the lock weighs a field the lock itself holds, so it reads beside the other thing asked after the fact |
+| Row H-380 | A record of an attempt is held to four checks: a granted one must carry a lock and must not carry a reason, and a refused one must carry a reason and must not carry a lock. | Promote. The record of the attempt is a second record in the same module, and what it refuses is in no article |
+| Row H-381 | No check in the module asks whether the yes-or-no on that record is a yes-or-no, where the record beside it checks the type of every field it has. | Merge with H-380. The record of the attempt asks the type of none of its three fields, where the record beside it asks the type of all six of its own, and the field all four of its checks turn on is the one it reads as a yes-or-no without asking whether it is one |
+| Row H-382 | Every context for an outcome is refused unless its command's reference and the strategy's are each text with something left in them once trimmed, with a trade's reference held to the same where one is given. | Promote. What the note Nexus needs to read an outcome is checked for is in no article |
+| Row H-383 | Its side must be one of the named ones, and both its yes-or-no fields must be yes-or-no. | Merge with H-382, the same subject read on past the three references |
+| Row H-386 | Its worth and the fees expected with it must each be a finite figure, and the worth must stand above nought where the fees need only be at or above it. | Merge with H-382. The two figures it always carries belong with the rest of what it always answers for |
+| Row H-384 | A size may be left out only where the order grows a position: an order that reduces one and names no size is refused. | Promote. The size is the only field of the note held to one rule when it is there and another when it is not, and no article reaches either |
+| Row H-385 | A size that is given must be a finite figure above nought. | Merge with H-384. The two stand in the two arms of one choice on whether a size was given at all, so what is asked of a size that is there belongs with what is asked when it is not |
+| Row H-389 | The flag saying the order grows a position is never weighed against the side, each being checked on its own, so a buy may be marked as reducing and a sell as growing. | Promote. The flag that routes a fill is in no article, and the check the record does not make on it is the reason it has to be supplied from outside |
+| Row H-388 | Whether the order reduces a position is the growing flag turned round, worked out on each reading rather than kept. | Merge with H-389, the second way of asking the one flag |
+| Row H-387 | The flag saying an exit was meant to close the trade outright is refused on an order that grows a position. | Merge with H-389. It is the one other field the growing flag governs, and it is governed the opposite way round from the size: a size must be there where the order reduces a position, and this flag must stand false where the order grows one |
+
+Seven subjects promote and nine rows merge, with nothing declined: both modules
+were untouched, so there was nothing to collide with, and every row traced for
+them was new.
+
+The money held comes first and the note second, because the lock is taken before
+the order goes and the note is read after it comes back. Within each, what the
+record always answers for comes before the fields it may leave out. Three
+subjects are held out of the money held: the two moments, because they are the
+only pair it compares; the two things it is asked after it exists, because neither
+is part of building it; and the record of the attempt, because it is a second
+record with its own four checks. Two are held out of the note: the size,
+because it is the one field held to one rule when it is there and another when it
+is not, and the flag saying the order grows a position, because nothing
+ever asks whether it agrees with the side.
+
 ## Nexus package 12 — what an outcome refuses
 
 Scope: the record Praxis hands back for an instruction it worked through, on the
@@ -2136,24 +2172,24 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-371 | A cancellation may carry a reason or leave it out, but not one with nothing left in it once trimmed, and no other kind may carry a cancellation's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 127 into 128-133, against 134-136 | Nexus package twelve | folds into N12-03 |
 | H-372 | Two measures of how an execution went may each be left out, and leaving one out is passed over rather than refused. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 166 over the two names, with 169 into 170 letting an absent one by | Nexus package twelve | is N12-04 |
 | H-373 | A measure given on an outcome carrying no fill is refused, or else a measure given on an outcome carrying a fill must be a finite figure. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 172-174, or 176-178 | Nexus package twelve | folds into N12-04 |
-| H-374 | Every capital lock is refused unless its own reference and the reference of the strategy that asked for it are each text with something left in them once trimmed. | `nexus/core/capital_controller/reservation.py` 42-44, or 46-48 | Nexus package thirteen |  |
-| H-375 | The two sums it holds must each be a finite figure at or above nought, so a lock holding nothing at all is allowed. | `nexus/core/capital_controller/reservation.py` 50-56, or 58-64 | Nexus package thirteen |  |
-| H-376 | Both its moments must be moments, and each must carry the UTC marker itself. | `nexus/core/capital_controller/reservation.py` 66-68, or 70-72, or 74-76, or 78-80 | Nexus package thirteen |  |
-| H-377 | The moment it runs out at must stand strictly after the moment it was made at, so a lock that runs out as it is made is refused. | `nexus/core/capital_controller/reservation.py` 82-84 | Nexus package thirteen |  |
-| H-378 | The sum a lock holds altogether is its two sums added, worked out on each reading rather than kept. | `nexus/core/capital_controller/reservation.py` 90 | Nexus package thirteen |  |
-| H-379 | Asking whether a lock has run out refuses a moment that does not carry the UTC marker, and answers yes at the moment it runs out as well as past it. | `nexus/core/capital_controller/reservation.py` 99-101, or else 103 | Nexus package thirteen |  |
-| H-380 | A record of an attempt is held to four checks: a granted one must carry a lock and must not carry a reason, and a refused one must carry a reason and must not carry a lock. | `nexus/core/capital_controller/reservation.py` 123-125, or 127-129, or 131-133, or 135-137 | Nexus package thirteen |  |
-| H-381 | No check in the module asks whether the yes-or-no on that record is a yes-or-no, where the record beside it checks the type of every field it has. | `nexus/core/capital_controller/reservation.py` 120-137, which names no type for it, against the type of each of the six fields beside it at 42, 46, 51, 59, 66 and 74 | Nexus package thirteen |  |
-| H-382 | Every context for an outcome is refused unless its command's reference and the strategy's are each text with something left in them once trimmed, with a trade's reference held to the same where one is given. | `nexus/infrastructure/praxis_connector/order_context.py` 73-75, or 77-79, or 81 into 82-85 | Nexus package thirteen |  |
-| H-383 | Its side must be one of the named ones, and both its yes-or-no fields must be yes-or-no. | `nexus/infrastructure/praxis_connector/order_context.py` 87-89, or 91-93, or 133-135 | Nexus package thirteen |  |
-| H-384 | A size may be left out only where the order grows a position: an order that reduces one and names no size is refused. | `nexus/infrastructure/praxis_connector/order_context.py` 95 into 97-99 | Nexus package thirteen |  |
-| H-385 | A size that is given must be a finite figure above nought. | `nexus/infrastructure/praxis_connector/order_context.py` 101 into 103-105, or 107-109 | Nexus package thirteen |  |
-| H-386 | Its worth and the fees expected with it must each be a finite figure, and the worth must stand above nought where the fees need only be at or above it. | `nexus/infrastructure/praxis_connector/order_context.py` 111-116, or 122-127, against 118-120, or 129-131 | Nexus package thirteen |  |
-| H-387 | The flag saying an exit was meant to close the trade outright is refused on an order that grows a position. | `nexus/infrastructure/praxis_connector/order_context.py` 137-139 | Nexus package thirteen |  |
-| H-388 | Whether the order reduces a position is the growing flag turned round, worked out on each reading rather than kept. | `nexus/infrastructure/praxis_connector/order_context.py` 145 | Nexus package thirteen |  |
-| H-389 | The flag saying the order grows a position is never weighed against the side, each being checked on its own, so a buy may be marked as reducing and a sell as growing. | `nexus/infrastructure/praxis_connector/order_context.py` 87-89 and 91-93, with 70-139 comparing the two nowhere | Nexus package thirteen |  |
+| H-374 | Every capital lock is refused unless its own reference and the reference of the strategy that asked for it are each text with something left in them once trimmed. | `nexus/core/capital_controller/reservation.py` 42-44, or 46-48 | Nexus package thirteen | is N13-01 |
+| H-375 | The two sums it holds must each be a finite figure at or above nought, so a lock holding nothing at all is allowed. | `nexus/core/capital_controller/reservation.py` 50-56, or 58-64 | Nexus package thirteen | folds into N13-01 |
+| H-376 | Both its moments must be moments, and each must carry the UTC marker itself. | `nexus/core/capital_controller/reservation.py` 66-68, or 70-72, or 74-76, or 78-80 | Nexus package thirteen | is N13-02 |
+| H-377 | The moment it runs out at must stand strictly after the moment it was made at, so a lock that runs out as it is made is refused. | `nexus/core/capital_controller/reservation.py` 82-84 | Nexus package thirteen | folds into N13-02 |
+| H-378 | The sum a lock holds altogether is its two sums added, worked out on each reading rather than kept. | `nexus/core/capital_controller/reservation.py` 90 | Nexus package thirteen | is N13-07 |
+| H-379 | Asking whether a lock has run out refuses a moment that does not carry the UTC marker, and answers yes at the moment it runs out as well as past it. | `nexus/core/capital_controller/reservation.py` 99-101, or else 103 | Nexus package thirteen | folds into N13-07 |
+| H-380 | A record of an attempt is held to four checks: a granted one must carry a lock and must not carry a reason, and a refused one must carry a reason and must not carry a lock. | `nexus/core/capital_controller/reservation.py` 123-125, or 127-129, or 131-133, or 135-137 | Nexus package thirteen | is N13-03 |
+| H-381 | No check in the module asks whether the yes-or-no on that record is a yes-or-no, where the record beside it checks the type of every field it has. | `nexus/core/capital_controller/reservation.py` 120-137, which names no type for it, against the type of each of the six fields beside it at 42, 46, 51, 59, 66 and 74 | Nexus package thirteen | folds into N13-03 |
+| H-382 | Every context for an outcome is refused unless its command's reference and the strategy's are each text with something left in them once trimmed, with a trade's reference held to the same where one is given. | `nexus/infrastructure/praxis_connector/order_context.py` 73-75, or 77-79, or 81 into 82-85 | Nexus package thirteen | is N13-04 |
+| H-383 | Its side must be one of the named ones, and both its yes-or-no fields must be yes-or-no. | `nexus/infrastructure/praxis_connector/order_context.py` 87-89, or 91-93, or 133-135 | Nexus package thirteen | folds into N13-04 |
+| H-384 | A size may be left out only where the order grows a position: an order that reduces one and names no size is refused. | `nexus/infrastructure/praxis_connector/order_context.py` 95 into 97-99 | Nexus package thirteen | is N13-05 |
+| H-385 | A size that is given must be a finite figure above nought. | `nexus/infrastructure/praxis_connector/order_context.py` 101 into 103-105, or 107-109 | Nexus package thirteen | folds into N13-05 |
+| H-386 | Its worth and the fees expected with it must each be a finite figure, and the worth must stand above nought where the fees need only be at or above it. | `nexus/infrastructure/praxis_connector/order_context.py` 111-116, or 122-127, against 118-120, or 129-131 | Nexus package thirteen | folds into N13-04 |
+| H-387 | The flag saying an exit was meant to close the trade outright is refused on an order that grows a position. | `nexus/infrastructure/praxis_connector/order_context.py` 137-139 | Nexus package thirteen | folds into N13-06 |
+| H-388 | Whether the order reduces a position is the growing flag turned round, worked out on each reading rather than kept. | `nexus/infrastructure/praxis_connector/order_context.py` 145 | Nexus package thirteen | folds into N13-06 |
+| H-389 | The flag saying the order grows a position is never weighed against the side, each being checked on its own, so a buy may be marked as reducing and a sell as growing. | `nexus/infrastructure/praxis_connector/order_context.py` 87-89 and 91-93, with 70-139 comparing the two nowhere | Nexus package thirteen | is N13-06 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 12:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 15:15 UTC
