@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 443 not.**
+**6 of them reviewed, 450 not.**
 
 ## Package 1
 
@@ -856,6 +856,87 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 71 — what a turn of the prediction loop reads and writes
+
+Scope: the loop that reads predictions and hands them to a strategy, which the
+ledger marks `partial` with a hundred and twenty-eight of its hundred and
+eighty-one statements uncited. One article has the scheduling, the stopping, and
+what a turn amounts to; others have the two-minute limit on the manifest and the
+refusal of a prediction that is neither of the two values. Which row of a frame is
+used, what a failure partway through a turn leaves behind, how a closing price is
+found for a prediction, and how a value is made safe to log are in no article.
+
+### Merge and promote, Nexus package 71
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-823 | A turn reads the frame the manifest names, drops every row whose reason code is not the usable one, takes the surviving row with the greatest moment, and ends without a word where nothing survives. | Promote. Which row of a frame is used is in no article, and the frame being treated as a set rather than a sequence is the part a reader cannot guess |
+| Row H-824 | The moment taken must stand strictly above the last one recorded for that strategy and series, and the prediction is weighed after it, and the last moment is recorded only on a turn that reached the strategy. | Merge with H-823. The order of the two tests and when the moment is recorded together decide whether a bad prediction is complained about once or on every turn |
+| Row H-825 | A turn hands the signal over, records the moment, and submits the answer in that order, so a failing hand-over leaves the moment unrecorded and repeats forever while a failing submission leaves it recorded and happens once in silence. | Promote. What a failure partway through leaves behind is in no article, and the two failures being a step apart and coming out opposite is the finding |
+| Row H-826 | The signal is written to the log before the hand-over, so the log carries a signal whose hand-over may not have finished. | Merge with H-825, the third thing the order decides |
+| Row H-827 | The closing price is looked up in a frame named by convention rather than by the manifest, matched on the moment being exactly equal, and a miss warns with the prediction's moment and the frame's range. | Promote. How a price is found is in no article, and an exact match with no tolerance between two producers is what a drift turns into |
+| Row H-828 | That range is read only where the column is there and the frame holds something, and the looking up stands after the cohort has been written to the log. | Merge with H-827, what the complaint is assembled from |
+| Row H-829 | Writing a signal to the log puts every value through one run of tests in a fixed order, capping anything measurable that exceeds the cap with a note of its kind and size and replacing anything reaching the end with its printed form. | Promote. How a value is made safe is in no article, and the run is the largest single function in the module |
+| Row H-830 | A mapping whose length cannot be read becomes its printed form, and one within the cap has a collision among its text keys caught by comparing the length after against the length before. | Merge with H-829. Two guards on one kind of value, one of them against losing an entry silently |
+| Row H-831 | The manifest is read from a fixed name, must parse and be a mapping with nothing catching a failure of the parsing, and its moment must be text with the universal-time letter swapped for the offset before parsing. | Promote. What the one file every turn reads must be is in no article, and a malformed file raising where a wrong-shaped one warns is the part that matters |
+| Row H-832 | A line naming the series and the cohort's name and reference is written on every turn that gets that far, a reference that is not text is remembered nowhere, and a differing one writes a second line naming both. | Promote. What the log says about which cohort served a turn is in no article |
+| Row H-833 | Starting gives every pairing a first due moment one interval ahead so none is served as the loop starts, and a turn asked for by hand refuses while the loop is up, schedules nothing, and hands a failure to its caller where a scheduled turn's is logged. | Promote. One article has the stopping and the scheduling; the starting and the by-hand road are in none, and the two roads treating a failure differently is what makes one of them usable for a replay |
+
+Seven subjects promote and four rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N71-01 | Which prediction row is used | written | [which-prediction-row-is-used.md](atoms/which-prediction-row-is-used.md) |
+| N71-02 | What a failure partway through a turn leaves behind | written | [what-a-failure-partway-through-a-turn-leaves-behind.md](atoms/what-a-failure-partway-through-a-turn-leaves-behind.md) |
+| N71-03 | How a close is found for a prediction | written | [how-a-close-is-found-for-a-prediction.md](atoms/how-a-close-is-found-for-a-prediction.md) |
+| N71-04 | How a value is made safe to log | written | [how-a-value-is-made-safe-to-log.md](atoms/how-a-value-is-made-safe-to-log.md) |
+| N71-05 | What the manifest must be | written | [what-the-manifest-must-be.md](atoms/what-the-manifest-must-be.md) |
+| N71-06 | What the cohort line records | written | [what-the-cohort-line-records.md](atoms/what-the-cohort-line-records.md) |
+| N71-07 | Starting the loop, and one turn by hand | written | [starting-the-loop-and-one-turn-by-hand.md](atoms/starting-the-loop-and-one-turn-by-hand.md) |
+
+### Re-seed, after writing Nexus package 71
+
+The reader returned twenty reports and all twenty were valid. All seven articles
+were rewritten. This is the largest batch the corpus has recorded, and the cause is
+one habit rather than twenty mistakes.
+
+| What it found | What came of it |
+|---|---|
+| The prediction is cut to a whole number before being weighed, so one standing between the two values is taken as the lower, and one that will not cut raises. | N71-01 says so. Another article had this right already and the new one was looser than its predecessor |
+| The manifest's path is joined without being held inside the folder predictions are mounted at. | N71-01 says so |
+| A bad prediction is complained about while the manifest stays fresh and that row stays newest-usable, not on every turn. | N71-01 drops the unconditional claim |
+| The answer is submitted only where a road for submitting was given and the answer holds something. | N71-02 says so |
+| A repeated hand-over ends where the manifest goes stale as well as where a newer row arrives. | N71-02 says so |
+| A failure is logged on the loop's own road and handed over on the by-hand road, and the next due moment and the remembered cohort change either way. | N71-02 says so, where it had said nothing else changes |
+| The signal line and the failure are both logged, so a turn whose submission failed does not look like a turn with nothing to do. | N71-02 says so |
+| The frame of prices is read and filtered before the guard that reports a miss, so a frame without the columns raises rather than warning. | N71-03 says so, where it had promised a usable line from a malformed frame |
+| A shifted moment matches whatever row carries it, or nothing — not nothing in every case. | N71-03 says so |
+| That a missing price frame is the ordinary state mid-swap is the module's own explanation, not something the code shows. | Cut |
+| The key treatment is given to one kind of mapping alone. | N71-04 says so |
+| An array's size and a column's length are read directly rather than through the step that absorbs a failure. | N71-04 says which readings go through it and which do not |
+| The run has unguarded conversions and recursion, so it cannot be said that nothing stops a log line being written. | Cut |
+| The signals this loop builds carry three fixed values, so one branch of the run is reached and the rest are not. | N71-04 ends on that. It is the most useful thing in the module and the draft had framed the run as general machinery |
+| A malformed manifest's raising is logged by the loop and handed over by the by-hand road. | N71-05 says both |
+| The parser in use accepts the universal-time letter, so the swapping before it is not there because the parser refuses it. | Cut. That reason was the module's, restated as fact |
+| The cohort line is written only on turns reaching that step, several earlier endings writing none. | N71-06 says which turns write it |
+| The second line needs something remembered to differ from, so "both lines" was never right. | N71-06 says so |
+| The lock is let go before a by-hand turn runs, so the refusal is a guard against being called wrongly rather than a barrier. | N71-07 says so. The module says this plainly and the draft kept the first half of its sentence |
+| The pairings have their own intervals and come due independently. | N71-07 says so |
+
+Three of the twenty are a reason given in a docstring restated as fact, which this
+corpus has now recorded five times. The rest are one habit: a sentence that reads
+well generalises past its evidence — "the ordinary state", "on every turn",
+"nothing can stop", "exactly like a turn that had nothing to do". Each was true of
+the case in front of me and false as written. The register's rule against a
+universal claim resting on one case's evidence is the same rule, and the way to keep
+it is to write the case rather than the generalisation.
+
+Twenty-four statements of the module are left uncited and are an exclusion rather
+than work outstanding: the clock's one reading, the fields set as the loop is built,
+the reading of the flag offered to callers, the waiting between turns, the readings
+of a manifest and a row into local names, the handing back of each answer, and the
+one-line step that makes a key out of a pairing.
 
 ## Package 70 — what the door weighs, and what it never reaches
 
@@ -6341,8 +6422,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-820 | Every way of working other than the plain single order refuses money outright before anything else about its settings is weighed. | `validate_trade_command.py` 341-343, standing first in that run | package seventy | folds into P70-03, and P70-04 states it too |
 | H-821 | A command spreading buying over time must be a buy, an order hiding part of itself must not show more than the whole, and a protective pair's leg ordering is weighed by a check of its own. | `validate_trade_command.py` 347-349, or 351-355, or 357-358 into 361-394 | package seventy | is P70-04 |
 | H-822 | Each of those three is reached by asking what kind the settings are, so a way of working whose settings are none of the three meets none of them. | `validate_trade_command.py` 347, and 351, and 357 | package seventy | folds into P70-04 |
+| H-823 | A turn reads the frame the manifest names, drops every row whose reason code is not the usable one, takes the surviving row with the greatest moment, and ends without a word where nothing survives. | `nexus/strategy/predict_loop.py` 465-471, then 473-474, then 476-477, then 479 | Nexus package seventy-one | is N71-01 |
+| H-824 | The moment taken must stand strictly above the last one recorded for that strategy and series, and the prediction is weighed after it, and the last moment is recorded only on a turn that reached the strategy. | `nexus/strategy/predict_loop.py` 394-397, then 399-405, with the recording at 344 | Nexus package seventy-one | folds into N71-01 |
+| H-825 | A turn hands the signal over, records the moment, and submits the answer in that order, so a failing hand-over leaves the moment unrecorded and repeats forever while a failing submission leaves it recorded and happens once in silence. | `nexus/strategy/predict_loop.py` 337-342, then 344, then 346-347, read back at 396 | Nexus package seventy-one | is N71-02 |
+| H-826 | The signal is written to the log before the hand-over, so the log carries a signal whose hand-over may not have finished. | `nexus/strategy/predict_loop.py` 334, standing before 337-342 | Nexus package seventy-one | folds into N71-02 |
+| H-827 | The closing price is looked up in a frame named by convention rather than by the manifest, matched on the moment being exactly equal, and a miss warns with the prediction's moment and the frame's range. | `nexus/strategy/predict_loop.py` 493-499, then 502, then 504-515 | Nexus package seventy-one | is N71-03 |
+| H-828 | That range is read only where the column is there and the frame holds something, and the looking up stands after the cohort has been written to the log. | `nexus/strategy/predict_loop.py` 505, and 407 standing before 409 | Nexus package seventy-one | folds into N71-03 |
+| H-829 | Writing a signal to the log puts every value through one run of tests in a fixed order, capping anything measurable that exceeds the cap with a note of its kind and size and replacing anything reaching the end with its printed form. | `nexus/strategy/predict_loop.py` 117-155 | Nexus package seventy-one | is N71-04 |
+| H-830 | A mapping whose length cannot be read becomes its printed form, and one within the cap has a collision among its text keys caught by comparing the length after against the length before. | `nexus/strategy/predict_loop.py` 133-138, then 139-141 | Nexus package seventy-one | folds into N71-04 |
+| H-831 | The manifest is read from a fixed name, must parse and be a mapping with nothing catching a failure of the parsing, and its moment must be text with the universal-time letter swapped for the offset before parsing. | `nexus/strategy/predict_loop.py` 428-438, and 445-455 | Nexus package seventy-one | is N71-05 |
+| H-832 | A line naming the series and the cohort's name and reference is written on every turn that gets that far, a reference that is not text is remembered nowhere, and a differing one writes a second line naming both. | `nexus/strategy/predict_loop.py` 527-537, then 539-540, then 542-552, then 554 | Nexus package seventy-one | is N71-06 |
+| H-833 | Starting gives every pairing a first due moment one interval ahead so none is served as the loop starts, and a turn asked for by hand refuses while the loop is up, schedules nothing, and hands a failure to its caller where a scheduled turn's is logged. | `nexus/strategy/predict_loop.py` 233-251, and 277-282 against 307-316 | Nexus package seventy-one | is N71-07 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 03:00 UTC

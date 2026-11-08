@@ -221,6 +221,13 @@ the others where it appears.
 - [What Praxis works out for an exit](atoms/what-praxis-works-out-for-an-exit.md) — before the checks see a request to close a holding, that holding is looked up, what is left of it after anything already in progress is computed, and a label is minted where none came.
 - [The watch over handovers that timed out](atoms/the-watch-over-handovers-that-timed-out.md) — an order whose handover ran out of time is flagged as unsettled, and a job reports the flags that have stood too long; a final reply the books cannot take in drops the order off the list with its flag still raised, while one that blows up on the way in leaves both standing.
 - [What the prediction loop's stop leaves running](atoms/what-the-prediction-loops-stop-leaves-running.md) — the job that reads predictions and hands them to the strategies gathers its work first and then carries it out, so work gathered before the switch-off is still carried out, and can still reach a strategy and put its answer up for the usual checks.
+- [Which prediction row is used](atoms/which-prediction-row-is-used.md) — one row is taken out of a whole file of them: the unusable ones are dropped and the latest of what is left wins, whatever order the file held them in.
+- [What the manifest must be](atoms/what-the-manifest-must-be.md) — every turn starts by reading the file that says where the predictions live, and a file that is merely the wrong shape is complained about while one that is broken stops the turn by failing.
+- [How a close is found for a prediction](atoms/how-a-close-is-found-for-a-prediction.md) — a prediction says what to do and not at what price, so the price is looked up by an exact match on the moment, with no tolerance at all between the side that writes predictions and the side that writes prices.
+- [What the cohort line records](atoms/what-the-cohort-line-records.md) — the log says which trained cohort served each turn, and reports a change of cohort only once it has something to compare against.
+- [What a failure partway through a turn leaves behind](atoms/what-a-failure-partway-through-a-turn-leaves-behind.md) — the note of how far the loop got sits between handing a prediction to a strategy and sending what came back, so a failure before it has the work come round again and a failure after it does not.
+- [How a value is made safe to log](atoms/how-a-value-is-made-safe-to-log.md) — a run of tests turns anything in a prediction into something a log line can carry, and what this loop actually sends it reaches only one of those tests.
+- [Starting the loop, and one turn by hand](atoms/starting-the-loop-and-one-turn-by-hand.md) — nothing is served at the moment of starting, and the same turn asked for directly reports a failure to its caller where the scheduled one only logs it.
 - [How a record reaches the log](atoms/how-a-record-reaches-the-log.md) — every line added to the log carries a short head saying how long it is and a number worked out from its contents, is forced out to the disk before the write is called done, and a file whose end was left torn is trimmed back to the last sound line before anything new goes on.
 - [The version a saved record is read at](atoms/the-version-a-saved-record-is-read-at.md) — every saved record says which version of the writing made it, and one arriving without that marking is read as the oldest rather than turned away.
 - [What happens to an event's version on the way in](atoms/what-happens-to-an-events-version-on-the-way-in.md) — an event's version marking is rounded down before anything looks at it, so a damaged marking is read by whichever reader the whole part names.
@@ -541,15 +548,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 444
+Both sides are the subject, and Praxis is the side that has been written. 451
 articles exist. Of Praxis's own source files 75 are accounted for in full and 13 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 50 are accounted for in full and 14 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 51 are accounted for in full and 13 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 02:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 03:00 UTC
