@@ -113,7 +113,7 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/core/domain/capital_state.py` | full | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N37-01, N37-02, N4-01, N4-06, N7-10, P5-04 |
 | `nexus/core/domain/position.py` | partial | N2-01, N2-06, N3-01, N4-03, N4-05, N6-02 |
 | `nexus/core/domain/instance_state.py` | full | N3-01, N3-02, N37-01, N40-01, N7-08, P5-04 |
-| `nexus/core/domain/risk_state.py` | partial | N19-01, N2-04, N3-03, N38-02, N7-09, P18-01 |
+| `nexus/core/domain/risk_state.py` | partial | N19-01, N2-04, N3-03, N38-02, N45-01, N45-02, N7-09, P18-01 |
 | `nexus/core/validator/pipeline_executor.py` | full | N1-03, N1-04, N1-08, N2-06, N23-02, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10, N16-01 |
 | `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N10-02, N10-06, N3-07, N41-01, N41-02, N6-05, N6-07, N6-09, N6-11 |
@@ -135,7 +135,7 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/infrastructure/loss_derivation.py` | full | N15-08, N2-03, N7-09 |
 | `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
 | `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N38-02, N7-08, N8-03, N9-04 |
-| `nexus/infrastructure/state_store.py` | partial | N3-03, N38-01, N38-02, N44-02, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
+| `nexus/infrastructure/state_store.py` | partial | N3-03, N38-01, N38-02, N44-02, N45-02, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
 | `nexus/infrastructure/snapshot.py` | full | N7-08, N7-09, N8-03, N8-04, N9-04, P18-01 |
 | `nexus/infrastructure/wal.py` | partial | N38-01, N44-01, N44-02, N7-08, N7-09, N8-01, N8-02, N8-03, N8-04, N8-08, N9-03 |
 | `nexus/infrastructure/wal_entry.py` | full | N18-02, N8-08 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 03:00 UTC

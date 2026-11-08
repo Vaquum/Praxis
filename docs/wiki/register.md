@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 347 not.**
+**6 of them reviewed, 349 not.**
 
 ## Package 1
 
@@ -856,6 +856,48 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 45 — what the risk records refuse, and the figures they do not store
+
+Scope: the records of how far down an account and each of its strategies are,
+which the ledger marks `partial` with forty-three of its sixty-eight statements
+uncited. Articles read a dozen figures off these records. What either record
+refuses as it is built, and which of the account's figures are worked out rather
+than kept, are in no article.
+
+### Merge and promote, Nexus package 45
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-665 | A strategy's record refuses a name that is not text with something left once trimmed, a high mark that is not finite or is below nought, and three losses held to the same, while its two profit figures are held to being finite alone. | Promote. What these records refuse is in no article, and the split between the figures that may not go below nought and the ones that may is the subject |
+| Row H-666 | The account's record holds eleven figures to being finite and at or above nought, and three to being finite alone. | Merge with H-665, the same split one level up |
+| Row H-667 | Its mapping of strategies refuses a value of the wrong kind, and a key differing from the name inside its value. | Merge with H-665. This is the third such pair on this side, after the two in the state a host holds |
+| Row H-668 | Four of the account's figures are not stored at all: the three rolling losses and the realized total are summed over the strategies each time they are read. | Promote. That these four are worked out on every reading is in no article, and several others read them |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N45-01 | What the risk records refuse | written | [what-the-risk-records-refuse.md](atoms/what-the-risk-records-refuse.md) |
+| N45-02 | The figures the account does not store | written | [the-figures-the-account-does-not-store.md](atoms/the-figures-the-account-does-not-store.md) |
+
+### Re-seed, after writing Nexus package 45
+
+The reader had both articles before they were committed and returned five
+reports, three of them counting or naming errors in one sentence each.
+
+| What it found | What came of it |
+|---|---|
+| Twelve figures are held to being finite and at or above nought, not eleven: the high mark is checked on its own before the eleven are walked. | Counted again and corrected |
+| The capital the account started with is among those eleven, and it is neither a mark nor a fall nor a worst fall. | N45-01 names it, as a figure held to the same rule though it is neither |
+| The third figure held to being finite alone is the account's equity, which is not a profit figure but the starting capital plus both of the others. | N45-01 says so, and says where the total comes from |
+| Changing a strategy's field does not move all four summed figures: each sum reads one field, and two of a strategy's six fields are read by none of them. | N45-02 says which field moves which sum, and which are read by nothing |
+| The sums depend on which records are in the mapping as well as on what they hold, so a strategy added or dropped moves a total with no record changed. | N45-02 has a section for what the sums depend on, in place of the claim about two checks agreeing |
+
+The first three are one failure: reading a list of field names as a description
+of what they are. Eleven names were counted as eleven figures with the twelfth
+checked a line above, and two of the names were given characters — a profit
+figure, a mark — that the arithmetic does not support.
 
 ## Nexus package 44 — the two readings of the log, and the check that stands apart
 
@@ -4873,8 +4915,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-662 | The tolerant reading answers nothing for a wrong marker and stops quietly at every one of those three, keeping what it read up to there. | `nexus/infrastructure/wal.py` 197-198, or 209-210, or 211-212, or 214-215, or 217-218, returning what it has at 220 | Nexus package forty-four | folds into N44-01 |
 | H-663 | Both answer nothing for a file that is not there, and for one whose marker is too short to be one. | `nexus/infrastructure/wal.py` 126-127 and 133-136, against 190-191 and 197-198 | Nexus package forty-four | folds into N44-01 |
 | H-664 | A check that stands apart from both raises on a file holding a wrong marker, and answers nothing for a file too small to hold one. | `nexus/infrastructure/wal.py` 239-240, or 242-243, or 245-250 | Nexus package forty-four | is N44-02 |
+| H-665 | A strategy's record refuses a name that is not text with something left once trimmed, a high mark that is not finite or is below nought, and three losses held to the same, while its two profit figures are held to being finite alone. | `nexus/core/domain/risk_state.py` 49-51, or 53-55, or 57-61, or 63-67 | Nexus package forty-five | is N45-01 |
+| H-666 | The account's record holds eleven figures to being finite and at or above nought, and three to being finite alone. | `nexus/core/domain/risk_state.py` 175-177 and 179-195, or 197-201 | Nexus package forty-five | folds into N45-01 |
+| H-667 | Its mapping of strategies refuses a value of the wrong kind, and a key differing from the name inside its value. | `nexus/core/domain/risk_state.py` 203-206, or 207-209 | Nexus package forty-five | folds into N45-01 |
+| H-668 | Four of the account's figures are not stored at all: the three rolling losses and the realized total are summed over the strategies each time they are read. | `nexus/core/domain/risk_state.py` 215, or 221, or 227, or 233 | Nexus package forty-five | is N45-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 03:00 UTC
