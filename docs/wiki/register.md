@@ -846,6 +846,34 @@ episode opens.
 | P12-03 | How a fall from a peak is recorded | written | [how-a-fall-from-a-peak-is-recorded.md](atoms/how-a-fall-from-a-peak-is-recorded.md) |
 | P12-04 | The falls that never ended | written | [the-falls-that-never-ended.md](atoms/the-falls-that-never-ended.md) |
 
+### Re-seed, after writing package 12
+
+What verifying the four articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The trade that begins before the first entry mark | `praxis/metrics/limen_snapshot.py` 194 numbers the bars by a running count of the entry marks, so every bar before the first mark carries the number nought, and 198 walks the numbers found among the held bars without leaving that one out. Running the helper over a position held through the first two bars and marked only at the fourth gives two trades, not one: the held bars before any mark are counted as a trade of their own. P12-01 has the numbering and what a trade is; that the number nought is a trade like any other, so a position already open when the bars begin is counted as one, is in no article |
+| The day a bar is filed under follows the zone its moment carries | `praxis/metrics/limen_snapshot.py` 220 files each bar under the calendar day of its own moment, and nothing before it puts the moments into one zone. The same two instants filed in universal time and in a zone nine hours ahead take different days — their ordinals differ by one — so which bars share a day, and therefore every day figure, depends on the zone the moments arrived in. `praxis/replay/replay_clock.py` 33 keeps whatever zone it is given, which P8-03 states, so the two facts meet here. P12-02 has the filing by day; that the day is the moment's own and not a fixed one is in no article |
+
+Two candidates. Both are what the grouping admits rather than what it computes,
+and the second joins a fact this session wrote three packages earlier about the
+clock keeping its zone.
+
+A note on method. The gap map now reports seventeen modules marked `full` with an
+uncited statement, against sixteen before this package: the widest fell from
+forty-eight of a hundred to sixteen, and a module elsewhere gained a gap as the
+ledger's cells were resynced against the rows that cite each file. The widest left
+are `praxis/replay/replay_api.py` at seventeen of seventy-three and
+`praxis/core/health_tracker.py` at sixteen of thirty-three.
+
+A note on verification, as for the eight packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the three helpers on the cases each claim turns on.
+Running them is what fixed the compounding to a figure rather than a description —
+two bars of a tenth give just over twenty-one parts in a hundred — and what showed
+an equity curve that only falls recording one depth and no length at all.
+The articles carry status `written`, as 300 of the 301 do.
+
 ## Package 11 — the poller that keeps the book, and the stop that waits for it
 
 Scope: the poller that keeps the order book fresh, of which the tick and the
@@ -3267,4 +3295,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 10:00 UTC
