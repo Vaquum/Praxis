@@ -803,6 +803,42 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 12 — how a replay's figures are counted
+
+Scope: the three helpers inside the module that reproduces the training side's own
+distribution figures, which the ledger marks `full` with forty-eight of its hundred
+statements uncited. The three are what counts as one trade, how the bars are
+grouped into days, and how a fall from a peak is recorded.
+
+Each of the three answers nothing where there is nothing to count, and each has one
+case a reader would get wrong: a trade's return is compounded rather than summed, a
+day holding no position reports no return for its exposure rather than nought, and
+a fall never recovered leaves the depths and the lengths of unequal number.
+
+### Merge and promote, package 12
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-531 | The bars are numbered into runs by a running count of the entry marks, and one trade is the held bars sharing a number. | Promote. What the figures count as one trade is in no article, and it is the unit every per-trade figure rests on |
+| Row H-530 | Where no bar is marked as an entry, no trade is counted at all. | Merge with H-531, the answer where there is nothing to number |
+| Row H-532 | A trade's return is its bars' returns multiplied together rather than added, so two bars of a tenth give just over a fifth. | Merge with H-531. How a run's bars combine is the half of the unit that a reader would get wrong, and it reads only beside what the run is |
+| Row H-534 | The evaluated bars are grouped by the day their moment falls in, and the days are reported in order. | Promote. How the bars are cut into days, and what a day with no position reports, are in no article |
+| Row H-533 | Where no bar is evaluated the grouping stays empty and no window is reported. | Merge with H-534, the answer where there is nothing to group |
+| Row H-535 | A day's return is its bars' returns multiplied together, given in basis points. | Merge with H-534, the first of the two figures each day carries |
+| Row H-536 | A day's return for each unit of exposure is that return over the share of its bars holding a position, and is given as nothing at all where no bar held one. | Merge with H-534. The second figure, and the one that answers nothing rather than nought, which is what a reader averaging the days would need to know |
+| Row H-539 | An episode opens on the first fall below the peak, deepens while the fall continues, and closes on the first recovery, recording its depth in basis points and its length in days. | Promote. How a fall from a peak is recorded is in no article, and the three arms of its one test are what make an episode |
+| Row H-537 | Where nothing is evaluated, no drawdown episode is counted. | Merge with H-539, the answer where there is nothing to walk |
+| Row H-538 | A peak is kept that only rises, and each fall is measured against it. | Merge with H-539, what the falls are measured from |
+| Row H-540 | An episode still open at the end records its depth and no length, so the depths and the lengths need not come to the same number. | Promote. Two lists a reader would pair off that need not be of equal number is a subject of its own, and the reason is the one episode that never closed |
+
+Four subjects promote and seven rows merge, with nothing declined.
+
+The trade comes first, because the per-trade figures rest on it. The days come
+second, as the other way the same bars are cut. The episodes come third. The
+unequal lists are held out of the episodes because a reader pairing a depth with a
+length is the one who is misled, and that reader may never read as far as how an
+episode opens.
+
 ## Package 11 — the poller that keeps the book, and the stop that waits for it
 
 Scope: the poller that keeps the order book fresh, of which the tick and the
@@ -3209,8 +3245,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-527 | Stopping sets the signal, cancels the task, waits for it while swallowing the cancellation, and then forgets it. | `praxis/infrastructure/book_poller.py` 63 into 65-69, then 71 | Praxis package eleven | is P11-03 |
 | H-528 | The host stops its pollers one after another, each waited for, the whole bounded at ten seconds. | `praxis/launcher.py` 3848-3850, bounded at 3855 | Praxis package eleven | folds into P11-03 |
 | H-529 | A stop that fails or runs out of time keeps the pollers recorded for another attempt, where one that finishes forgets them. | `praxis/launcher.py` 3856-3858, or else 3860 | Praxis package eleven | folds into P11-03 |
+| H-530 | Where no bar is marked as an entry, no trade is counted at all. | `praxis/metrics/limen_snapshot.py` 191-192 | Praxis package twelve | folds into P12-01 |
+| H-531 | The bars are numbered into runs by a running count of the entry marks, and one trade is the held bars sharing a number. | `praxis/metrics/limen_snapshot.py` 194 into 198-199 | Praxis package twelve | is P12-01 |
+| H-532 | A trade's return is its bars' returns multiplied together rather than added, so two bars of a tenth give just over a fifth. | `praxis/metrics/limen_snapshot.py` 200-201 | Praxis package twelve | folds into P12-01 |
+| H-533 | Where no bar is evaluated the grouping stays empty and no window is reported. | `praxis/metrics/limen_snapshot.py` 217-218, leaving 225 nothing to walk | Praxis package twelve | folds into P12-02 |
+| H-534 | The evaluated bars are grouped by the day their moment falls in, and the days are reported in order. | `praxis/metrics/limen_snapshot.py` 220, walked in order at 225 | Praxis package twelve | is P12-02 |
+| H-535 | A day's return is its bars' returns multiplied together, given in basis points. | `praxis/metrics/limen_snapshot.py` 227 into 229 | Praxis package twelve | folds into P12-02 |
+| H-536 | A day's return for each unit of exposure is that return over the share of its bars holding a position, and is given as nothing at all where no bar held one. | `praxis/metrics/limen_snapshot.py` 228 into 230-232 | Praxis package twelve | folds into P12-02 |
+| H-537 | Where nothing is evaluated, no drawdown episode is counted. | `praxis/metrics/limen_snapshot.py` 245-246 | Praxis package twelve | folds into P12-03 |
+| H-538 | A peak is kept that only rises, and each fall is measured against it. | `praxis/metrics/limen_snapshot.py` 256-257 | Praxis package twelve | folds into P12-03 |
+| H-539 | An episode opens on the first fall below the peak, deepens while the fall continues, and closes on the first recovery, recording its depth in basis points and its length in days. | `praxis/metrics/limen_snapshot.py` 260-263, or 265-266, or else 268-272 | Praxis package twelve | is P12-03 |
+| H-540 | An episode still open at the end records its depth and no length, so the depths and the lengths need not come to the same number. | `praxis/metrics/limen_snapshot.py` 274-275, against 270 | Praxis package twelve | is P12-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:00 UTC
