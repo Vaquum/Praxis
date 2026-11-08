@@ -833,6 +833,33 @@ held across and which it is not.
 | P13-01 | What recording a request refuses | written | [what-recording-a-request-refuses.md](atoms/what-recording-a-request-refuses.md) |
 | P13-02 | What the lock covers | written | [what-the-lock-covers.md](atoms/what-the-lock-covers.md) |
 
+### Re-seed, after writing package 13
+
+What verifying the two articles turned up that neither of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The run of failures is not held to the window the samples are | `praxis/core/health_tracker.py` 44-45 cap both stores at the window size handed in, and 46 starts the run of failures with no cap of any kind, 80 raising it by one each time without consulting the stores. A tracker made with a window of two and handed ten failures reports a run of ten and a failed share worked out from two samples. The article on health says a fixed number of the most recent results are kept and the oldest fall out, and puts the run beside them without saying it is counted differently; P13-02 has the run changed under the lock. That a report can name a run longer than the samples the share comes from is in no article |
+| The slow-end latency is interpolated rather than taken from a sample | `praxis/core/health_tracker.py` 129 asks for a hundred cuts by the inclusive method and takes the last, which falls a hundredth of the way from the second-slowest sample to the slowest once a hundred samples are held, so the figure reported need not be any sample's own. Ninety-nine samples of one millisecond and one of a thousand report just under eleven. A single sample is reported as itself by 126-127. The article on health calls it a slow-end measure without saying how it is reached, and P13-01 and P13-02 do not touch the arithmetic |
+
+Two candidates. Both are what the two figures admit rather than what the tracker
+refuses, and the first is the one a reader of the health article would get wrong,
+since the run sits in that article beside the stores the window bounds.
+
+A note on method. The gap map now reports sixteen modules marked `full` with an
+uncited statement, against seventeen before this package, this module's sixteen of
+thirty-three having gone. The widest left are `praxis/replay/replay_api.py` at
+seventeen of seventy-three and `praxis/metrics/limen_snapshot.py` at sixteen of a
+hundred.
+
+A note on verification, as for the nine packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the tracker on the cases each claim turns on. Running
+it is what showed the run outliving the window and what turned the slow-end figure
+from a description into a number. One finding the verification reached was already
+the register's own: the limit figure's field is named for the inverse of what it
+carries, which row H-054 recorded, so it is not re-raised here.
+
 ## Package 12 — how a replay's figures are counted
 
 Scope: the three helpers inside the module that reproduces the training side's own
@@ -3330,4 +3357,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 11:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 12:00 UTC
