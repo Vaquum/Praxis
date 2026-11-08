@@ -814,6 +814,37 @@ through — and what each checks and what each does not.
 Three of the six make no check at all. Of the three that do, one refuses a record
 that would say nothing is wrong.
 
+### Merge and promote, package 16
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-450 | The translation refuses a decision that does not allow the action, a moment without the UTC marker, and an empty reference for the command. | Promote. What the translation refuses before it builds anything is in no article, the two that reach it citing what it copies across and what it stands in for an exit rather than the checks it makes |
+| Row H-451 | A change is refused outright, the translation handling only the four kinds of action its mapping names. | Merge with H-450. A kind of action turned back by name belongs with the other three refusals, all four standing before anything is built |
+| Row H-465 | The mapping names four kinds of action and reaches two kinds of command, the third named nowhere in the Nexus checkout but in the command record's own checks. | Promote. A kind of command that one record checks for and nothing builds is a subject of its own, and it is the far side of the refusal above |
+| Row H-452 | An exit that left out its way of working, its kind of order or its deadline is given one of each, the deadline sixty seconds. | Promote. Two of the three stood-in values are already written for the sale a stopping host sends; the third is in no article, and what the three have in common — that only an exit gets them — is the subject |
+| Row H-453 | An action that is not a new order carries none of those three, each set aside instead. | Merge with H-452, the far side of the same choice |
+| Row H-454 | A new order naming a spend carries no size, and one naming no spend carries the size the request asked for, one statement settling both. | Merge with H-452. It is the fourth field the same choice decides, and the one where the two possibilities sit in a single statement |
+| Row H-455 | Two of a funds movement's names are walked and each refused unless it is text with something left in it once trimmed. | Promote. What the record of money moving in or out refuses is in no article |
+| Row H-456 | Its moment must be a moment and must carry the UTC marker, both weighed by one test rather than two. | Merge with H-455, the same subject read on past the two names |
+| Row H-457 | Its amount must be a decimal, finite, and above nought, all three weighed by one test. | Merge with H-455. Three questions in one test is how this record is written throughout, and the amount is where it shows most |
+| Row H-458 | Its direction must be one of a named pair. | Merge with H-455. The pair is held as text and checked against a fixed set, where the records beside it hold a kind as named values, and it reads with the rest of what this one asks |
+| Row H-459 | Three of a mismatch's names are walked and each refused unless it is text with something left in it once trimmed. | Promote. What the record of a disagreement with the venue refuses is in no article |
+| Row H-460 | Its moment is held to the same one test, and its two figures walked for being finite decimals. | Merge with H-459, the same subject read on past the three names |
+| Row H-461 | A mismatch whose two figures agree is refused, so the record cannot be made to say nothing is wrong. | Merge with H-459. It is the one check that puts two of the record's fields side by side, and the reason the record exists at all |
+| Row H-462 | The difference it reports is the venue's figure less the one projected, worked out on each reading rather than kept. | Merge with H-459, the one figure it gives rather than asks for |
+| Row H-463 | Three sets of named values mirror the trading side's own: seven ways of working an order, eight kinds of order, and three preferences for who takes the other side. | Promote. The sets the strategy layer writes its intent in, and that they are a copy of the other side's rather than the thing itself, are in no article |
+| Row H-464 | The record carrying outcomes in checks neither the queue nor the wait it is given, and the wait has a default of a tenth of a second. | Merge with H-463. Both are records on this side that ask nothing of what they are handed, and what the queue answers with when its wait runs out is already written |
+
+Six subjects promote and ten rows merge, with nothing declined.
+
+The translation comes first, because what it refuses decides whether anything is
+built at all, and the kind of command nothing builds second, as the far side of one
+of those refusals. The values it stands in for an exit come third. The two records
+a venue's own news arrives as follow, each with its own subject, because what each
+refuses has nothing in common with the other beyond the shape of its tests. The
+sets of named values come last, with the queue beside them, as the two of these six that ask
+nothing of what they are given.
+
 ## Nexus package 15 — health, and the mode it settles
 
 Scope: the three modules that decide whether an account may trade — the snapshot of
@@ -2618,24 +2649,24 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-447 | That moment is asked for nothing beyond being a moment: no zone is demanded of it, where the record's own default is the earliest moment there is, which carries none. | `nexus/core/domain/operational_mode.py` 151-153, with the default at 138 | Nexus package fifteen | is N15-08 |
 | H-448 | A strategy's mode state is refused unless its reference is text with something left in it once trimmed and what it holds is a mode state. | `nexus/core/domain/operational_mode.py` 171-173, or 175-177 | Nexus package fifteen | folds into N15-07 |
 | H-449 | Two holds force entries blocked, and neither record gathering the holds makes a check of its own: each declares what it holds and answers whether any of them is standing. | `nexus/core/domain/operational_mode.py` 113-114 into 119, with 77-82 and 113-114 checking nothing | Nexus package fifteen | folds into N15-07 |
-| H-450 | The translation refuses a decision that does not allow the action, a moment without the UTC marker, and an empty reference for the command. | `nexus/infrastructure/praxis_connector/translate.py` 63-65, or 67-69, or 71-73 | Nexus package sixteen |  |
-| H-451 | A change is refused outright, the translation handling only the four kinds of action its mapping names. | `nexus/infrastructure/praxis_connector/translate.py` 75-81, the four named at 20-25 | Nexus package sixteen |  |
-| H-452 | An exit that left out its way of working, its kind of order or its deadline is given one of each, the deadline sixty seconds. | `nexus/infrastructure/praxis_connector/translate.py` 99 into 100-101, or 102-103, or 104-105 | Nexus package sixteen |  |
-| H-453 | An action that is not a new order carries none of those three, each set aside instead. | `nexus/infrastructure/praxis_connector/translate.py` 91 into 92-94, or else 96-98 | Nexus package sixteen |  |
-| H-454 | A new order naming a spend carries no size, and one naming no spend carries the size the request asked for, one statement settling both. | `nexus/infrastructure/praxis_connector/translate.py` 107 into 108 | Nexus package sixteen |  |
-| H-455 | Two of a funds movement’s names are walked and each refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 41-42 over the two names, into 43-45 | Nexus package sixteen |  |
-| H-456 | Its moment must be a moment and must carry the UTC marker, both weighed by one test rather than two. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 47-52 | Nexus package sixteen |  |
-| H-457 | Its amount must be a decimal, finite, and above nought, all three weighed by one test. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 54-60 | Nexus package sixteen |  |
-| H-458 | Its direction must be one of a named pair. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 62-65 | Nexus package sixteen |  |
-| H-459 | Three of a mismatch’s names are walked and each refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 46-47 over the three names, into 48-50 | Nexus package sixteen |  |
-| H-460 | Its moment is held to the same one test, and its two figures walked for being finite decimals. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 52-57, or 59-61 into 62-63 | Nexus package sixteen |  |
-| H-461 | A mismatch whose two figures agree is refused, so the record cannot be made to say nothing is wrong. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 65-67 | Nexus package sixteen |  |
-| H-462 | The difference it reports is the venue’s figure less the one projected, worked out on each reading rather than kept. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 41 | Nexus package sixteen |  |
-| H-463 | Three sets of named values mirror the trading side’s own: seven ways of working an order, eight kinds of order, and three preferences for who takes the other side. | `nexus/core/domain/order_types.py` 18-24, or 30-37, or 43-45 | Nexus package sixteen |  |
-| H-464 | The record carrying outcomes in checks neither the queue nor the wait it is given, and the wait has a default of a tenth of a second. | `nexus/infrastructure/praxis_connector/praxis_inbound.py` 32-33, with 27-33 checking neither, the default at 16 | Nexus package sixteen |  |
-| H-465 | The mapping names four kinds of action and reaches two kinds of command. The third kind — the one for amending an order — is named nowhere in the Nexus checkout but in the command record's own checks, so nothing on this side builds one, the change that would need it being refused instead. | `nexus/infrastructure/praxis_connector/translate.py` 20-25, with 75-81 refusing the change, the third kind declared at `nexus/infrastructure/praxis_connector/trade_command_type.py` 24 and weighed only at `nexus/infrastructure/praxis_connector/trade_command.py` 240 | Nexus package sixteen |  |
+| H-450 | The translation refuses a decision that does not allow the action, a moment without the UTC marker, and an empty reference for the command. | `nexus/infrastructure/praxis_connector/translate.py` 63-65, or 67-69, or 71-73 | Nexus package sixteen | is N16-01 |
+| H-451 | A change is refused outright, the translation handling only the four kinds of action its mapping names. | `nexus/infrastructure/praxis_connector/translate.py` 75-81, the four named at 20-25 | Nexus package sixteen | folds into N16-01 |
+| H-452 | An exit that left out its way of working, its kind of order or its deadline is given one of each, the deadline sixty seconds. | `nexus/infrastructure/praxis_connector/translate.py` 99 into 100-101, or 102-103, or 104-105 | Nexus package sixteen | is N16-03 |
+| H-453 | An action that is not a new order carries none of those three, each set aside instead. | `nexus/infrastructure/praxis_connector/translate.py` 91 into 92-94, or else 96-98 | Nexus package sixteen | folds into N16-03 |
+| H-454 | A new order naming a spend carries no size, and one naming no spend carries the size the request asked for, one statement settling both. | `nexus/infrastructure/praxis_connector/translate.py` 107 into 108 | Nexus package sixteen | folds into N16-03 |
+| H-455 | Two of a funds movement’s names are walked and each refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 41-42 over the two names, into 43-45 | Nexus package sixteen | is N16-04 |
+| H-456 | Its moment must be a moment and must carry the UTC marker, both weighed by one test rather than two. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 47-52 | Nexus package sixteen | folds into N16-04 |
+| H-457 | Its amount must be a decimal, finite, and above nought, all three weighed by one test. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 54-60 | Nexus package sixteen | folds into N16-04 |
+| H-458 | Its direction must be one of a named pair. | `nexus/infrastructure/praxis_connector/fund_transaction.py` 62-65 | Nexus package sixteen | folds into N16-04 |
+| H-459 | Three of a mismatch’s names are walked and each refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 46-47 over the three names, into 48-50 | Nexus package sixteen | is N16-05 |
+| H-460 | Its moment is held to the same one test, and its two figures walked for being finite decimals. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 52-57, or 59-61 into 62-63 | Nexus package sixteen | folds into N16-05 |
+| H-461 | A mismatch whose two figures agree is refused, so the record cannot be made to say nothing is wrong. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 65-67 | Nexus package sixteen | folds into N16-05 |
+| H-462 | The difference it reports is the venue’s figure less the one projected, worked out on each reading rather than kept. | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 41 | Nexus package sixteen | folds into N16-05 |
+| H-463 | Three sets of named values mirror the trading side’s own: seven ways of working an order, eight kinds of order, and three preferences for who takes the other side. | `nexus/core/domain/order_types.py` 18-24, or 30-37, or 43-45 | Nexus package sixteen | is N16-06 |
+| H-464 | The record carrying outcomes in checks neither the queue nor the wait it is given, and the wait has a default of a tenth of a second. | `nexus/infrastructure/praxis_connector/praxis_inbound.py` 32-33, with 27-33 checking neither, the default at 16 | Nexus package sixteen | folds into N16-06 |
+| H-465 | The mapping names four kinds of action and reaches two kinds of command. The third kind — the one for amending an order — is named nowhere in the Nexus checkout but in the command record's own checks, so nothing on this side builds one, the change that would need it being refused instead. | `nexus/infrastructure/praxis_connector/translate.py` 20-25, with 75-81 refusing the change, the third kind declared at `nexus/infrastructure/praxis_connector/trade_command_type.py` 24 and weighed only at `nexus/infrastructure/praxis_connector/trade_command.py` 240 | Nexus package sixteen | is N16-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 16:10 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 16:45 UTC
