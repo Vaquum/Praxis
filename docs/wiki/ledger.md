@@ -141,7 +141,7 @@ Every Praxis module is named here: 60 are `full` and 28 `partial`, with none `un
 | `nexus/infrastructure/wal_entry.py` | full | N18-02, N8-08 |
 | `nexus/infrastructure/snapshot_scheduler.py` | full | N25-01, N6-01, N6-11, N7-08, N7-12, N8-05, N9-01 |
 | `nexus/infrastructure/praxis_connector/fund_transaction.py` | full | N16-04, P4-06 |
-| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N7-05, N7-09, N9-04, P26-01, P3-24, P4-30, P6-03, P7-04 |
+| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N55-01, N7-05, N7-09, N9-04, P26-01, P3-24, P4-30, P6-03, P7-04 |
 | `nexus/infrastructure/praxis_connector/praxis_inbound.py` | full | N16-06, N6-04 |
 | `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | N11-02, N47-01, N6-06, N6-08, N6-09, N7-02, N7-05, P4-04, P4-06 |
 | `nexus/infrastructure/praxis_connector/process_result.py` | full | N18-01, N9-04 |
@@ -150,7 +150,7 @@ Every Praxis module is named here: 60 are `full` and 28 `partial`, with none `un
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | full | N16-05, P4-06 |
 | `nexus/infrastructure/praxis_connector/trade_command_type.py` | full | N11-01, N16-02 |
 | `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04, N15-08, N16-02, N37-02, P8-02 |
-| `nexus/infrastructure/praxis_connector/trade_outcome.py` | full | N12-01, N12-02, N12-03, N12-04, N15-08, P26-02, P8-02 |
+| `nexus/infrastructure/praxis_connector/trade_outcome.py` | full | N12-01, N12-02, N12-03, N12-04, N15-08, N55-01, P26-02, P8-02 |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | full | N1-07, N18-03, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | full | N16-01, N16-02, N16-03, N5-04, N5-06, P4-04 |
 | `nexus/instance_config.py` | full | N17-01, N17-02, N17-03, N17-04, N17-05, P4-04 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 13:00 UTC

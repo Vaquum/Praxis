@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 365 not.**
+**6 of them reviewed, 366 not.**
 
 ## Package 1
 
@@ -856,6 +856,47 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 55 — the figures a fill is assumed to carry
+
+Scope: the processing of an outcome, which the ledger marks `partial` with
+sixty-two of its hundred and ninety-seven statements uncited. Eighty-seven
+citations across the corpus reach this module. What is left is almost all
+assertion: four figures a fill is taken to carry rather than checked for, and two
+failures raised where a record and the state disagree.
+
+### Merge and promote, Nexus package 55
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-707 | A fill is handled on four figures the processing asserts rather than tests, each of which the record across the seam refuses a fill for lacking. | Promote. What a fill is assumed to carry is in no article, and where the assumption is kept is the other side of the seam |
+| Row H-708 | An entry fill naming no trade raises, and one naming a trade the state holds no position for raises too. | Merge with H-707. Two failures where a record and the state disagree belong beside the four taken on trust |
+| Row H-709 | An acknowledgement whose capital call does not succeed is answered as a failure carrying the capital side's own reason. | Merge with H-707, the one refusal among them that is answered rather than raised |
+
+One subject promotes and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N55-01 | The figures a fill is assumed to carry | written | [the-figures-a-fill-is-assumed-to-carry.md](atoms/the-figures-a-fill-is-assumed-to-carry.md) |
+
+### Re-seed, after writing Nexus package 55
+
+The reader had the article before it was committed and returned six reports. Five
+of them are the ordering omission the package before this had just recorded as a
+shape to watch for.
+
+| What it found | What came of it |
+|---|---|
+| The capital side is called before any position is read, on both roads, and a call that does not succeed is answered as a failure there. So the two raises further on are reached only by a fill whose capital call succeeded. | The article is rebuilt around that order, and says which failure a fill meets first |
+| There are three answered failures on this path, not one. | The claim of one is gone |
+| The assertions do test for the figures being there; what they do not do is answer. | Said in those terms |
+| The two raises are not both a disagreement between a record and the state: the first finds no trade named at all, before any lookup. | That characterisation is gone |
+
+The previous package's re-seed had written down the question to ask of any article
+listing refusals — which does an event meet first? — and this article was written
+without asking it. The lesson does not transfer by being recorded; it has to be
+asked each time. From here the question goes into the writing of any such
+article, before the reader sees it.
 
 ## Package 54 — what the ledger refuses, and what a rebuilt one carries
 
@@ -5336,8 +5377,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-704 | A closing for a trade the ledger never saw does nothing at all, once those refusals have passed. | `praxis/core/account_ledger.py` 259-262, reached from 115-116 | Praxis package fifty-four | folds into P54-01 |
 | H-705 | The state a ledger can be rebuilt from holds the balances, the per-trade figures and the open lots, and leaves the journal out. | `praxis/core/account_ledger.py` 131-135, against the journal it does not name | Praxis package fifty-four | is P54-02 |
 | H-706 | A rebuilt ledger takes whether it was registered from the snapshot, falling back to whether a way of costing was recorded. | `praxis/core/account_ledger.py` 217 | Praxis package fifty-four | folds into P54-02 |
+| H-707 | A fill is handled on four figures the processing asserts rather than tests, each of which the record across the seam refuses a fill for lacking. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 217-220, or 445-446, or 458-461, against `nexus/infrastructure/praxis_connector/trade_outcome.py` 183-185, or 195-197, or 207-209, or 222-224 | Nexus package fifty-five | is N55-01 |
+| H-708 | An entry fill naming no trade raises, and one naming a trade the state holds no position for raises too. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 463-465, or 467-471 | Nexus package fifty-five | folds into N55-01 |
+| H-709 | An acknowledgement whose capital call does not succeed is answered as a failure carrying the capital side's own reason. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 197 into 199-204 | Nexus package fifty-five | folds into N55-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 13:00 UTC
