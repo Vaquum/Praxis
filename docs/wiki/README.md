@@ -43,6 +43,12 @@ the others where it appears.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — the settings that ride along with a decision, and how they are turned into the ones the chosen way of working needs.
 - [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — the checks on an instruction only ask whether something is there, or whether a number is above zero, so other mistakes pass and surface later.
 - [What turns work away](atoms/what-turns-work-away.md) — the checks work must pass before Praxis records it at all, before it is ever queued.
+- [The order a command's checks stand in](atoms/the-order-a-commands-checks-stand-in.md) — a request admitted into the trading side passes four checks in a fixed order, so a request wrong in two ways is told about whichever fault comes first rather than the worst one.
+- [What a command sized in money is held to](atoms/what-a-command-sized-in-money-is-held-to.md) — saying how much to spend rather than how much to buy is allowed for one kind of order on one side, and the rules enforcing that sit in three separate places.
+- [Which modes the money refusal reaches](atoms/which-modes-the-money-refusal-reaches.md) — the refusal that looks like a rule about every way of working cannot be met by the hidden order or the ladder, which earlier checks stop instead.
+- [What a mode command refuses of itself](atoms/what-a-mode-command-refuses-of-itself.md) — a request naming any way of working but the simplest meets one rule that applies to all of them and three narrow ones, and some ways of working meet nothing but the first.
+- [The venue rules that are never applied](atoms/the-venue-rules-that-are-never-applied.md) — half of what weighs a request at the door is written to take the venue's own trading rules, and the place that admits requests hands in none, so that half runs only under test.
+- [What the per-child rules would weigh](atoms/what-the-per-child-rules-would-weigh.md) — the unapplied half checks a different number of things for each shape of split order, from one for an evenly spread order to four for a hidden one.
 - [What the host refuses first](atoms/what-the-host-refuses-first.md) — one guard every way in shares, answered by a raise before anything is written down.
 
 ## Getting an order to the venue
@@ -535,8 +541,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 438
-articles exist. Of Praxis's own source files 74 are accounted for in full and 14 in
+Both sides are the subject, and Praxis is the side that has been written. 444
+articles exist. Of Praxis's own source files 75 are accounted for in full and 13 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -546,4 +552,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 01:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 02:00 UTC

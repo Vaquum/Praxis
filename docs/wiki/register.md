@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 437 not.**
+**6 of them reviewed, 443 not.**
 
 ## Package 1
 
@@ -856,6 +856,71 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 70 — what the door weighs, and what it never reaches
+
+Scope: the checking a request passes at the door, which the ledger marks `partial`
+with seventy-eight of its hundred and thirty-two statements uncited. Articles have
+which kinds of order each way of working allows, the prices a plain order must name,
+that a hidden order may not show more than the whole, and that the venue's rules go
+unapplied for the hidden case. The order the checks stand in, the whole of the
+unreached half, what a command sized in money is held to, and what a command naming
+another way of working refuses of itself are in no article.
+
+The unreached half is the larger part of the module. One article accounts for it as
+one subject rather than describing dead code as behaviour, with the detail carried
+in the rows below.
+
+### Merge and promote, package 70
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-815 | The checking weighs the way of working against the kind of order, then the shape of a command sized in money, then the settings of the plain single order or of whichever other way is named, then the maker preference. | Promote. The order is in no article, and it decides which of two faults a complaint names |
+| Row H-816 | The venue's rules are weighed only where rules were handed in, and the per-child rules only then and only for a way other than the plain one, and the one place admitting a request hands in none. | Promote. One article says so of the hidden case alone; that the whole half is unreached, for every case, is in none |
+| Row H-817 | Were rules handed in, a command sized in money would be weighed against the smallest value alone, and one sized in coin against the step, the smallest size and the largest in that order. | Merge with H-816. What the unreached half would do belongs with the fact that it does not |
+| Row H-818 | A price would be weighed only for a plain single order that is not a market order, against the step in price and then the smallest value, and each slice, tranche or level would be weighed by four small checks. | Merge with H-816, the rest of the same half |
+| Row H-819 | A command sized in money must be a buy and then a market order, the side weighed first, so a sell sized in money is refused for its side whatever its kind. | Promote. One article says a market order is the only kind that may be sized in money; which refusal a sell meets, and that the order of the two decides it, is in none |
+| Row H-820 | Every way of working other than the plain single order refuses money outright before anything else about its settings is weighed. | Merge with H-819, and P70-04 states it too. It is the third of the three refusals that keep money to one case, and it sits in a different run from the other two |
+| Row H-821 | A command spreading buying over time must be a buy, an order hiding part of itself must not show more than the whole, and a protective pair's leg ordering is weighed by a check of its own. | Promote. The run over a mode's own settings is in no article as a run, two of its three checks being written elsewhere one at a time |
+| Row H-822 | Each of those three is reached by asking what kind the settings are, so a way of working whose settings are none of the three meets none of them. | Merge with H-821. That the run is three rules each belonging to one shape, rather than a list every mode meets, is the point of it |
+
+Six subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P70-01 | The order a command's checks stand in | written | [the-order-a-commands-checks-stand-in.md](atoms/the-order-a-commands-checks-stand-in.md) |
+| P70-02 | The venue rules that are never applied | written | [the-venue-rules-that-are-never-applied.md](atoms/the-venue-rules-that-are-never-applied.md) |
+| P70-03 | What a command sized in money is held to | written | [what-a-command-sized-in-money-is-held-to.md](atoms/what-a-command-sized-in-money-is-held-to.md) |
+| P70-04 | What a mode command refuses of itself | written | [what-a-mode-command-refuses-of-itself.md](atoms/what-a-mode-command-refuses-of-itself.md) |
+| P70-05 | What the per-child rules would weigh | written | [what-the-per-child-rules-would-weigh.md](atoms/what-the-per-child-rules-would-weigh.md) |
+| P70-06 | Which modes the money refusal reaches | written | [which-modes-the-money-refusal-reaches.md](atoms/which-modes-the-money-refusal-reaches.md) |
+
+### Re-seed, after writing package 70
+
+The reader returned nine reports and all nine were valid. Four of them are the same
+failure: a rule read where it is written rather than where it can be met.
+
+| What it found | What came of it |
+|---|---|
+| The tests hand venue rules in and reach both unapplied steps, so they are not unreached in every configuration, only on the road a request takes. | Both articles now say so. "Never runs for any request" and "never runs" are different claims and only one was true |
+| The refusal of money at the head of the settings run cannot be met by a hidden order or a ladder: each permits a limit order alone, so such a command fails the market requirement or the kind check first. | P70-06. The refusal reads as a rule about all six ways of working and is reachable by four |
+| Only the check for a plain single order answers at once on settings of the wrong kind; the other run weighs money and the accumulating order's side whatever the settings are. | P70-01 was corrected, and the guard it describes is a guard against something a command's own record already refuses at construction |
+| The run over a mode's settings holds two checks keyed on a shape of settings and one keyed on the mode and the side, not three keyed on settings. | P70-04 says so, and says why: the accumulating order shares its settings with the evenly spread one, which may sell |
+| An evenly spread order, a weighted one and a ladder meet nothing in that run past the refusal of money. | P70-04 names them |
+| The per-child step weighs one thing for a spread or weighted slice, four for a hidden order's shown amount and three for a ladder's levels, the step in size being asked of the hidden one alone. | P70-05. The draft had said four checks for every child |
+| The assertion before a hidden order's shown amount is weighed asserts the whole amount, not the shown one. | Corrected |
+| The kind of order is weighed against the way of working before the shape check, so a command whose kind its mode forbids never hears about its side. | P70-03 says so |
+| Sizes and prices are brought to what the venue accepts during intake as well as on the way out, so "settled on the way out" was wrong. | Both articles now say only that it does not happen here, and name what this article does not account for |
+
+The repeated failure is the rule's own: check the path, not just the function. Four
+of the nine are a refusal described from where it sits in the file rather than from
+what can arrive at it — and in two of those the earlier check that makes it
+unreachable is in the same module, twenty lines up.
+
+Seven statements of the module are left uncited and are an exclusion rather than
+work outstanding: three readings of the settings into a local name, three
+assertions whose truth the record's own building guarantees, and the answer where a
+plain order's settings are of another kind.
 
 ## Nexus package 69 — how an account's mode is settled
 
@@ -6268,8 +6333,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-812 | A restart's re-deriving empties the recovered shutdown hold outright by writing its fields, leaves every other recovered hold as found, evaluates both breakers from the recovered risk record and recomputes once. | `nexus/core/mode_controller.py` 351-354, then 356-358, then 360-362 | Nexus package sixty-nine | is N69-06 |
 | H-813 | Two holds ask for reduce-only alone, either giving it only where no halting hold stands, each set and cleared with one recompute after the conditional rather than inside both arms. | `nexus/core/mode_controller.py` 540-542, and 490 past 488, and 455-467, and 470-482 | Nexus package sixty-nine | is N69-07 |
 | H-814 | The daily-loss breaker does nothing where no limit is set, places its hold strictly above the limit and lifts it at or below, while the drawdown breaker weighs two limits and never lifts, both moving their holds directly rather than through the roads that drain the notification. | `nexus/core/mode_controller.py` 385-396, and 398-412, against 415-426 | Nexus package sixty-nine | is N69-08 |
+| H-815 | The checking weighs the way of working against the kind of order, then the shape of a command sized in money, then the settings of the plain single order or of whichever other way is named, then the maker preference. | `validate_trade_command.py` 132, then 134, then 136-139, then 141 | package seventy | is P70-01 |
+| H-816 | The venue's rules are weighed only where rules were handed in, and the per-child rules only then and only for a way other than the plain one, and the one place admitting a request hands in none. | `validate_trade_command.py` 143-146, with the only call at `execution_manager.py` 3479 | package seventy | is P70-02 |
+| H-817 | Were rules handed in, a command sized in money would be weighed against the smallest value alone, and one sized in coin against the step, the smallest size and the largest in that order. | `validate_trade_command.py` 286-294, and 298-308 | package seventy | folds into P70-02 |
+| H-818 | A price would be weighed only for a plain single order that is not a market order, against the step in price and then the smallest value, and each slice, tranche or level would be weighed by four small checks. | `validate_trade_command.py` 310-320, and 416-441 into 444-479 | package seventy | folds into P70-02 |
+| H-819 | A command sized in money must be a buy and then a market order, the side weighed first, so a sell sized in money is refused for its side whatever its kind. | `validate_trade_command.py` 160-161, then 163-168, then 170-175 | package seventy | is P70-03 |
+| H-820 | Every way of working other than the plain single order refuses money outright before anything else about its settings is weighed. | `validate_trade_command.py` 341-343, standing first in that run | package seventy | folds into P70-03, and P70-04 states it too |
+| H-821 | A command spreading buying over time must be a buy, an order hiding part of itself must not show more than the whole, and a protective pair's leg ordering is weighed by a check of its own. | `validate_trade_command.py` 347-349, or 351-355, or 357-358 into 361-394 | package seventy | is P70-04 |
+| H-822 | Each of those three is reached by asking what kind the settings are, so a way of working whose settings are none of the three meets none of them. | `validate_trade_command.py` 347, and 351, and 357 | package seventy | folds into P70-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 02:00 UTC
