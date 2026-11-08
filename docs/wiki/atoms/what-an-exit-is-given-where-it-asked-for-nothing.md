@@ -2,12 +2,14 @@
 row: N16-03
 baseline: 49aa659
 created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+modified: 2026-11-10 19:00 UTC
 evidence:
   - claim: "An exit that left out its way of working is given one, and one that left out its kind of order is given that"
     source: "`nexus/infrastructure/praxis_connector/translate.py` 99 into 100-101, or 102-103"
   - claim: "An exit that left out its deadline is given sixty seconds"
     source: "`nexus/infrastructure/praxis_connector/translate.py` 104-105, the figure at 29"
+  - claim: "A command carries the name of the money set aside for it, where any was set aside"
+    source: "`nexus/infrastructure/praxis_connector/translate.py` 87-89"
   - claim: "An action that is not a new order carries none of the three, each set aside instead"
     source: "`nexus/infrastructure/praxis_connector/translate.py` 91 into 92-94, or else 96-98"
   - claim: "A new order naming a spend carries no size, and one naming no spend carries the size the request asked for, one statement settling both"
@@ -26,6 +28,10 @@ So an exit leaving this road carries all three named, whatever the strategy said
 ## Only an exit
 
 An entry is given none of them: what it named is what it carries, and a field it left out stays out. An action of any other kind has all three set aside, before the exit's filling-in is reached.
+
+## The name of the money
+
+Where money was set aside for the decision, the command carries that holding's name. Where none was, it carries none, whatever the action.
 
 ## The fourth field the same choice decides
 

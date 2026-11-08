@@ -2,10 +2,14 @@
 row: N10-01
 baseline: 49aa659
 created: 2026-11-07 04:30 UTC
-modified: 2026-11-07 05:05 UTC
+modified: 2026-11-10 19:00 UTC
 evidence:
   - claim: "Each strategy is wrapped as the start builds it, and the wrapper makes a lock of its own"
     source: "`nexus/startup/sequencer.py` 511-512, the wrapper making that lock at `nexus/strategy/executor.py` 33"
+  - claim: "The wrapper refuses anything that is not a strategy"
+    source: "`nexus/strategy/executor.py` 28-30"
+  - claim: "The name it answers to is the wrapped strategy's own"
+    source: "`nexus/strategy/executor.py` 39"
   - claim: "Every one of the eight ways in takes that lock and holds it across the call into the strategy"
     source: "`nexus/strategy/executor.py` 56-57, 76-77, 96-97, 116-117, 134-135, 144-145, 154-155 and 164-165"
   - claim: "The thing that routes to a strategy holds one wrapper per name"
@@ -14,6 +18,8 @@ evidence:
 # The wrapper every strategy sits behind
 
 Every strategy is wrapped as the start builds it, and the wrapper makes a lock no other strategy's shares.
+
+It refuses anything that is not a strategy, and the name it answers to is the wrapped strategy's own, so the wrapper adds a lock and nothing else.
 
 ## What the lock holds out
 

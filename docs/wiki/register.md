@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 309 not.**
+**6 of them reviewed, 310 not.**
 
 ## Package 1
 
@@ -815,12 +815,12 @@ value found or made along to the line that uses it.
 
 | From | One concrete sentence | Disposition |
 |---|---|---|
-| Row H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | Add to the article on what a checkpoint holds, which has the start reading that snapshot and not what it reads where there is none |
+| Row H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | Add to the article on what a checkpoint holds, which has the start reading that snapshot and not what it reads where there is none. Adding it carried that article past the word cap, so what a start reads back is split out as P18-01 and the statement sits there |
 | Row H-571 | The push to the directory opens the directory itself, pushes it, and lets the handle go whatever happens. | Extend the citation on the claim already naming that push, which stopped at the call and never reached what it does |
 | Row H-572 | The wrapper refuses anything that is not a strategy. | Add to the article on the wrapper every strategy sits behind, which has the lock it makes and not the one thing it refuses |
 | Row H-573 | The name the wrapper answers to is the wrapped strategy's own. | Add to the same article. The wrapper carrying no name of its own is why one name reaches one lock |
-| Row H-574 | The moment the rolling windows are measured back from must carry a zone. | Add to the article on what the thirty-day cut leaves, which has every other test these windows make |
-| Row H-575 | A command carries the name of the money set aside for it, where any was set aside. | Add to the article on how a decision becomes a command, which carries what else the command is filled from |
+| Row H-574 | The moment the rolling windows are measured back from must carry a zone. | Add to the article on the moments with no marker, which holds the other strengths of this rule on the Nexus side. The article on what the thirty-day cut leaves was named at merge and would have outgrown the word cap |
+| Row H-575 | A command carries the name of the money set aside for it, where any was set aside. | Add to the article on what an exit is given where it asked for nothing, which holds the rest of this same filling-in. The article on how a decision becomes a command was named at merge and is the wrong home: its subject is the re-keying across the seam, not what the command is filled from |
 | Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses, the two splits being the pair that article already holds one half of |
 
 Nothing promotes and nothing is declined. Six statements are added to five
@@ -834,6 +834,34 @@ lines either side of them are stated. The same holds for 115 and 153 in the loss
 figures and 64 and 85 in the weighted split, which are the returns of what the
 lines above them worked out. No behaviour hangs on any of these, so the six cells
 go to `full`.
+
+One article is split rather than lengthened. Adding the missing-file statement
+carried the article on what a checkpoint holds past the word cap, which the cap
+answers by splitting out the subject that made it grow: what a start reads back
+from a checkpoint is now its own page, and the parent keeps what a checkpoint is
+and how it is written.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P18-01 | What a start reads back from a checkpoint | written | [what-a-start-reads-back-from-a-checkpoint.md](atoms/what-a-start-reads-back-from-a-checkpoint.md) |
+
+The statement about the moment behind the rolling windows found a different home
+for the same reason: the article on what the thirty-day cut leaves would have
+outgrown the cap, and the article on the moments with no marker holds the two
+other strengths of this same rule across the Nexus side, so the third stands with
+them.
+
+One row had to be settled before a cell could move. Row H-064 recorded that a
+weight curve can plan a child of nothing on the road with no lot size, and its
+disposition carried that as a candidate for a check on the planning path — which
+held the weighted split short of `full`, a candidate standing over it. The
+behaviour itself is written: the article on when a weight curve plans nothing has
+the part that comes to nothing and the later refusal that catches it. What the row
+was carrying was a suggestion that Praxis refuse it earlier, which is a change to
+Praxis and not to the wiki. The disposition now says so, and the suggestion is
+recorded here rather than left hanging over the module: the planner's road with no
+lot size could test its last child the way the road with one does.
+
 
 ## Package 17 — the last statements in the five modules nearest the line
 
@@ -3139,7 +3167,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-061 | `TradeCommand.timeout` is tested with `<= 0` alone, so a floating-point NaN passes construction, the wider validator and manager acceptance, and so does floating-point positive infinity. Both raise later where the deadline is computed — `ValueError` for the first, `OverflowError` for the second. A string, a list or None raises `TypeError` on the comparison, and `Decimal('NaN')` raises `InvalidOperation` there. A `Decimal` above nought gets past the comparison and raises `TypeError` at the same later step, the check being about sign alone. Work carried out over time reaches that step before submitting; a single-shot order reaches it only when left pending or partially filled, so one filled on submission never meets it. | `praxis/core/domain/trade_command.py` 106-108 against `execution_manager.py` 2925, reached from 3995, or 4004, or from 4411-4414 | P4-33 | recorded; P4-33 states it |
 | H-062 | `TradeCommand.reference_price` is tested with `<= 0` alone, with no finiteness test, where both sizes are tested for being finite. A positive infinity is accepted either way: `Decimal('Infinity')` reaches the arrival-slippage division, which divides infinity by infinity and raises `decimal.InvalidOperation`, while `float('inf')` raises `TypeError` one step earlier at the subtraction. | `praxis/core/domain/trade_command.py` 110-112 against 90-104, breaking at `execution_manager.py` 4378-4383, or at 4380 for the float | P4-33 | recorded; P4-33 states it |
 | H-063 | `SingleShotParams` tests each price with `value <= 0` alone, with no type or finiteness test. A positive `Decimal('Infinity')`, a float, a plain int and `True` all survive construction unchanged. Downstream, an infinite `price` reaches the cached tick check and raises `InvalidOperation`; a float price raises `TypeError` there; an int or `True` can pass the filters and be formatted into the request. An OCO `stop_limit_price` is never passed to the adapter's own order validation, so an infinite one reaches the request body as `"Infinity"` and a float as `"1.500000"`. | `single_shot_params.py` 38-42; the chain at `events.py` 213, `execution_manager.py` 4260 and `binance_adapter.py` 1520 into 1212-1216, the same test behind the venue rules at `validate_trade_command.py` 310-316 never entered, with the unchecked leg formatted at `binance_adapter.py` 873 | P4-08 | recorded; P4-08 states the gap, not the chain |
-| H-064 | `ScheduledVwapParams` accepts weights that plan a child of nothing. `(Decimal('1'), Decimal('1e-29'))` sums to one at the default precision and passes; with a total quantity of one and no cached lot step, the planner returns `[1, 0]`, that branch never testing the remainder is positive. The zero child is refused later, where its intent is built. | planned at `plan_weighted_slices.py` 58-62, accepted at `scheduled_vwap_params.py` 50-64, refused at `execution_manager.py` 5960 into `events.py` 197-203 | P4-08 | recorded; candidate for a check on the planning path |
+| H-064 | `ScheduledVwapParams` accepts weights that plan a child of nothing. `(Decimal('1'), Decimal('1e-29'))` sums to one at the default precision and passes; with a total quantity of one and no cached lot step, the planner returns `[1, 0]`, that branch never testing the remainder is positive. The zero child is refused later, where its intent is built. | planned at `plan_weighted_slices.py` 58-62, accepted at `scheduled_vwap_params.py` 50-64, refused at `execution_manager.py` 5960 into `events.py` 197-203 | P4-08 | recorded; when a weight curve plans nothing states the behaviour, and the check it suggests is a change to Praxis rather than to the wiki |
 | H-065 | A Scheduled VWAP amend carrying `volume_weights` is refused twice over. Submission against a command still live raises before enqueueing, so a caller does hear about it; one naming a command already ended takes an earlier road, which logs and returns. The handler carries a second refusal for one arriving by any other road: a log line and a bare `return`, producing no outcome and no callback. That second refusal sits ahead of where the interval is read, so an amend carrying both a new weight curve and a new interval loses the interval as well. | raised at `validate_trade_modify.py` 210-218 from `execution_manager.py` 3060-3065, the earlier road at 171-175 into 3067-3072; the handler's at 10101-10107 ahead of 10109-10113 into 10189-10199, against the queue at 3938-3951 | P4-09 | recorded; P4-09 states both |
 | H-066 | An endless price reaches the venue call and leaves the command with no ending. `SingleShotParams` accepts `Decimal('Infinity')`, admission validates without venue filters, and `_process_command` writes the intent down and makes the order before submitting. The adapter's tick-size comparison then raises `decimal.InvalidOperation` where that adapter holds the symbol's filters, having skipped the whole check where it holds none, and the submission handlers do not catch it; the account loop logs it and carries on. No outcome is made, so the command has no ending until the next start, where the written intent is picked up as an orphan and rejected. | accepted at `single_shot_params.py` 38-42, written and made at `execution_manager.py` 4264-4265, raised at `binance_adapter.py` 1213, reached only past 1188-1192, logged at `execution_manager.py` 4012, rejected only at the next start by 2260-2281 | P4-11 | recorded; extends H-063 with the consequence |
 | H-067 | A fill whose commission was charged in a third asset leaves the two projections disagreeing. The ledger refuses such a fee, and the manager swallows that refusal after the trading state has already been changed — so the order's record counts the fill while the ledger does not. | refused at `account_ledger.py` 313-314 and 336-338, suppressed at `execution_manager.py` 2092-2098, the state already changed at 2081 | P4-11 | recorded |
@@ -3645,15 +3673,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-567 | A weigher built with no policy of its own takes the built-in thresholds. | `nexus/core/health_evaluator.py` 153, the defaults at 81-93 | Praxis package seventeen | added to what the health policy refuses |
 | H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 112 before 114-117 | Praxis package seventeen | added to what an outcome is checked for |
 | H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | `nexus/instance_config.py` 275-278 into 279-287 | Praxis package seventeen | citation extended to the raise |
-| H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | `nexus/infrastructure/snapshot.py` 66-68 | Praxis package eighteen | added to what a checkpoint holds |
+| H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | `nexus/infrastructure/snapshot.py` 66-68 | Praxis package eighteen | is P18-01 |
 | H-571 | The push to the directory opens the directory itself, pushes it, and lets the handle go whatever happens. | `nexus/infrastructure/snapshot.py` 23-30 | Praxis package eighteen | citation extended to what the push does |
 | H-572 | The wrapper refuses anything that is not a strategy. | `nexus/strategy/executor.py` 28-30 | Praxis package eighteen | added to the wrapper every strategy sits behind |
 | H-573 | The name the wrapper answers to is the wrapped strategy's own. | `nexus/strategy/executor.py` 39 | Praxis package eighteen | added to the wrapper every strategy sits behind |
-| H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to what the thirty-day cut leaves |
-| H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to how a decision becomes a command |
+| H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to the moments with no marker |
+| H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to what an exit is given where it asked for nothing |
 | H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | added to what an even split refuses |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 18:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 19:00 UTC

@@ -2,7 +2,7 @@
 row: P16-02
 baseline: 49aa659
 created: 2026-11-10 16:00 UTC
-modified: 2026-11-10 16:00 UTC
+modified: 2026-11-10 19:00 UTC
 evidence:
   - claim: "A total that is not a finite decimal above nought is refused, a figure of another kind among them"
     source: "`praxis/core/plan_even_slices.py` 46-48"
@@ -12,6 +12,8 @@ evidence:
     source: "`praxis/core/plan_even_slices.py` 55, or else 60"
   - claim: "A lot size of another kind of figure raises the same way"
     source: "`praxis/core/plan_even_slices.py` 60"
+  - claim: "The weighted split makes the same two checks, its count being the number of weights"
+    source: "`praxis/core/plan_weighted_slices.py` 50-52, or 54-56"
   - claim: "Where no lot size is known the children divide the total exactly, and no size is too small"
     source: "`praxis/core/plan_even_slices.py` 54-56"
 ---
@@ -30,6 +32,10 @@ Five records elsewhere on these two sides compare a figure without asking its ki
 The count is refused below two. Nothing else is asked of it.
 
 A count carrying a fraction therefore passes, and the division that follows is what refuses it — by kind, with a complaint about the kinds of figure being divided rather than about the count. A lot size handed in as an ordinary number is refused the same way, by the division it reaches.
+
+## The split by weights
+
+[The split that weighs its children](when-a-weight-curve-plans-nothing.md) makes the same two checks, on the same terms. Its count is the number of weights given, and the weights themselves are asked nothing here.
 
 ## The road with no lot size
 
