@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 366 not.**
+**6 of them reviewed, 368 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 56 — the order the intake hooks stand in, and what an exit is asked
+
+Scope: the first of the checks a decision passes, which the ledger marks `partial`
+with sixty-four of its hundred and twenty-one statements uncited. Articles have
+the cap on how fast entries may go in and the window that turns a repeated entry
+away. The order those hooks stand in, and what the stage asks of an exit, are in
+no article — and the order is what decides which refusal an entry meets first.
+
+### Merge and promote, Nexus package 56
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-710 | The default hooks are built as the duplicate window and then the references, with the rate cap put in front of both where one is resolved. | Promote. The order is in no article, and it decides which refusal an entry meets first |
+| Row H-711 | A cap named with the request stands in place of the one the configuration carries. | Merge with H-710, where the cap comes from |
+| Row H-712 | Each of the two hooks built from a figure refuses a figure that is not a whole number, with a true-or-false refused outright, and one at or below nought. | Merge with H-710, what each refuses before it ever runs |
+| Row H-713 | An exit must be a sell, must name a trade the state holds a position for, and that position must belong to the strategy asking. | Promote. What the stage asks of an exit is in no article, and the three stand in an order of their own |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N56-01 | The order the intake hooks stand in | written | [the-order-the-intake-hooks-stand-in.md](atoms/the-order-the-intake-hooks-stand-in.md) |
+| N56-02 | What intake asks of an exit | written | [what-intake-asks-of-an-exit.md](atoms/what-intake-asks-of-an-exit.md) |
+
+### Re-seed, after writing Nexus package 56
+
+The ordering question the two packages before this learned to ask was asked of
+these articles while they were written, and the reader's five reports are
+accordingly about different things — except one, which is the same question one
+level further out.
+
+| What it found | What came of it |
+|---|---|
+| A check on the account's mode runs before any hook, and a halted account's exit is turned away there. So the hooks' own order is not the first thing a decision meets. | N56-01 opens with what comes before all of them. This is the ordering question again, asked of the stage rather than of the hooks |
+| The hook asks five things of an exit, not three: a size given and above nought, and a size within what the position has left after exits already pending. | N56-02 carries all five, in order |
+| The rate hook counts entries in a rolling second, so closeness is not what it refuses: an entry is turned away only where it is the one reaching the cap. | N56-01 says so |
+| The cap that overrides the configuration's is given as the hooks are built, not with a request — the request's own record has no such field. | Corrected |
+| An entry with no size still fails on direction where the side is wrong, so the size being optional is not a pass through the hook. | Narrowed |
+
+Four of the five are facts the articles did not have. One is the same shape as the
+last two packages' lesson, moved outward: having asked which hook comes first, the
+articles had not asked what comes before the hooks.
+
 
 ## Nexus package 55 — the figures a fill is assumed to carry
 
@@ -5380,8 +5424,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-707 | A fill is handled on four figures the processing asserts rather than tests, each of which the record across the seam refuses a fill for lacking. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 217-220, or 445-446, or 458-461, against `nexus/infrastructure/praxis_connector/trade_outcome.py` 183-185, or 195-197, or 207-209, or 222-224 | Nexus package fifty-five | is N55-01 |
 | H-708 | An entry fill naming no trade raises, and one naming a trade the state holds no position for raises too. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 463-465, or 467-471 | Nexus package fifty-five | folds into N55-01 |
 | H-709 | An acknowledgement whose capital call does not succeed is answered as a failure carrying the capital side's own reason. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 197 into 199-204 | Nexus package fifty-five | folds into N55-01 |
+| H-710 | The default hooks are built as the duplicate window and then the references, with the rate cap put in front of both where one is resolved. | `nexus/core/validator/intake_stage.py` 63-72, the cap inserted at 77-78, returned at 80 | Nexus package fifty-six | is N56-01 |
+| H-711 | A cap named with the request stands in place of the one the configuration carries. | `nexus/core/validator/intake_stage.py` 74-76 | Nexus package fifty-six | folds into N56-01 |
+| H-712 | Each of the two hooks built from a figure refuses a figure that is not a whole number, with a true-or-false refused outright, and one at or below nought. | `nexus/core/validator/intake_stage.py` 89-91, or 93-95, or 132-137, or 139-141 | Nexus package fifty-six | folds into N56-01 |
+| H-713 | An exit must be a sell, must name a trade the state holds a position for, and that position must belong to the strategy asking. | `nexus/core/validator/intake_stage.py` 238-244, or 245-254, or 255-262 | Nexus package fifty-six | is N56-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 14:00 UTC

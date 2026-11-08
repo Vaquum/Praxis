@@ -120,7 +120,7 @@ Every Praxis module is named here: 60 are `full` and 28 `partial`, with none `un
 | `nexus/core/health_evaluator.py` | full | N15-01, N15-02, N15-03, N15-04, N15-05, P3-15, P9-02 |
 | `nexus/core/validator/capital_stage.py` | full | N1-03, N2-03, N22-01, N3-08, P6-04 |
 | `nexus/core/validator/health_stage.py` | partial | N19-02, N2-03 |
-| `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
+| `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N56-01, N56-02, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
 | `nexus/core/validator/platform_limits_stage.py` | full | N2-03, N2-06, N34-01 |
 | `nexus/core/validator/risk_stage.py` | full | N19-01, N19-02, N2-03, N2-04 |
 | `nexus/core/validator/price_stage.py` | partial | N2-03, N2-07, P2-26 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 14:00 UTC
