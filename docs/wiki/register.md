@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 335 not.**
+**6 of them reviewed, 337 not.**
 
 ## Package 1
 
@@ -856,6 +856,46 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 37 — what the capital record refuses
+
+Scope: the record of what an account's money is doing, which the ledger marks
+`partial` with twenty-six of its thirty statements uncited. Several articles read
+figures off it. What it refuses as it is built is in no article — and one of those
+refusals is the strictest answer either side gives to a question five records
+answer differently.
+
+### Merge and promote, Nexus package 37
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-639 | The pool must be finite and above nought, and five further figures must each be finite and at or above nought. | Promote. What this record refuses is in no article, and the figures it holds are read by half a dozen |
+| Row H-640 | The per-strategy mapping must be a mapping, each key text with something left once trimmed, and each value a finite figure of the exact kind at or above nought. | Merge with H-639, the same building's other half |
+| Row H-641 | A key differing from its own trimmed form is refused outright, by a test of its own after the trimming. | Promote. A record refusing a padded name, where the four other places on these two sides keep it or quietly trim it, is a subject of its own |
+| Row H-642 | The mapping is rebuilt as the record is built and put back over the field it arrived in. | Merge with H-639. What the record holds afterwards is its own mapping, which is what makes the key tests final |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N37-01 | What the capital record refuses | written | [what-the-capital-record-refuses.md](atoms/what-the-capital-record-refuses.md) |
+| N37-02 | The key this record will not trim for you | written | [the-key-this-record-will-not-trim-for-you.md](atoms/the-key-this-record-will-not-trim-for-you.md) |
+
+### Re-seed, after writing Nexus package 37
+
+The reader had both articles before they were committed and returned five reports.
+One of them found a sixth answer to the question the second article is about.
+
+| What it found | What came of it |
+|---|---|
+| The capital record is not the only one refusing a padded name. The record of what a strategy is declared as refuses one too, in a single test that asks all three things of its name at once. | N37-02 is rebuilt around six answers rather than five: two refuse, two trim and keep, two keep as it stands. The claim of being the only one is gone |
+| The trimming in the capital record is not done only to compare: the trimmed form is first asked whether anything is left, and then compared. | N37-02 says what the trimmed form does, both jobs |
+| That figures under one name cannot be matched across records by text alone is more than the lines carry — an unpadded name matches everywhere. | The sentence is gone, replaced by which record a padded name meets first deciding its fate |
+| A pool above nought does not mean an account has anything to trade with: the figures it is spent against are not weighed at construction. | The gloss is cut |
+
+The first is the kind of report only a reader with the whole of both repositories
+can make. The register had five answers to the padded-name question recorded
+across six packages; the sixth was in a record none of those packages had reached.
 
 ## Package 36 — how a settings field is known to want a tuple
 
@@ -4560,8 +4600,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-636 | The walk follows unions alone, so a tuple inside another kind of generic is not taken for one. | `praxis/command_translator.py` 99-100 against 102 | Praxis package thirty-six | folds into P36-01 |
 | H-637 | The fields that take a list are read off each record once, as the module is loaded, and only those a record is built with are considered. | `praxis/command_translator.py` 123-129, called at 139-144 | Praxis package thirty-six | folds into P36-01 |
 | H-638 | A change's settings come from a second table, and a mode with no entry there refuses the change. | `praxis/command_translator.py` 415-419 | Praxis package thirty-six | added to the payload a mode's settings arrive in |
+| H-639 | The pool must be finite and above nought, and five further figures must each be finite and at or above nought. | `nexus/core/domain/capital_state.py` 44-46, or 48-58 | Nexus package thirty-seven | is N37-01 |
+| H-640 | The per-strategy mapping must be a mapping, each key text with something left once trimmed, and each value a finite figure of the exact kind at or above nought. | `nexus/core/domain/capital_state.py` 60-62, or 66-70, or 72-77, or 84-95 | Nexus package thirty-seven | folds into N37-01 |
+| H-641 | A key differing from its own trimmed form is refused outright, by a test of its own after the trimming. | `nexus/core/domain/capital_state.py` 78-83 | Nexus package thirty-seven | is N37-02 |
+| H-642 | The mapping is rebuilt as the record is built and put back over the field it arrived in. | `nexus/core/domain/capital_state.py` 64 and 97 into 99 | Nexus package thirty-seven | folds into N37-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 18:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 19:30 UTC

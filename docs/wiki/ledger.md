@@ -81,7 +81,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/outcome_translator.py` | full | N3-12, N4-02, P2-39, P2-41, P2-43, P26-01, P26-02, P27-01, P4-05, P4-29, P4-30 |
 | `praxis/reconciliation_translate.py` | full | P4-06 |
 | `praxis/core/domain/trade_command.py` | full | P2-23, P2-24, P2-43, P4-07, P4-08, P4-29, P4-33, P4-36, P8-01 |
-| `praxis/core/domain/_require_str.py` | full | P4-07, P4-09, P4-10, P4-11, P4-12, P4-33, P7-01, P8-02 |
+| `praxis/core/domain/_require_str.py` | full | N37-02, P4-07, P4-09, P4-10, P4-11, P4-12, P4-33, P7-01, P8-02 |
 | `praxis/core/domain/execution_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | full | P2-19, P4-08 |
@@ -110,7 +110,7 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/core/capital_controller/reservation.py` | partial | N13-01, N13-02, N13-03, N13-07, N15-08 |
 | `nexus/core/domain/risk_breaker_thresholds.py` | full | N14-07, N18-04 |
 | `nexus/core/capital_controller/tracked_order.py` | partial | N4-01, N5-02 |
-| `nexus/core/domain/capital_state.py` | partial | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N4-01, N4-06, N7-10, P5-04 |
+| `nexus/core/domain/capital_state.py` | partial | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N37-01, N37-02, N4-01, N4-06, N7-10, P5-04 |
 | `nexus/core/domain/position.py` | partial | N2-01, N2-06, N3-01, N4-03, N4-05, N6-02 |
 | `nexus/core/domain/instance_state.py` | partial | N3-01, N3-02, N7-08, P5-04 |
 | `nexus/core/domain/risk_state.py` | partial | N19-01, N2-04, N3-03, N7-09, P18-01 |
@@ -133,7 +133,7 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/reconciler/reconciliation_handler.py` | full | P4-43 |
 | `nexus/core/mtm_loop.py` | partial | N6-01, N6-11, N8-03 |
 | `nexus/infrastructure/loss_derivation.py` | full | N15-08, N2-03, N7-09 |
-| `nexus/infrastructure/manifest.py` | partial | N3-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
+| `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
 | `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N7-08, N8-03, N9-04 |
 | `nexus/infrastructure/state_store.py` | partial | N3-03, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
 | `nexus/infrastructure/snapshot.py` | full | N7-08, N7-09, N8-03, N8-04, N9-04, P18-01 |
@@ -149,7 +149,7 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/infrastructure/praxis_connector/protection_remediation.py` | full | N14-06 |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | full | N16-05, P4-06 |
 | `nexus/infrastructure/praxis_connector/trade_command_type.py` | full | N11-01, N16-02 |
-| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04, N15-08, N16-02, P8-02 |
+| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04, N15-08, N16-02, N37-02, P8-02 |
 | `nexus/infrastructure/praxis_connector/trade_outcome.py` | full | N12-01, N12-02, N12-03, N12-04, N15-08, P26-02, P8-02 |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | full | N1-07, N18-03, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | full | N16-01, N16-02, N16-03, N5-04, N5-06, P4-04 |
@@ -160,11 +160,11 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/strategy/action_submit.py` | partial | N1-02, N1-08, N2-05, N4-01, N4-02, N5-02, N5-04, N5-06, N6-08, N6-09, N6-10, N7-03, N7-04, N7-05 |
 | `nexus/strategy/loader.py` | full | N17-06, N17-07, P4-17 |
 | `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39, N10-02, N10-06 |
-| `nexus/strategy/runner.py` | full | N10-01, N10-04, N22-02 |
+| `nexus/strategy/runner.py` | full | N10-01, N10-04, N22-02, N37-02 |
 | `nexus/strategy/executor.py` | full | N10-01, N22-02 |
 | `nexus/infrastructure/observability.py` | full | P7-05 |
 | `nexus/infrastructure/strategy_event.py` | full | N14-01, N14-02 |
-| `nexus/strategy/base.py` | full | N10-03, N22-02 |
+| `nexus/strategy/base.py` | full | N10-03, N22-02, N37-02 |
 | `nexus/strategy/params.py` | full | N14-04, N14-05, N17-02 |
 | `nexus/strategy/signal.py` | full | N14-03, N14-04, N17-02, N18-04 |
 | `nexus/strategy/timer_loop.py` | full | N10-02, N10-05, N10-06, N23-01 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 18:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 19:30 UTC
