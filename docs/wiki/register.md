@@ -857,6 +857,25 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Nexus package 42 — the pool asked for twice, and the whole an order locks
+
+Scope: the two records the packages before this left two statements short each.
+Both statements are added to the articles that hold their subjects, and both cells
+move to `full`.
+
+### Merge and promote, Nexus package 42
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-655 | A state built fresh asks the pool to be finite and of the exact kind, then to be above nought, before handing it to the record that asks both again. | Add to the article on what the capital record refuses. This is a fifth pair of rules standing in two places, after the four the register already carries |
+| Row H-656 | What a tracked order locks in all is the amount plus the fee estimate. | Add to the article on what a tracked order must be, which has the two figures and not their sum |
+
+Nothing promotes and nothing is declined.
+
+What is left is recorded as an exclusion: in the record of an order, the raise
+ending the check on its moment, which N40-02 states; in the state, the three lines
+of the fresh building whose two tests this package states.
+
 ## Nexus package 41 — the stop that blocks a restart
 
 Scope: the loop reading outcomes back from Praxis, which the ledger marks
@@ -4761,8 +4780,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-652 | Stopping takes the worker under the lock, sets the stop signal, lets the lock go, and waits on the worker for a given span. | `nexus/core/outcome_loop.py` 169-175 into 177 | Nexus package forty-one | folds into N41-01 |
 | H-653 | A worker still alive when that wait runs out keeps its place, so a later start finds a live worker held and does nothing. | `nexus/core/outcome_loop.py` 179-185 against 146-147 | Nexus package forty-one | is N41-02 |
 | H-654 | A worker that did exit has its place cleared, and only where the place still holds that same worker. | `nexus/core/outcome_loop.py` 187-189 | Nexus package forty-one | folds into N41-02 |
+| H-655 | A state built fresh asks the pool to be finite and of the exact kind, then to be above nought, before handing it to the record that asks both again. | `nexus/core/domain/instance_state.py` 148-150, or 152-154, ahead of 156-157 | Nexus package forty-two | added to what the capital record refuses |
+| H-656 | What a tracked order locks in all is the amount plus the fee estimate. | `nexus/core/capital_controller/tracked_order.py` 117 | Nexus package forty-two | added to what a tracked order must be |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 00:00 UTC

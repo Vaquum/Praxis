@@ -2,7 +2,7 @@
 row: N40-02
 baseline: 49aa659
 created: 2026-11-11 21:30 UTC
-modified: 2026-11-11 21:30 UTC
+modified: 2026-11-12 00:00 UTC
 evidence:
   - claim: "Its three names must each be text with something left once trimmed, the trimming only testing them"
     source: "`nexus/core/capital_controller/tracked_order.py` 59-61, or 63-65, or 67-69"
@@ -12,6 +12,8 @@ evidence:
     source: "`nexus/core/capital_controller/tracked_order.py` 97-99"
   - claim: "Its state must be one of the two named"
     source: "`nexus/core/capital_controller/tracked_order.py` 101-103, the two at 28-29"
+  - claim: "What the order locks in all is the amount plus the fee estimate"
+    source: "`nexus/core/capital_controller/tracked_order.py` 117"
   - claim: "Its moment must be a moment carrying the universal-time marker itself"
     source: "`nexus/core/capital_controller/tracked_order.py` 105-107, or 109-110"
 ---
@@ -30,6 +32,8 @@ The trimming only tests them. What the record carries is the name as it arrived,
 What the order locks, what is held back for its fees, and what of it is still unfilled. Each must be a finite figure of the exact kind at or above nought.
 
 What is still unfilled must also not exceed what the order locks, so the record cannot say more is outstanding than was ever committed.
+
+What the order locks in all is the two of them added: the amount and the fee estimate.
 
 ## The state and the moment
 
