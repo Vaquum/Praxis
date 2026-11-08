@@ -847,6 +847,48 @@ in each case nothing was set.
 | N18-03 | The two cuts across the kinds of outcome | written | [the-two-cuts-across-the-kinds-of-outcome.md](atoms/the-two-cuts-across-the-kinds-of-outcome.md) |
 | N18-04 | What stands where nothing was set | written | [what-stands-where-nothing-was-set.md](atoms/what-stands-where-nothing-was-set.md) |
 
+### Re-seed, after writing package 18
+
+What verifying the four articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| What a bad entry number carries into | `nexus/infrastructure/wal_entry.py` 43-45 refuses an entry's number below nought and asks nothing else of it, and the only two places anything reads that number take it from the last entry the read gave back and add one: `nexus/infrastructure/state_store.py` 116 and 272. Nothing anywhere compares one entry's number with another's. So a true-or-false or a fraction stored once is added to, and the number after it is a fraction too, and every number after that. N18-02 has that the number is asked only for its sign, and `how-a-record-reaches-the-log.md` has the numbering-on from the last record; that a bad number survives into every number after it, because nothing ever compares two, is in neither |
+
+One candidate. It is the far side of two facts that are each written: what the
+record asks of the number, and where the next number comes from. Neither article
+reaches what the pair together allows.
+
+A candidate check was drafted from the method this package used and measured
+against the clean corpus, as the rule requires, and it was not written. The method
+was to compare every line an article cites against every line of a module that
+runs, which is how the gaps in these thirteen records were found. As a blocking
+check — that a module marked `full` has every running line cited — it fires on fifty of the sixty-three
+modules marked `full` for their own behaviour. Some of that is plumbing
+no article should have to cite; some is real. Either way the ledger's own bar is a
+judgement, not line coverage, and a check reading it as coverage would refuse
+almost every `full` row in the file. The method stays a way of finding work rather
+than a gate.
+
+That survey leaves a bounded list behind, which is the next piece of depth work:
+those fifty rows, each marked `full` with at least one running line no article
+cites. The
+widest are `praxis/metrics/limen_snapshot.py` with 85 of 162 lines uncited,
+`praxis/infrastructure/book_poller.py` with 36 of 46, `praxis/replay/replay_api.py`
+with 35 of 137, and the two reconciler handlers on the Nexus side with 29 of 33
+each. Each needs reading to tell plumbing from behaviour, and whichever turn up
+behaviour either take a row or have their `full` corrected.
+
+A note on verification, as for the three packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned records on the cases each claim turns on.
+That caught three things the reading had passed: a claim that thirteen modules
+going to `full` would be the first on this side to carry that mark for behaviour,
+where four already did; a sentence about what the log's reader does with a bad
+number that nothing cited; and a flag said to send a record down the success arm
+where an empty text sends it down the other one and is then kept for carrying a
+reason. The articles carry status `written`, as 282 of the 283 do.
+
 ## Nexus package 17 — what a host is configured with, and what loads a strategy
 
 Scope: the last two modules the ledger reaches only by citation — the record of
@@ -2860,4 +2902,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 00:10 UTC
