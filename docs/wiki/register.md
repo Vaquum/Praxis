@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 418 not.**
+**6 of them reviewed, 422 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 67 — what a strategy's action is held to
+
+Scope: the record a strategy's answer arrives in, which the ledger marks `partial`
+with seventy-nine of its hundred and one statements uncited. Six claims across the
+corpus reach it, each about one field it happened to need — an abandonment with no
+reference, the exactly-one-of rule on an entry, the four kinds a strategy may ask
+for. What every field is held to, the two mappings the record reseals, and what
+each kind of action requires are in no article.
+
+### Merge and promote, Nexus package 67
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-787 | The kind of action is the one field required outright, and every other field has its test standing behind a test for its absence, so leaving one out is never refused there. | Promote. What the record asks of its own fields is in no article, and that absence is never refused at that stage is what makes the per-kind requirements the only place a missing field is caught |
+| Row H-788 | Five fields are held to being one of their own named kinds, three figures to being finite figures of the exact kind above nought, the deadline to being a whole number above nought with a true-or-false refused, and two references to being text with something left once trimmed. | Merge with H-787, the twelve tests themselves |
+| Row H-789 | Only once all twelve fields have passed are the kind's own requirements looked at, so a bad figure is reported before a missing field. | Merge with H-787. Which complaint a caller meets first is the part of this worth stating |
+| Row H-790 | Each of the two mappings is held to being a mapping where given, then copied and the copy put behind a reading-only view written over the field by the means that goes round the sealing. | Promote. A sealed record rewriting two of its own fields is in no article on this side, and the reading-only view is a stronger guard than the resealing the trading side's records do |
+| Row H-791 | The parameters for the way of working may be a mapping with nothing in it and the parameters for a change may not, the latter refused by a test the former has no counterpart for. | Merge with H-790, where the two part company |
+| Row H-792 | An entry gathers five missing fields into one complaint naming all of them, then refuses both a size and an amount of money together, then holds an entry carrying money to being a buy and a market order. | Promote. What each kind requires is in no article, and the gathering means a caller is told every missing field at once rather than one per attempt |
+| Row H-793 | An exit gathers two and then refuses an amount of money outright, a change gathers three, and an abandonment asks for one named directly rather than gathered. | Merge with H-792, the other three kinds |
+
+Three subjects promote and four rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N67-01 | What a strategy's action is checked for | written | [what-a-strategys-action-is-checked-for.md](atoms/what-a-strategys-action-is-checked-for.md) |
+| N67-02 | The two mappings an action reseals | written | [the-two-mappings-an-action-reseals.md](atoms/the-two-mappings-an-action-reseals.md) |
+| N67-03 | What each kind of action requires | written | [what-each-kind-of-action-requires.md](atoms/what-each-kind-of-action-requires.md) |
+| N67-04 | When an entry may name a sum instead of a size | written | [when-an-entry-may-name-a-sum-instead-of-a-size.md](atoms/when-an-entry-may-name-a-sum-instead-of-a-size.md) |
+
+### Re-seed, after writing Nexus package 67
+
+The reader returned four reports. Three were valid and one had been answered before.
+
+| What it found | What came of it |
+|---|---|
+| The record holds thirteen fields, not twelve, and the thirteen carry fourteen refusals because the fields a change rewrites are refused both for their shape and for being empty. | Corrected. The count was taken from the article's own sections again, which is the error package sixty-five's re-seed names |
+| The gathering of missing fields comes before the test for both a size and a sum, so an entry giving both alongside some other field missing is told about the missing field. | N67-03 says which complaint is heard when. The claim had made the conflict the answer for giving both |
+| An exit forbids a sum and requires a trade and a size, and asks nothing about the direction, so it does not enforce selling. | N67-03 says what is asked and that the direction is not. The sentence had read as a rule where it was a gloss |
+| The test of kind on a figure admits anything built on the figure kind rather than that kind alone, so "of the exact kind" overstates it. | Raised again, and answered as it was in package sixty-one: neither checkout declares anything built on that kind, so nothing in either system can exercise the difference. The phrase stands |
+
+Three statements of the module are left uncited and are an exclusion rather than
+work outstanding: two assertions whose truth the gathering above guarantees, which
+N67-04 states, and the condition that reaches them.
 
 ## Package 66 — how the simulated venue is started
 
@@ -6063,8 +6108,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-784 | A money argument that will not convert ends the command with a message naming the argument, and nothing there asks either figure to be finite or at or above nought. | `__main__.py` 259-265, against `ledger.py` 287-297 | package sixty-six | folds into P66-03 |
 | H-785 | A run naming no command falls past the registering and reads the settings, so the service is what running the program plainly gives, and the lock is held around the whole of the running. | `__main__.py` 308 reached where 282 does not hold, the lock at 311 | package sixty-six | is P66-04 |
 | H-786 | A held directory ends either road with that refusal's own message rather than a trace, while anything else going wrong is written out with its trace and answered as a failure. | `__main__.py` 299-300, and 313-314, against 320-324 | package sixty-six | folds into P66-04 |
+| H-787 | The kind of action is the one field required outright, and every other field has its test standing behind a test for its absence, so leaving one out is never refused there. | `nexus/strategy/action.py` 77-79, against 81, or 85, or 93, or 101, or 107, or 134, or 142, or 149, or 156, or 162 | Nexus package sixty-seven | is N67-01 |
+| H-788 | Five fields are held to being one of their own named kinds, three figures to being finite figures of the exact kind above nought, the deadline to being a whole number above nought with a true-or-false refused, and two references to being text with something left once trimmed. | `nexus/strategy/action.py` 81-83 and 101-109 and 156-160, or 85-99 and 162-168, or 134-140, or 142-154 | Nexus package sixty-seven | folds into N67-01 |
+| H-789 | Only once all twelve fields have passed are the kind's own requirements looked at, so a bad figure is reported before a missing field. | `nexus/strategy/action.py` 170, standing after 77-168 | Nexus package sixty-seven | folds into N67-01 |
+| H-790 | Each of the two mappings is held to being a mapping where given, then copied and the copy put behind a reading-only view written over the field by the means that goes round the sealing. | `nexus/strategy/action.py` 111-119, and 121-132 | Nexus package sixty-seven | is N67-02 |
+| H-791 | The parameters for the way of working may be a mapping with nothing in it and the parameters for a change may not, the latter refused by a test the former has no counterpart for. | `nexus/strategy/action.py` 111-119 asking nothing of the size, against 125-127 | Nexus package sixty-seven | folds into N67-02 |
+| H-792 | An entry gathers five missing fields into one complaint naming all of them, then refuses both a size and an amount of money together, then holds an entry carrying money to being a buy and a market order. | `nexus/strategy/action.py` 176-189, then 191-193, then 200-212 | Nexus package sixty-seven | is N67-03 |
+| H-793 | An exit gathers two and then refuses an amount of money outright, a change gathers three, and an abandonment asks for one named directly rather than gathered. | `nexus/strategy/action.py` 215-226, or 229-238, or 241-243 | Nexus package sixty-seven | folds into N67-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 00:30 UTC

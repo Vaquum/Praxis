@@ -175,6 +175,10 @@ the others where it appears.
 - [What the platform ceilings weigh](atoms/what-the-platform-ceilings-weigh.md) — the last check before an order goes out asks for five numbers and is handed one, and the limits it offers on the rest cannot be used.
 - [What each check weighs](atoms/what-each-check-weighs.md) — six checks stand between a strategy's decision and the venue, and they look at quite different things: the order itself, what the account has lost, and whether the venue is answering.
 - [The roads around the checks](atoms/the-roads-around-the-checks.md) — some orders go out to the venue without passing a single one of the checks the rest pass.
+- [What a strategy's action is checked for](atoms/what-a-strategys-action-is-checked-for.md) — a strategy's answer is one record whose every field is weighed on its own first, and leaving a field out is never what the record refuses at that stage.
+- [What each kind of action requires](atoms/what-each-kind-of-action-requires.md) — once the fields are sound, the record checks what the kind of request needs, gathering every missing field into a single complaint rather than reporting them one attempt at a time.
+- [When an entry may name a sum instead of a size](atoms/when-an-entry-may-name-a-sum-instead-of-a-size.md) — a request to open a position says how much either in coin or in money to spend, and the money form is allowed only for a plain purchase at whatever the market gives.
+- [The two mappings an action reseals](atoms/the-two-mappings-an-action-reseals.md) — the record copies each set of settings it is handed and puts it behind a read-only view, so neither side can write into one afterwards, though a value nested inside one stays shared.
 - [What an entry outcome changes](atoms/what-an-entry-outcome-changes.md) — a report of one kind moves the money set aside for a command on to the next place it sits, and two kinds of report move nothing at all.
 - [What a settling fee does to the figure](atoms/what-a-settling-fee-does-to-the-figure.md) — the gap between a guessed trading cost and what the report says it came to moves two balances in opposite directions, and can raise the money held against a strategy without anyone committing more.
 - [When a reservation times out](atoms/when-a-reservation-times-out.md) — money held for a trade that never went out is given back by a sweep at the start of a fresh request, and an order finding its own hold already expired hands the money back itself rather than waiting for that sweep.
@@ -516,15 +520,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 419
+Both sides are the subject, and Praxis is the side that has been written. 423
 articles exist. Of Praxis's own source files 73 are accounted for in full and 15 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 48 are accounted for in full and 16 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 49 are accounted for in full and 15 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 00:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 00:30 UTC
