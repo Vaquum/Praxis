@@ -463,6 +463,14 @@ the others where it appears.
 - [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, answering over the web on the real venue's paths.
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — what the simulated venue keeps per account: the balances it holds and the fills it has been given.
+- [The lock one writer holds](atoms/the-lock-one-writer-holds.md) — the simulated venue keeps its books in memory and writes them out whole, so one lock on the state folder is what stops two programs each writing over the other's work.
+- [What a refused writer is told](atoms/what-a-refused-writer-is-told.md) — being turned away from that lock gives one message built from two readings that can each come up short, so it may name a program that has already finished, or none.
+- [What registering an account refuses, and the key it mints](atoms/what-registering-an-account-refuses-and-the-key-it-mints.md) — four things are checked before the books are touched at all, and the key handed back is the only one that account will ever be given.
+- [How a key names an account](atoms/how-a-key-names-an-account.md) — a key is trimmed and scrambled before it is looked up, three quite different problems all give the same silent answer, and padding a key with spaces is no barrier.
+- [What an interrupted save does](atoms/what-an-interrupted-save-does.md) — a save interrupted partway still finishes writing before the interruption is passed on, and there is one narrow case where a failed save is reported to the log alone.
+- [How the snapshot is written and read back](atoms/how-the-snapshot-is-written-and-read-back.md) — the books go to a new file beside the old one which is then moved into place, so a reader sees the whole of one version or the whole of the other.
+- [What reading the saved ledger requires](atoms/what-reading-the-saved-ledger-requires.md) — a missing file is a fine answer and a damaged one stops the service coming up, and the index of keys is rebuilt from the accounts rather than trusted from the file.
+- [What a restart of the simulated venue loses](atoms/what-a-restart-of-the-simulated-venue-loses.md) — balances outlast a restart and the record of the trades behind them does not, while the numbering carries on as though nothing were missing.
 - [When binsim turns an order away](atoms/when-binsim-turns-an-order-away.md) — the refusals that turn on the venue's own state: a book too old, a name booked before, a balance that cannot cover it, and a size the venue will not take.
 - [What a binsim snapshot is turned away for](atoms/what-a-binsim-snapshot-is-turned-away-for.md) — depth, progress and shape are each checked before a snapshot replaces the book, and orders go on filling against whatever was accepted last.
 
@@ -497,7 +505,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 400
+Both sides are the subject, and Praxis is the side that has been written. 408
 articles exist. Of Praxis's own source files 71 are accounted for in full and 17 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -508,4 +516,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 22:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 23:00 UTC

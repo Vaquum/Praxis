@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 399 not.**
+**6 of them reviewed, 407 not.**
 
 ## Package 1
 
@@ -856,6 +856,72 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 64 — the state directory of the simulated venue
+
+Scope: the ledger the simulated venue keeps, which the ledger marks `partial` with
+a hundred and sixty-five of its hundred and ninety-three statements uncited. One
+article has what it keeps and that a fill moves the balances. The lock that keeps
+two processes apart, what registering refuses and the key it mints, how a key names
+an account, what an interrupted save does, how the file is written and read, and what
+a restart loses are in no article. The arithmetic a fill and an order do is left to
+the package after this.
+
+### Merge and promote, package 64
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-756 | Taking the exclusive lock makes the directory, resolves its path, opens the lock file for appending so the holder's number survives, asks for the lock without waiting, and writes its own number only once the lock is held. | Promote. The lock is named in one claim of one article and what it does is in none, and the opening for appending is there to keep a number the failing caller needs |
+| Row H-757 | A refusal reads the lock file for the holder and names the directory and that holder, the reading answering with nothing where the file cannot be read or holds nothing. | Merge with H-756, what a refused caller is told |
+| Row H-758 | The lock is let go however the work ends and the number in the file is left standing, nothing clearing it. | Merge with H-756, what the file says once the holding is over |
+| Row H-759 | Registering trims the name and refuses emptiness, holds both starting balances to being finite in one test and each to standing at or above nought in its own, and only past those takes the ledger's lock and refuses a name already held. | Promote. What registering refuses is in no article, and which checks stand outside the lock decides what a refusal costs |
+| Row H-760 | A key is minted by drawing until a hash the index does not hold comes up, and nothing else in the ledger mints one, so an account that has lost its key cannot be given another. | Merge with H-759. The minting and the once-only consequence belong with the registering that does it |
+| Row H-761 | Resolving a key answers with nothing for a key that is not text, for one holding nothing once trimmed, and for one whose hash is unknown, and trims before hashing so a padded key names the account its trimmed form does. | Promote. How a key becomes an account is in no article, and three unlike grounds answering alike is what a caller has to work with |
+| Row H-762 | Saving hands the writing to a thread and shields the waiting, so a cancellation leaves the writing to finish and is raised only afterwards, with the task's count of cancellations wound back in between. | Promote. What a cancellation does to a save is in no article, and the answer is that it does not abandon it |
+| Row H-763 | A failure of that writing is logged and raised to nobody, and the wording of the log names a cancellation while the logging runs on every failure. | Merge with H-762. A caller told nothing about a failed save is the half of this subject that matters, and the log's wording is narrower than the condition it reports |
+| Row H-764 | Writing makes a temporary file beside the saved one, writes the payload into it and moves it over, removing the temporary file and handing the failure on where either step fails. | Promote. How the file is written and read is in no article |
+| Row H-765 | Reading takes the lock, leaves the ledger alone where no file is there, catches no failure of the parsing, requires the next trade's number, falls back to one for the next order's, and rebuilds the key index from the accounts rather than from the file. | Merge with H-764, the other direction |
+| Row H-766 | An account is written out as the hash of its key, its two balances and the order names it has seen, and is read back with an empty run of fills whatever the file held. | Promote. That the fills do not outlast a restart while the balances do is in no article, and it is what a reader of a restarted ledger needs to know |
+
+Six subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P64-01 | The lock one writer holds | written | [the-lock-one-writer-holds.md](atoms/the-lock-one-writer-holds.md) |
+| P64-02 | What registering an account refuses, and the key it mints | written | [what-registering-an-account-refuses-and-the-key-it-mints.md](atoms/what-registering-an-account-refuses-and-the-key-it-mints.md) |
+| P64-03 | How a key names an account | written | [how-a-key-names-an-account.md](atoms/how-a-key-names-an-account.md) |
+| P64-04 | What an interrupted save does | written | [what-an-interrupted-save-does.md](atoms/what-an-interrupted-save-does.md) |
+| P64-05 | How the snapshot is written and read back | written | [how-the-snapshot-is-written-and-read-back.md](atoms/how-the-snapshot-is-written-and-read-back.md) |
+| P64-06 | What a restart of the simulated venue loses | written | [what-a-restart-of-the-simulated-venue-loses.md](atoms/what-a-restart-of-the-simulated-venue-loses.md) |
+| P64-07 | What a refused writer is told | written | [what-a-refused-writer-is-told.md](atoms/what-a-refused-writer-is-told.md) |
+| P64-08 | What reading the saved ledger requires | written | [what-reading-the-saved-ledger-requires.md](atoms/what-reading-the-saved-ledger-requires.md) |
+
+### Re-seed, after writing package 64
+
+The reader returned ten reports and all ten were valid. The first two unmade the
+central claim of one article.
+
+| What it found | What came of it |
+|---|---|
+| A failure of the writing comes back out of the shielded waiting, which catches cancellation alone, so an ordinary failed save reaches its caller. The logging further down is reached only where the waiting ended without raising — a cancellation handled and the writing failed in the same breath. | P64-04 was rewritten. The claim had been that every failed save is swallowed, which was read off the lines without tracing how a failure moves through a shielded wait. The log's wording, which the draft called too narrow, turns out to name exactly the case it fires in |
+| In that one case the cancellation is raised and the failure goes no further than the log. | P64-04 says so, as the one swallowed failure rather than the rule |
+| A later successful save does not commit a fill, fills being written nowhere. | Corrected. The draft had said the next save commits what the failed one missed |
+| The holder's number is written only once the lock is held, so between the two the file still holds the number before it. | P64-07. The claim had said the file always names whoever last took the lock |
+| Every failure the asking for the lock can report becomes the one refusal, nothing being read off the failure. | P64-07 says so, and says the message names a cause the caller cannot check |
+| The ledger's own readings and changes name an account directly and ask for no key, so a lost key costs reaching the account from outside rather than reaching it at all. | Corrected. The claim had reached past the module into what callers do with it |
+| The minting retries on hashes that agree rather than on keys that agree. | Corrected |
+| The removing of the temporary file after a failed write is guarded against nothing, so its own failure replaces the one being reported and leaves the file behind. | P64-05 says so. The draft had promised no litter |
+| A trade's number is taken at two places and carried on at two more, not at the lines cited. | Citation corrected |
+| An account's fills are handed back at a different line from the one cited. | Citation corrected |
+
+Six of the ten are claims that reached past their evidence, and the first is the
+costliest kind: a behaviour asserted from the shape of a block without following
+what an exception does inside it. Reading a construct's name is not reading the
+construct.
+
+Ninety-two statements of the module are left uncited and are the scope of the
+package after this: the arithmetic a fill and an order do, and the three readings
+the ledger offers.
 
 ## Nexus package 63 — how a saved record is written and read back
 
@@ -5855,8 +5921,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-753 | A snapshot with no health mode is read as the running mode, with no block of holds as a block with none standing, and three of the six holds in a block that is there fall back to a hold not standing. | `nexus/infrastructure/wal_codec.py` 142 into 502-503, and 143 into 438-439, with 446-448 required against 449-457 | Nexus package sixty-three | is N63-05 |
 | H-754 | The writer puts every field and every figure into every payload it makes, so none of the fallbacks on either record can answer a payload this codec wrote. | `nexus/infrastructure/wal_codec.py` 81-96, and 269-288 | Nexus package sixty-three | folds into N63-04, and N63-05 states it too |
 | H-755 | Reading a capital record snaps five of its six figures and every per-strategy figure from a small negative to nought, leaving the pool alone and handing a larger negative through. | `nexus/infrastructure/wal_codec.py` 199-205, the pool read at 198 without it, the snap at 52-55 | Nexus package sixty-three | is N63-06 |
+| H-756 | Taking the exclusive lock makes the directory, resolves its path, opens the lock file for appending so the holder's number survives, asks for the lock without waiting, and writes its own number only once the lock is held. | `ledger.py` 65, then 69, then 74, then 76, then 86-89 | package sixty-four | is P64-01 |
+| H-757 | A refusal reads the lock file for the holder and names the directory and that holder, the reading answering with nothing where the file cannot be read or holds nothing. | `ledger.py` 78 into 79-84, the reading at 111-116 | package sixty-four | folds into P64-01 |
+| H-758 | The lock is let go however the work ends and the number in the file is left standing, nothing clearing it. | `ledger.py` 91-94 | package sixty-four | folds into P64-01 |
+| H-759 | Registering trims the name and refuses emptiness, holds both starting balances to being finite in one test and each to standing at or above nought in its own, and only past those takes the ledger's lock and refuses a name already held. | `ledger.py` 282-297, then 299-301 | package sixty-four | is P64-02 |
+| H-760 | A key is minted by drawing until a hash the index does not hold comes up, and nothing else in the ledger mints one, so an account that has lost its key cannot be given another. | `ledger.py` 327-331, the only call at 303, against the refusal at 300-301 | package sixty-four | folds into P64-02 |
+| H-761 | Resolving a key answers with nothing for a key that is not text, for one holding nothing once trimmed, and for one whose hash is unknown, and trims before hashing so a padded key names the account its trimmed form does. | `ledger.py` 353-359, then 361 | package sixty-four | is P64-03 |
+| H-762 | Saving hands the writing to a thread and shields the waiting, so a cancellation leaves the writing to finish and is raised only afterwards, with the task's count of cancellations wound back in between. | `ledger.py` 633-635, then 638-647, then 658-659 | package sixty-four | is P64-04 |
+| H-763 | A failure of that writing is logged and raised to nobody, and the wording of the log names a cancellation while the logging runs on every failure. | `ledger.py` 649-656, with no raising at 658-659 | package sixty-four | folds into P64-04 |
+| H-764 | Writing makes a temporary file beside the saved one, writes the payload into it and moves it over, removing the temporary file and handing the failure on where either step fails. | `ledger.py` 663-668, then 673-674, then 675-677 | package sixty-four | is P64-05 |
+| H-765 | Reading takes the lock, leaves the ledger alone where no file is there, catches no failure of the parsing, requires the next trade's number, falls back to one for the next order's, and rebuilds the key index from the accounts rather than from the file. | `ledger.py` 244-246, then 248-249, then 251-252, then 257-260 | package sixty-four | folds into P64-05 |
+| H-766 | An account is written out as the hash of its key, its two balances and the order names it has seen, and is read back with an empty run of fills whatever the file held. | `ledger.py` 754-759, read back at 771 | package sixty-four | is P64-06 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 23:00 UTC
