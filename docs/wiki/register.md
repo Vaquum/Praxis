@@ -803,6 +803,31 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 17 — the last statements in the five modules nearest the line
+
+Scope: the five modules the ledger marks `partial` with the fewest statements
+left uncited — between one and four each, out of eight to a hundred and one. Each
+is already reached by articles covering its behaviour; what is left is the last
+statement or two of each, and in one case a citation that stopped on the line
+before the raise.
+
+This package promotes no subject. Its work is to state those last statements in
+the articles that already hold their subjects, and then to move the five cells
+from `partial` to `full`.
+
+### Merge and promote, package 17
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-565 | An entry's moment must carry a zone. | Add to the article on the money ledger, which holds the other refusals of an entry and of its lines |
+| Row H-566 | The mean is the closed trades' profits summed over their count, and each side's volume is its own trades' entry notional summed, the whole being the two added together. | Add to the article on the metrics, which has the rounding of these four figures and what they come to where nothing closed, but not how they are reached |
+| Row H-567 | An evaluator built with no policy of its own weighs against the built-in thresholds. | Add to the article on health, which already names those thresholds where it says what an all-zero report is read as |
+| Row H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | Add to the article on what an outcome is checked for, which states of the leftover size that it is checked after that choice; this is the one checked before it |
+| Row H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | Extend the citation already carrying this, which stopped on the line before the raise |
+
+Nothing promotes and nothing is declined. Four statements are added to four
+articles, one citation is extended, and the five cells go to `full`.
+
 ## Package 16 — the window a backfill opens, and what an even split refuses
 
 Scope: two small modules the ledger marks `full`, each left with a handful of
@@ -3552,8 +3577,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-562 | A total that is not a finite decimal above nought is refused, a figure of another kind among them. | `praxis/core/plan_even_slices.py` 46-48 | Praxis package sixteen | is P16-02 |
 | H-563 | The count of children is refused below two and asked nothing else, so a count with a fraction reaches the division and the division is what raises. | `praxis/core/plan_even_slices.py` 50-52, raising at 55 or at 60 | Praxis package sixteen | folds into P16-02 |
 | H-564 | Where no lot size is known the children divide the total exactly, with no size below which a child is refused. | `praxis/core/plan_even_slices.py` 54-56 | Praxis package sixteen | folds into P16-02 |
+| H-565 | An entry's moment must carry a zone. | `praxis/core/domain/journal_entry.py` 73-75 | Praxis package seventeen | added to the money ledger |
+| H-566 | The mean is the closed trades' profits summed over their count, and each side's volume is its own trades' entry notional summed, the whole being the two added together. | `praxis/metrics/ledger_metrics.py` 62-65, the whole at 71 | Praxis package seventeen | added to the metrics |
+| H-567 | An evaluator built with no policy of its own weighs against the built-in thresholds. | `nexus/core/health_evaluator.py` 153, the defaults at 81-93 | Praxis package seventeen | added to health |
+| H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 112 before 114-117 | Praxis package seventeen | added to what an outcome is checked for |
+| H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | `nexus/instance_config.py` 275-278 into 279-287 | Praxis package seventeen | citation extended to the raise |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 16:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 17:00 UTC
