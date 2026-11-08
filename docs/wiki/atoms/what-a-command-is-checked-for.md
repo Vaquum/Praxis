@@ -2,7 +2,7 @@
 row: N11-01
 baseline: 49aa659
 created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:40 UTC
+modified: 2026-11-08 08:50 UTC
 evidence:
   - claim: "A command is refused unless its reference, its account, its venue and its symbol are each text with something left in them once trimmed"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 101-103, or 109-111, or 113-115, or 117-119"
@@ -17,7 +17,7 @@ evidence:
 ---
 # What a command is checked for
 
-The checks the record Nexus hands the trading side makes on itself are a fixed list, and failing any one of them refuses the record.
+A command is refused for failing any one of a fixed list of checks.
 
 ## What must be there
 
