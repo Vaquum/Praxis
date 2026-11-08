@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 271 not.**
+**6 of them reviewed, 278 not.**
 
 ## Package 1
 
@@ -806,9 +806,8 @@ nowhere.
 ## Nexus package 17 — what a host is configured with, and what loads a strategy
 
 Scope: the last two modules the ledger reaches only by citation — the record of
-how one instance is configured, which carries more refusals than anything else on
-either side, and the pair of calls that turn a line of a manifest into a running
-strategy. Thirty-eight refusals between them, and one line of the two cited by one
+how one instance is configured, which carries twenty-seven refusals, and the pair
+of calls that turn a line of a manifest into a running strategy. Thirty-eight refusals between them, and one line of the two cited by one
 article.
 
 No other record on this side does all three of what this one does: rewrite three
@@ -850,6 +849,16 @@ one check that reads a mapping's entries together. The field it rewrites over
 itself comes after those, with the cross-field refusal it exists for. The loader
 takes the last two subjects, split where its work does: what it asks of the path,
 and what it asks of what the path turned out to hold.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N17-01 | What an instance's configuration refuses | written | [what-an-instances-configuration-refuses.md](atoms/what-an-instances-configuration-refuses.md) |
+| N17-02 | The mapping this record accepts and its neighbours do not | written | [the-mapping-this-record-accepts-and-its-neighbours-do-not.md](atoms/the-mapping-this-record-accepts-and-its-neighbours-do-not.md) |
+| N17-03 | The keys this record rewrites | written | [the-keys-this-record-rewrites.md](atoms/the-keys-this-record-rewrites.md) |
+| N17-04 | The one check that reads a mapping whole | written | [the-one-check-that-reads-a-mapping-whole.md](atoms/the-one-check-that-reads-a-mapping-whole.md) |
+| N17-05 | The field that must name its yardstick | written | [the-field-that-must-name-its-yardstick.md](atoms/the-field-that-must-name-its-yardstick.md) |
+| N17-06 | What the loader asks of a path | written | [what-the-loader-asks-of-a-path.md](atoms/what-the-loader-asks-of-a-path.md) |
+| N17-07 | What the loader asks of what it found | written | [what-the-loader-asks-of-what-it-found.md](atoms/what-the-loader-asks-of-what-it-found.md) |
 
 ## Nexus package 16 — the seam's remaining records
 
@@ -2767,4 +2776,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 19:40 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 20:00 UTC

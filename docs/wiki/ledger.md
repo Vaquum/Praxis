@@ -165,8 +165,8 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 | `nexus/infrastructure/observability.py` | partial | P7-05 |
 | `nexus/infrastructure/strategy_event.py` | partial | N14-01, N14-02 |
 | `nexus/strategy/base.py` | partial | N10-03 |
-| `nexus/strategy/params.py` | partial | N14-04, N14-05 |
-| `nexus/strategy/signal.py` | partial | N14-03, N14-04 |
+| `nexus/strategy/params.py` | partial | N14-04, N14-05, N17-02 |
+| `nexus/strategy/signal.py` | partial | N14-03, N14-04, N17-02 |
 | `nexus/strategy/timer_loop.py` | partial | N10-02, N10-05, N10-06 |
 | `nexus/strategy/context.py` | partial | N10-06 |
 | `nexus/core/capital_controller/lifecycle_result.py` | full | shape only; no behaviour to trace |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 20:00 UTC

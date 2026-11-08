@@ -256,6 +256,13 @@ the others where it appears.
 - [What a funds movement refuses](atoms/what-a-funds-movement-refuses.md) — the record of money entering or leaving an account is rejected unless its two identifiers are usable text, its timestamp carries the standard universal-time marker, its amount is a finite decimal above zero, and its direction matches one of two words exactly, case included.
 - [What a mismatch refuses](atoms/what-a-mismatch-refuses.md) — the record of a disagreement with the venue is rejected unless its three identifiers are usable text, its timestamp carries the standard universal-time marker, and both figures are finite decimals — and rejected when those figures agree, so it cannot be made to report that nothing is wrong.
 - [The named values copied from the other side](atoms/the-named-values-copied-from-the-other-side.md) — the execution styles, order kinds and maker preferences are declared again on this side so the strategy layer need not import the trading package, which means each list agrees with its counterpart only while both are maintained, and nothing checks that they do.
+- [What an instance's configuration refuses](atoms/what-an-instances-configuration-refuses.md) — the account and venue must be usable text, the duplicate window a whole number above zero with a true-or-false rejected, the optional rate and staleness limits held to that same rule, the optional spread and deviation limits finite decimals of zero or more, the self-trade setting a recognised one, and the shutdown timeouts finite numbers above zero.
+- [The mapping this record accepts and its neighbours do not](atoms/the-mapping-this-record-accepts-and-its-neighbours-do-not.md) — the configuration takes any object that behaves as a mapping, where the signal and the strategy settings insist on a dictionary and reject anything else, so which objects a caller may pass depends on which record receives them.
+- [The keys this record rewrites](atoms/the-keys-this-record-rewrites.md) — the configuration's per-strategy caps and its capital shares each trim their keys as they read them, reject one left with nothing, and reject one that collides with a key already taken after trimming, so a mapping that would have silently lost an entry is turned back instead.
+- [The one check that reads a mapping whole](atoms/the-one-check-that-reads-a-mapping-whole.md) — each capital share must be a finite decimal above zero and no more than a hundred, and the shares are summed as they are read with a total above a hundred rejected, which is the only place this record examines entries as a group rather than one at a time.
+- [The field that must name its yardstick](atoms/the-field-that-must-name-its-yardstick.md) — the reference price source is optional, trimmed and lower-cased and written back over itself, and accepted only as one specific name; a deviation limit of either kind is rejected when no source is named, which is the only place this record compares one of its fields with another.
+- [What the loader asks of a path](atoms/what-the-loader-asks-of-a-path.md) — a strategy file must be named by a relative path ending in the module suffix, and the path is resolved before being tested for staying inside the base directory, so both a path climbing out and a link pointing out are caught; past that, the file must exist.
+- [What the loader asks of what it found](atoms/what-the-loader-asks-of-what-it-found.md) — the module is run with any failure wrapped as one error naming the file, then it must export something under the expected name that is a class inheriting from the base and is not the base itself, and building the class wraps any failure as one error naming the strategy instead.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -369,7 +376,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 272
+Both sides are the subject, and Praxis is the side that has been written. 279
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 56 carry a row of their own, and 14 are reached by an article, a
@@ -380,4 +387,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 17:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 20:00 UTC
