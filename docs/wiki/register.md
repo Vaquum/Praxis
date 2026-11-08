@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 329 not.**
+**6 of them reviewed, 331 not.**
 
 ## Package 1
 
@@ -856,6 +856,45 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 32 — what a credential record must hold
+
+Scope: the store credentials are read from, which the ledger marks `partial` with
+twenty-six of its fifty-seven statements uncited. Two articles have where
+credentials come from and which accounts are refused, between them covering each
+of the three roads' own failures. What a record itself must hold, once a road has
+found one, is in no article.
+
+### Merge and promote, package 32
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-622 | A record that is not valid JSON, and one that is JSON but not an object, are each refused as malformed. | Promote. What a record must hold is in no article, and the same two tests stand behind all three roads |
+| Row H-623 | The key and the secret must each be text and must each be true, so a key of blank space is kept where an empty one is refused. | Merge with H-622. The pair of tests is one gate, and the truth test is a fifth place on this side where blank space passes |
+| Row H-624 | Anything else the record holds is ignored. | Merge with H-622, the other half of what the gate does and does not ask |
+| Row H-625 | The file road reads and decodes every record once and keeps them, so a file changed afterwards is not read again. | Promote. What the file road holds after its first read is in no article, and it is why a credential changed on disk does not reach a running host |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P32-01 | What a credential record must hold | written | [what-a-credential-record-must-hold.md](atoms/what-a-credential-record-must-hold.md) |
+| P32-02 | The records a file of credentials is read into | written | [the-records-a-file-of-credentials-is-read-into.md](atoms/the-records-a-file-of-credentials-is-read-into.md) |
+
+### Re-seed, after writing package 32
+
+The reader had both articles before they were committed and returned nine reports
+over two mistakes.
+
+| What it found | What came of it |
+|---|---|
+| The third road reads no record. It is handed credentials already made and keeps them, so the checks the article opened with reach two roads, not three. | P32-01 says which two, and has a section for the road with no record |
+| What the file road keeps is set only after the whole file has gone through without failing. A failed read keeps nothing, so the next question reads the file again and a file put right is picked up with no restart. | P32-02 is rebuilt around that, in place of the flat read-once it had |
+| The decoding stops at the first record it refuses rather than covering every account. | P32-02 says so, and the consequence it was drawn for — a sound account refused because of another's record — survives unchanged |
+
+Both mistakes are the same kind: a rule stated of the whole where the lines
+support it of a part. The first was a road that does not take the gate; the second
+a keeping that happens on one road out of the function's two.
 
 ## Package 31 — what a simulated walk hands back
 
@@ -4364,8 +4403,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-619 | The walk for a spend takes whole levels while the spend covers them, takes the spend over the price rounded down at the level it cannot, and hands back the fills with whatever spend is left. | `praxis/binsim/book.py` 226-239 into 241 | Praxis package thirty-one | folds into P31-01 |
 | H-620 | Each walk refuses a figure that is not finite and one at or below nought, and raises a different kind of error where its side of the book is empty. | `praxis/binsim/book.py` 144-148 and 152-153, or 214-218 and 220-221 | Praxis package thirty-one | folds into P31-01 |
 | H-621 | The two sides are handed out as copies, so a caller changing what it was given changes nothing the book holds. | `praxis/binsim/book.py` 48, or 53, against the lists kept at 115-116 | Praxis package thirty-one | folds into P31-01 |
+| H-622 | A record that is not valid JSON, and one that is JSON but not an object, are each refused as malformed. | `praxis/infrastructure/secret_store.py` 130-134, or 157-159 | Praxis package thirty-two | is P32-01 |
+| H-623 | The key and the secret must each be text and must each be true, so a key of blank space is kept where an empty one is refused. | `praxis/infrastructure/secret_store.py` 161-170 | Praxis package thirty-two | folds into P32-01 |
+| H-624 | Anything else the record holds is ignored. | `praxis/infrastructure/secret_store.py` 161-162 and 172, which read two keys and carry two | Praxis package thirty-two | folds into P32-01 |
+| H-625 | The file road reads and decodes every record once and keeps them, so a file changed afterwards is not read again. | `praxis/infrastructure/secret_store.py` 288-289 against 307-311 | Praxis package thirty-two | is P32-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 15:00 UTC
