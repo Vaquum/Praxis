@@ -863,6 +863,30 @@ records around them on this side demand one.
 | N15-07 | What the records of the mode refuse | written | [what-the-records-of-the-mode-refuse.md](atoms/what-the-records-of-the-mode-refuse.md) |
 | N15-08 | The moments with no marker | written | [the-moments-with-no-marker.md](atoms/the-moments-with-no-marker.md) |
 
+### Re-seed, after writing package 15
+
+What verifying the eight articles turned up that none of them reaches. Each was
+checked against the index and the ledger before it was written down here.
+
+| Candidate | What proves it |
+|---|---|
+| The three answers one path gives a bad figure | `nexus/core/health_evaluator.py` 42 asks a figure for finiteness, so an infinity and a figure that is not a number are both turned back. `nexus/core/health_loop.py` 65 compares with nought instead, so both are let by. `praxis/core/domain/fill.py` 74 compares too, and a figure that is not a number raises out of the comparison itself while an infinity is kept. Running the three on both figures gives three different pairs of answers from what reads like one rule. N15-01 and N15-05 each have their own side of it; that the two means sit on one path, with a third across the seam answering differently again, is in no article |
+| What the alerting thresholds would cost if read | `nexus/core/health_evaluator.py` 115, 119, 123 and 127 each read an alerting threshold only to hold its measure's three in line, and 165-184 weigh none of the four against a measure. The record carrying them is built once per policy and the thresholds are read on every turn, so the four are the only fields of the policy whose value cannot change what any turn decides. N15-04 has that they are weighed against nothing; what that makes them — a validated field with no reader — is in no article |
+
+Two candidates. Both are a comparison across modules the writing had both halves of
+and stated only one side of, which is the shape the package 7 re-seed named.
+
+A note on how this package was verified. The two external readers used on every
+package before it were unavailable: one out of credit, the other past its usage
+limit until the eleventh. Verification here was the gate, a reading of the pinned
+source, and running the pinned classes on the cases each claim turns on — which
+caught three defects the reading had passed: a drift of any size said to be kept
+where an infinite one is refused, a citation pointing at the wrong function in the
+mode controller, and a count of three steps stated where a turn without a refresher
+does two. The articles carry status `written`, which is what 265 of the 266 carry;
+`reviewed` is the stronger status and six articles have it. A later session with a
+reader available should take these eight first.
+
 ## Nexus package 14 — what five small records refuse
 
 Scope: the five records left on the Nexus side with refusals in them, and the
@@ -2587,4 +2611,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 15:15 UTC
