@@ -1988,11 +1988,11 @@ class TestTheLedgerRows:
     ) -> None:
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/domain/fill.py` | uncovered | — |',
-            '| `praxis/core/domain/fill.py` | full | P2-15 |',
+            '| `praxis/core/health_tracker.py` | full | P3-15 |',
+            '| `praxis/core/health_tracker.py` | full | P2-15, P3-15 |',
         )
 
-        assert any('fill.py` names' in f for f in failures)
+        assert any('health_tracker.py` names' in f for f in failures)
 
     @_NEEDS_BASELINE
     def test_a_cell_omitting_a_row_that_cites_it_is_refused(
@@ -2010,11 +2010,18 @@ class TestTheLedgerRows:
     def test_an_uncited_file_not_marked_uncovered_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        failures = self._doctored(
-            tmp_path, monkeypatch,
-            '| `praxis/core/domain/fill.py` | uncovered | — |',
-            '| `praxis/core/domain/fill.py` | full | — |',
+        ledger = tmp_path / 'ledger.md'
+        ledger.write_text(
+            '## Praxis — 1 modules\n\n'
+            '| `praxis/core/health_tracker.py` | full | — |\n',
+            encoding='utf-8',
         )
+        register = tmp_path / 'register.md'
+        register.write_text('# register\n', encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'LEDGER', ledger)
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+
+        failures = check_wiki._ledger_rows()
 
         assert any('is `full` with no row citing it' in f for f in failures)
 
@@ -2473,7 +2480,7 @@ class TestWholeRanges:
         reason='the Nexus rows are checked only where that tree is present',
     )
     def test_a_cited_nexus_file_no_row_names_is_caught(self) -> None:
-        unrowed = 'nexus/core/capital_controller/lifecycle_result.py'
+        unrowed = 'nexus/__init__.py'
         failures = check_wiki._nexus_ledger_rows({unrowed: {'P2-11'}}, {})
 
         assert any(f'{unrowed} is cited but not named' in f for f in failures)
