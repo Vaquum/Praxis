@@ -884,6 +884,27 @@ second.
 | N22-01 | What the capital stage refuses | written | [what-the-capital-stage-refuses.md](atoms/what-the-capital-stage-refuses.md) |
 | N22-02 | The name a strategy answers to | written | [the-name-a-strategy-answers-to.md](atoms/the-name-a-strategy-answers-to.md) |
 
+### Re-seed, after writing package 22
+
+The reader had both articles before they were committed. One came back clean. The
+other had three reports, all three about the routing.
+
+| What it found | What came of it |
+|---|---|
+| The lookup the eight ways in share does not only look up: it tests the name for being text and trims it, refusing what the trimming empties. | N22-02 no longer says the ways in do nothing but hand on |
+| The comparison across the seam pointed at the wrong record. The article it linked covers a Nexus record that trims before refusing; the Praxis check that keeps a name of blank space is the shared one for naming records. | The sentence now points at the article on that shared check, which is where the escape is written |
+| The routing adds behaviour on the way in as well as on the way out: it trims when it files a wrapper and when it looks one up, so a name given with blank space around it finds the wrapper filed without it. | That is now a claim of its own, with both lines cited, in place of the sentence saying the routing adds nothing |
+
+The third is worth keeping in view: it was written as an absence — the routing adds
+nothing — and the absence was false. A sentence saying a thing does nothing beyond
+what another article covers cannot be checked against the lines it cites, because
+it cites the lines that do nothing. The reader found it by reading the lines
+around them.
+
+A note on method. Three packages have now gone to the reader before being
+committed, and all three came back with reports. None of the nine reports was
+something the gate could see.
+
 What is left is recorded as an exclusion. In the base, the lines left uncited are
 the property handing the kept name back and eight bodies that stand empty, each a
 declaration of something a strategy must provide. In the routing, they are the
@@ -3977,4 +3998,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 03:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 04:00 UTC
