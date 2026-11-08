@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope. All 70 of its modules are named, none untouched. 56 carry a row of their own, and 14 are reached by an article, a recorded finding, or a recorded exclusion: 8 cited by something that needed them, and 6 recorded as shapes with no behaviour to trace.
+Nexus is in scope. All 70 of its modules are named, none untouched. 64 carry a row of their own, and 6 are reached by an article, a recorded finding, or a recorded exclusion: all six recorded as shapes with no behaviour to trace. None is `cited, not traced` any longer.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -859,6 +859,36 @@ and what it asks of what the path turned out to hold.
 | N17-05 | The field that must name its yardstick | written | [the-field-that-must-name-its-yardstick.md](atoms/the-field-that-must-name-its-yardstick.md) |
 | N17-06 | What the loader asks of a path | written | [what-the-loader-asks-of-a-path.md](atoms/what-the-loader-asks-of-a-path.md) |
 | N17-07 | What the loader asks of what it found | written | [what-the-loader-asks-of-what-it-found.md](atoms/what-the-loader-asks-of-what-it-found.md) |
+
+### Re-seed, after writing package 17
+
+What verifying the seven articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The two shares that add up to less than everything | `nexus/instance_config.py` 259-261 refuses a share at or below nought and above a hundred, and 265-267 refuses a total above a hundred. Running the record with one share of thirty is accepted, so a configuration may allot thirty of the pool and leave seventy spoken for by nobody. What the capital controller then does with the unallotted part is settled elsewhere, and the record does not ask. N17-04 has the two checks and that a short total is allowed; what a short total means for the pool, and that no check anywhere in this record asks after it, is in no article |
+| What a strategy's own code can do while the loader is reading it | `nexus/strategy/loader.py` 111-115 runs the file and wraps any failure as one error naming the path, which means the file's statements run with whatever the host can reach at that moment, before any of the four questions at 78-94 are asked. A file that does work at import time rather than raising is not refused by anything here. N17-07 has the wrapping and the four questions; that the running comes first and is unconditional is in no article |
+
+Two candidates. The first is a short total the record allows and asks nothing
+further about; the second is what the loader has already done by the time its
+questions begin.
+
+This closes the list the ledger called the work the packages turn to next. Every
+Nexus module now carries a row of its own or is recorded as a shape, and nothing on
+either side is marked `uncovered` or `cited, not traced`. What remains is depth:
+no module on either side is accounted for in full, and the ledger says so in its own
+counts rather than in a promise.
+
+A note on verification, as for the two packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned records and the loader on the cases each
+claim turns on. That caught two things the reading had passed: a claim that this
+record carries more refusals than any other on either side, which is false —
+`praxis/core/domain/events.py` carries fifty-two against its twenty-seven — and
+three citations stopping on the line before the raise that does the refusing. The
+loader's guard was run against both a path climbing out of its base and a link
+inside the base pointing out of it, and refuses both. The articles carry status
+`written`, as 278 of the 279 do.
 
 ## Nexus package 16 — the seam's remaining records
 
@@ -2776,4 +2806,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 21:00 UTC
