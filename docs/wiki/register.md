@@ -3799,7 +3799,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to the moments with no marker |
 | H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to what an exit is given where it asked for nothing |
 | H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | is P18-02 |
-| H-577 | The walk answers with a breach or with nothing, and never with either of the other two levels, though the test its answer meets names one of them. | `nexus/core/validator/risk_stage.py` 115-119 and 121 against 133, the four levels at `nexus/core/domain/enums.py` 41-44, a halt produced at `nexus/core/validator/health_stage.py` 257 under the same test at 359 | Nexus package nineteen | is N19-02 |
+| H-577 | The walk answers with a breach or with nothing, and never with either of the other two levels, though the test its answer meets names one of them. | `nexus/core/validator/risk_stage.py` 115-119, or else 121, against 133, the four levels at `nexus/core/domain/enums.py` 41-44, a halt produced at `nexus/core/validator/health_stage.py` 257 under the same test at 359 | Nexus package nineteen | is N19-02 |
 | H-578 | A limit given must be a finite figure of the exact kind at or above nought, and one left out is skipped rather than read as nought. | `nexus/core/validator/risk_stage.py` 36-53, skipped at 112-113 | Nexus package nineteen | is N19-01 |
 | H-579 | The comparison is strictly above, so a figure standing exactly at its limit passes. | `nexus/core/validator/risk_stage.py` 114 | Nexus package nineteen | folds into N19-01 |
 | H-580 | The figures weighed are taken from the account's own risk record, converted as the stage begins. | `nexus/core/validator/risk_stage.py` 130-131 | Nexus package nineteen | folds into N19-02 |
@@ -3807,4 +3807,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:45 UTC
