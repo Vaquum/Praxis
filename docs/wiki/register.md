@@ -838,7 +838,23 @@ expressible is already written: the gate's refusal of a citation that stops befo
 the raise, and its refusal of two mutually exclusive branches paired as a
 sequence, both of which held through this pass.
 
-The packages written without a reader are therefore no longer unread. The second
+A second round went to the same reader, over the statements the first round had
+not covered: the six added to existing articles by the seventeenth and eighteenth
+packages, one extended citation, and the article split out during the first
+round's corrections. Five came back clean. Two did not.
+
+| What it found | What came of it |
+|---|---|
+| The moment behind the rolling loss windows is not asked merely for a zone: the zone must give an offset for that moment. | N15-08 now says so, which is the wording the other articles making this test already use |
+| The article split out in the first round was wrong three ways over. The weights are used, not merely counted; a weight below nought is caught only among the weights that are read, the last never being examined; and on the two roads that reach the split, a weight below nought cannot arrive at all, both records that carry weights in demanding finite figures of the exact kind above nought, adding to one. | P18-02 is rewritten around what is true and reachable: the split asks nothing of the weights, the records that carry them in ask everything, and the last weight is never read because the last child is the remainder — the adding-to-one rule being what makes those the same share. Its title says so too |
+
+The second finding is the path class again, and this time the session wrote it
+while correcting the path class. That is the measure of how little the gate can
+see of it: three of the sixteen reports over these two rounds were claims about
+inputs a caller cannot supply, and none of the three was visible in the file the
+claim cited.
+
+The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
 ## Package 18 — the last statements in the six modules next nearest the line
@@ -859,7 +875,7 @@ value found or made along to the line that uses it.
 | Row H-573 | The name the wrapper answers to is the wrapped strategy's own. | Add to the same article. The wrapper carrying no name of its own is why one name reaches one lock |
 | Row H-574 | The moment the rolling windows are measured back from must carry a zone. | Add to the article on the moments with no marker, which holds the other strengths of this rule on the Nexus side. The article on what the thirty-day cut leaves was named at merge and would have outgrown the word cap |
 | Row H-575 | A command carries the name of the money set aside for it, where any was set aside. | Add to the article on what an exit is given where it asked for nothing, which holds the rest of this same filling-in. The article on how a decision becomes a command was named at merge and is the wrong home: its subject is the re-keying across the seam, not what the command is filled from |
-| Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses. The reader's pass later carried that article past the word cap, so the weighted half is split out as P18-02, which also takes what the weights are not asked and what a weight below nought does on each road |
+| Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses. The reader's pass later carried that article past the word cap, so the weighted half is split out as P18-02, which also takes what the split asks of the weights — nothing — where that is asked instead, and the last weight never being read |
 
 Nothing promotes and nothing is declined. Six statements are added to five
 articles and one citation is extended.
@@ -882,7 +898,7 @@ and how it is written.
 | ID | Topic | Status | Article |
 |---|---|---|---|
 | P18-01 | What a start reads back from a checkpoint | written | [what-a-start-reads-back-from-a-checkpoint.md](atoms/what-a-start-reads-back-from-a-checkpoint.md) |
-| P18-02 | What a weighted split refuses | written | [what-a-weighted-split-refuses.md](atoms/what-a-weighted-split-refuses.md) |
+| P18-02 | What a weighted split asks of its weights | written | [what-a-weighted-split-refuses.md](atoms/what-a-weighted-split-refuses.md) |
 
 ### Re-seed, after writing package 18
 
@@ -3765,4 +3781,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:00 UTC

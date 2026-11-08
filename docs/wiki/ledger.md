@@ -10,7 +10,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 
 | File | State | Rows |
 |---|---|---|
-| `praxis/core/execution_manager.py` | partial | N4-04, N5-03, N5-06, N7-02, N7-05, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11, P1-12, P1-13, P2-11, P2-12, P2-13, P2-15, P2-16, P2-17, P2-18, P2-19, P2-20, P2-21, P2-22, P2-23, P2-24, P2-25, P2-27, P2-28, P2-29, P2-31, P2-32, P2-34, P2-38, P2-43, P2-44, P2-45, P2-49, P3-01, P3-02, P3-03, P3-13, P3-14, P3-18, P3-21, P3-22, P3-23, P3-25, P3-26, P4-04, P4-06, P4-07, P4-08, P4-09, P4-10, P4-11, P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P4-46, P4-47, P4-48, P4-49, P4-50, P4-52, P4-54, P4-56, P4-57, P4-58, P4-59, P7-03, P7-04, S-01, S-02, S-03, S-04, S-05 |
+| `praxis/core/execution_manager.py` | partial | N4-04, N5-03, N5-06, N7-02, N7-05, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11, P1-12, P1-13, P18-02, P2-11, P2-12, P2-13, P2-15, P2-16, P2-17, P2-18, P2-19, P2-20, P2-21, P2-22, P2-23, P2-24, P2-25, P2-27, P2-28, P2-29, P2-31, P2-32, P2-34, P2-38, P2-43, P2-44, P2-45, P2-49, P3-01, P3-02, P3-03, P3-13, P3-14, P3-18, P3-21, P3-22, P3-23, P3-25, P3-26, P4-04, P4-06, P4-07, P4-08, P4-09, P4-10, P4-11, P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P4-46, P4-47, P4-48, P4-49, P4-50, P4-52, P4-54, P4-56, P4-57, P4-58, P4-59, P7-03, P7-04, S-01, S-02, S-03, S-04, S-05 |
 | `praxis/core/domain/fill.py` | partial | P7-01, P7-02, P7-03 |
 | `praxis/core/account_ledger.py` | partial | N3-12, P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
@@ -40,7 +40,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-22, P2-24, P2-27, P2-28, P4-04, P4-08, P4-33 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-18, P2-21, P3-21, P4-04, P4-09, P4-28, N16-06 |
 | `praxis/core/domain/execution_scheme.py` | partial | P7-06 |
-| `praxis/core/domain/ladder_dca_params.py` | full | P10-01, P10-02, P2-20 |
+| `praxis/core/domain/ladder_dca_params.py` | full | P10-01, P10-02, P18-02, P2-20 |
 | `praxis/core/domain/bracket_params.py` | partial | P4-08 |
 | `praxis/core/domain/iceberg_params.py` | full | P2-22 |
 | `praxis/core/plan_even_slices.py` | full | P10-03, P16-02, P2-19 |
@@ -85,7 +85,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/execution_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | full | P2-19, P4-08 |
-| `praxis/core/domain/scheduled_vwap_params.py` | partial | P2-19, P4-08, P4-35 |
+| `praxis/core/domain/scheduled_vwap_params.py` | partial | P18-02, P2-19, P4-08, P4-35 |
 | `praxis/core/domain/trade_modify.py` | full | P4-09 |
 | `praxis/core/domain/single_shot_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/bracket_modify.py` | full | P4-09, P4-35 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:00 UTC
