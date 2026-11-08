@@ -18,12 +18,12 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/binance_ws.py` | partial | N7-02, P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P3-17 |
 | `praxis/core/health_tracker.py` | full | P3-15 |
-| `praxis/infrastructure/token_bucket.py` | full | P3-18 |
+| `praxis/infrastructure/token_bucket.py` | full | P3-18, P9-03, P9-04 |
 | `praxis/core/classify_submit_failure.py` | full | P3-21 |
 | `praxis/infrastructure/secret_store.py` | partial | P3-19, P4-03, P4-26 |
 | `praxis/core/live_only_modes.py` | full | P3-22 |
 | `praxis/infrastructure/alert_sink.py` | full | P3-20, P8-04 |
-| `praxis/core/domain/health_snapshot.py` | full | P3-15 |
+| `praxis/core/domain/health_snapshot.py` | full | P3-15, P9-01, P9-02 |
 | `praxis/core/domain/modify_params.py` | full | P3-13, P4-09 |
 | `praxis/core/domain/interval_slice_modify.py` | full | P3-13, P4-09, P4-35 |
 | `praxis/core/bracket_exit_command_id.py` | partial | P7-04 |
@@ -117,7 +117,7 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 | `nexus/core/validator/pipeline_executor.py` | partial | N1-03, N1-04, N1-08, N2-06, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10, N16-01 |
 | `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N3-07, N6-05, N6-07, N6-09, N6-11, N10-02, N10-06 |
-| `nexus/core/health_evaluator.py` | partial | N15-01, N15-02, N15-03, N15-04, N15-05, P3-15 |
+| `nexus/core/health_evaluator.py` | partial | N15-01, N15-02, N15-03, N15-04, N15-05, P3-15, P9-02 |
 | `nexus/core/validator/capital_stage.py` | partial | N1-03, N2-03, N3-08, P6-04 |
 | `nexus/core/validator/health_stage.py` | partial | N2-03 |
 | `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:30 UTC

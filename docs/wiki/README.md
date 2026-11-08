@@ -271,6 +271,10 @@ the others where it appears.
 - [The escape in the shared check for a name](atoms/the-escape-in-the-shared-check-for-a-name.md) — one check holds every identifier on this side: it lets a missing value through when the caller marked the field optional, otherwise rejects a missing value and an empty string together, and never trims — so an identifier of spaces alone is kept here and rejected on the other side.
 - [What a clock refuses and what stands in](atoms/what-a-clock-refuses-and-what-stands-in.md) — the replay clock rejects a start with no zone and keeps whatever zone it is given without converting it, while a price store given no clock uses one reporting the current moment in universal time.
 - [The severity an alert gives back](atoms/the-severity-an-alert-gives-back.md) — telling an alert returns the severity actually recorded after an unknown one is turned into a warning, and the call that also posts reads that return rather than its own argument, so the logged line and the posted payload agree.
+- [What the health report refuses](atoms/what-the-health-report-refuses.md) — the report of how the venue is answering rejects any of four measurements that is not a real number of zero or more, caps each proportion it carries at one, and holds the consecutive-failure tally to a separate whole-number rule, with a true-or-false rejected wherever a number is wanted.
+- [The same record written twice](atoms/the-same-record-written-twice.md) — that report exists as separate code on each side of the boundary, holding the same measurements to the same rules; running both gives the same answers, neither names the other, and nothing compares them, so a rule changed on one side alone would show only when a report accepted on one side was rejected on the other.
+- [What the bucket of permissions refuses](atoms/what-the-bucket-of-permissions-refuses.md) — the pacer for venue calls rejects a rate or a capacity at or below zero, starts out holding its capacity so early calls go straight through, and on every take adds the elapsed time times the rate while capping the total at the capacity, so a long idle spell buys no unlimited burst.
+- [The token taken before the waiting](atoms/the-token-taken-before-the-waiting.md) — a take computes its wait, subtracts its token whether one was available or not, then releases the lock and waits, so the count can go negative and lengthen later waits; a wait cut short part way adds the token back so nobody pays for a call never made.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -384,7 +388,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 287
+Both sides are the subject, and Praxis is the side that has been written. 291
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -395,4 +399,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 01:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 03:30 UTC

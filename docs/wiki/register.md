@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 286 not.**
+**6 of them reviewed, 290 not.**
 
 ## Package 1
 
@@ -833,6 +833,13 @@ Four subjects promote and six rows merge, with nothing declined.
 The record comes first with what it refuses, and the copy across the seam second.
 The bucket follows: what it refuses and how it refills, then the taking that
 happens before the waiting and what is put back when the waiting is cut short.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P9-01 | What the health report refuses | written | [what-the-health-report-refuses.md](atoms/what-the-health-report-refuses.md) |
+| P9-02 | The same record written twice | written | [the-same-record-written-twice.md](atoms/the-same-record-written-twice.md) |
+| P9-03 | What the bucket of permissions refuses | written | [what-the-bucket-of-permissions-refuses.md](atoms/what-the-bucket-of-permissions-refuses.md) |
+| P9-04 | The token taken before the waiting | written | [the-token-taken-before-the-waiting.md](atoms/the-token-taken-before-the-waiting.md) |
 
 ## Package 8 — what the records answer, and the checks nothing reached
 
@@ -3025,4 +3032,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:10 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:30 UTC
