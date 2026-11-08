@@ -463,6 +463,12 @@ the others where it appears.
 - [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, answering over the web on the real venue's paths.
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — what the simulated venue keeps per account: the balances it holds and the fills it has been given.
+- [What settling a fill moves](atoms/what-settling-a-fill-moves.md) — both of an account's balances move at once, the fee comes out of what the side receives rather than being charged beside it, and a balance landing exactly on zero is allowed.
+- [The asset a fee is taken in](atoms/the-asset-a-fee-is-taken-in.md) — the commission is charged in the coin on a purchase and in the money on a sale, to match what a real exchange does, and the file's own description says the opposite.
+- [The order a fill's refusals stand in](atoms/the-order-a-fills-refusals-stand-in.md) — seven things are checked before the books are touched, and whether the account exists at all is asked after every one of them.
+- [The guard a sell does not get](atoms/the-guard-a-sell-does-not-get.md) — a purchase whose commission swallows everything bought is turned away, and a sale whose commission swallows the money coming in is not, so such a sale leaves the account lighter in both.
+- [What an order settles as one](atoms/what-an-order-settles-as-one.md) — several fills settle together against one check of the totals, so a step that would overdraw partway through is allowed where a later step covers it.
+- [The three readings the ledger offers](atoms/the-three-readings-the-ledger-offers.md) — each answer is taken while the books are held still and handed over as a copy, so nothing a caller does to what it was given reaches the books.
 - [The lock one writer holds](atoms/the-lock-one-writer-holds.md) — the simulated venue keeps its books in memory and writes them out whole, so one lock on the state folder is what stops two programs each writing over the other's work.
 - [What a refused writer is told](atoms/what-a-refused-writer-is-told.md) — being turned away from that lock gives one message built from two readings that can each come up short, so it may name a program that has already finished, or none.
 - [What registering an account refuses, and the key it mints](atoms/what-registering-an-account-refuses-and-the-key-it-mints.md) — four things are checked before the books are touched at all, and the key handed back is the only one that account will ever be given.
@@ -505,8 +511,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 408
-articles exist. Of Praxis's own source files 71 are accounted for in full and 17 in
+Both sides are the subject, and Praxis is the side that has been written. 414
+articles exist. Of Praxis's own source files 72 are accounted for in full and 16 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -516,4 +522,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 23:30 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 407 not.**
+**6 of them reviewed, 413 not.**
 
 ## Package 1
 
@@ -856,6 +856,67 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 65 — what a fill and an order do to the simulated venue's balances
+
+Scope: the ledger the simulated venue keeps, which the package before this left
+`partial` with ninety-two of its hundred and ninety-three statements uncited. One
+claim of one article says a fill moves the balances. Which way each balance moves,
+what a fill is refused for and in what order, the guard one side gets and the other
+does not, how an order settles its fills as a single thing, and what the three
+readings hand back are in no article.
+
+### Merge and promote, package 65
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-767 | A buy takes the whole notional out of the quote balance and credits the quantity less the fee in base, a sell takes the quantity out of base and credits the notional less the fee in quote, so the fee comes out of the receipt. | Promote. One claim says a fill moves the balances and nothing says how, and the fee coming out of the receipt rather than beside it is what makes a buy deliver less coin than its price suggests |
+| Row H-768 | Both new balances are worked out before either is weighed, the quote one weighed first, and a balance landing exactly on nought passes. | Merge with H-767, what the weighing allows |
+| Row H-769 | A fill's quantity, price and fee are held to being finite in one test naming all three and then each to its own sign, the fee needing only to stand at or above nought. | Promote. The order these stand in is in no article |
+| Row H-770 | A fee asset left out becomes the one the side receives and one given must equal it, and a moment left out becomes the present one while one carrying no zone is refused. | Merge with H-769. Naming the fee asset is a way of asserting what would have been chosen rather than of choosing |
+| Row H-771 | Whether the account is registered is asked last, inside the lock and past every figure. | Merge with H-769. Which refusal a caller meets first is the subject, and the account being last is its sharpest part |
+| Row H-772 | A buy whose fee stands at or above the quantity received is refused, and nothing weighs a sell's fee against the notional it receives, so a sell can take both balances down. | Promote. The asymmetry is in no article, and a sell leaving an account lighter in both assets is what it costs |
+| Row H-773 | An order holds a run of fills, each held to the same tests, with one moment worked out for the whole order and written into every fill of it. | Promote. How an order settles is in no article |
+| Row H-774 | The movements of every fill in an order are added onto the balances in turn and the pair weighed once at the end, so a fill in the middle that would dip a balance below nought passes where a later one brings it back. | Merge with H-773. Weighing the total rather than each step is what separates an order from a run of fills |
+| Row H-775 | A name the account has already recorded refuses the order, and each fill takes a trade number of its own while the order takes one for itself. | Merge with H-773, the one guard against settling an order twice and the numbering |
+| Row H-776 | The three readings each take the lock, two of them refuse an unknown account and the third refuses nothing, and each answers with a copy whose records are sealed. | Promote. What a reader is handed is in no article, and the sealing of a record is what makes a copy of the run enough |
+| Row H-777 | The ledger refuses a state directory that is not a path as it is built, and the asset a fee is taken in is chosen by side rather than fixed to one. | Promote. Which asset a fee falls in is in no article, and a caller naming it is asserting the choice rather than making it. The one check made on building is recorded rather than written, being a check with no subject of its own |
+
+Six subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P65-01 | What settling a fill moves | written | [what-settling-a-fill-moves.md](atoms/what-settling-a-fill-moves.md) |
+| P65-02 | The order a fill's refusals stand in | written | [the-order-a-fills-refusals-stand-in.md](atoms/the-order-a-fills-refusals-stand-in.md) |
+| P65-03 | The guard a sell does not get | written | [the-guard-a-sell-does-not-get.md](atoms/the-guard-a-sell-does-not-get.md) |
+| P65-04 | What an order settles as one | written | [what-an-order-settles-as-one.md](atoms/what-an-order-settles-as-one.md) |
+| P65-05 | The three readings the ledger offers | written | [the-three-readings-the-ledger-offers.md](atoms/the-three-readings-the-ledger-offers.md) |
+| P65-06 | The asset a fee is taken in | written | [the-asset-a-fee-is-taken-in.md](atoms/the-asset-a-fee-is-taken-in.md) |
+
+### Re-seed, after writing package 65
+
+The reader returned five reports and all five were valid. Every one is a count or a
+boundary stated loosely, and four of the five were countable from the module.
+
+| What it found | What came of it |
+|---|---|
+| Seven checks stand before the ledger is touched, not six: the buy's weighing of its fee against the quantity received was left out of the count. | Corrected. The check left out of the count is the subject of another article in this same package, which is the worst place to lose one |
+| The weighings of the two balances come after the account is found, so the account is not the last thing asked. | P65-02 ends on the weighings. The claim had made the account the last refusal when it is the last refusal before the arithmetic |
+| A sell's fee is held to being finite as well as to standing at or above nought. | Corrected |
+| An order holds each of its fills to five tests, not four. | Corrected, and from the same cause as the first |
+| A balance is handed back as a sealed pair, so adding to it or sorting it is not a thing a caller could do. | P65-05 separates the sealed answer from the two copied ones |
+| The ledger refuses a state directory that is not a path as it is built. | Recorded. It is one check with no subject of its own |
+| The file's own description of the ledger says fees are taken in the quote asset whatever the side, and that a fill naming any other asset is refused. Both halves are contradicted a few lines away: the asset is chosen by side, and what is refused is a fill naming an asset other than the chosen one, which for a buy means the quote asset the description calls correct. | Recorded here and nowhere else. The gate refuses a claim cited to a docstring, which is the rule that keeps a description from standing as evidence of behaviour — so a finding about what a description says has no home in an article, and belongs in prose like this |
+
+The shape is narrow and was avoidable: a count in prose was written from the draft's
+own sections rather than from the module, and the check it missed had an article of
+its own three files away. A count belongs to the module, and is wrong as soon as it
+is taken from anything else — including from the writing in hand.
+
+Nineteen statements of the module are left uncited and are an exclusion rather than
+work outstanding: the fields set as the ledger is built, the taking of its lock, the
+reading of an account into a local name, the building of a record whose fields these
+articles state, the calls that save, and the handing back of what was made.
 
 ## Package 64 — the state directory of the simulated venue
 
@@ -5932,8 +5993,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-764 | Writing makes a temporary file beside the saved one, writes the payload into it and moves it over, removing the temporary file and handing the failure on where either step fails. | `ledger.py` 663-668, then 673-674, then 675-677 | package sixty-four | is P64-05 |
 | H-765 | Reading takes the lock, leaves the ledger alone where no file is there, catches no failure of the parsing, requires the next trade's number, falls back to one for the next order's, and rebuilds the key index from the accounts rather than from the file. | `ledger.py` 244-246, then 248-249, then 251-252, then 257-260 | package sixty-four | folds into P64-05 |
 | H-766 | An account is written out as the hash of its key, its two balances and the order names it has seen, and is read back with an empty run of fills whatever the file held. | `ledger.py` 754-759, read back at 771 | package sixty-four | is P64-06 |
+| H-767 | A buy takes the whole notional out of the quote balance and credits the quantity less the fee in base, a sell takes the quantity out of base and credits the notional less the fee in quote, so the fee comes out of the receipt. | `ledger.py` 706-707, and 709 | package sixty-five | is P65-01 |
+| H-768 | Both new balances are worked out before either is weighed, the quote one weighed first, and a balance landing exactly on nought passes. | `ledger.py` 722-724, then 726-730, then 732-736 | package sixty-five | folds into P65-01 |
+| H-769 | A fill's quantity, price and fee are held to being finite in one test naming all three and then each to its own sign, the fee needing only to stand at or above nought. | `ledger.py` 393-396, then 398-399, then 401-402, then 404-405 | package sixty-five | is P65-02 |
+| H-770 | A fee asset left out becomes the one the side receives and one given must equal it, and a moment left out becomes the present one while one carrying no zone is refused. | `ledger.py` 415-422, and 743-749 | package sixty-five | folds into P65-02 |
+| H-771 | Whether the account is registered is asked last, inside the lock and past every figure. | `ledger.py` 428-429, with 393-425 standing before it | package sixty-five | folds into P65-02 |
+| H-772 | A buy whose fee stands at or above the quantity received is refused, and nothing weighs a sell's fee against the notional it receives, so a sell can take both balances down. | `ledger.py` 407-413, against 393-425 weighing the fee only at 404, into 709 | package sixty-five | is P65-03 |
+| H-773 | An order holds a run of fills, each held to the same tests, with one moment worked out for the whole order and written into every fill of it. | `ledger.py` 495-524, then 526 used at 568 | package sixty-five | is P65-04 |
+| H-774 | The movements of every fill in an order are added onto the balances in turn and the pair weighed once at the end, so a fill in the middle that would dip a balance below nought passes where a later one brings it back. | `ledger.py` 539-545, then 547-551, then 553-557 | package sixty-five | folds into P65-04 |
+| H-775 | A name the account has already recorded refuses the order, and each fill takes a trade number of its own while the order takes one for itself. | `ledger.py` 534-537, then 560-571, then 573-574 | package sixty-five | folds into P65-04 |
+| H-776 | The three readings each take the lock, two of them refuse an unknown account and the third refuses nothing, and each answers with a copy whose records are sealed. | `ledger.py` 593-599, and 609-613, and 619-620, the record sealed at 161 | package sixty-five | is P65-05 |
+| H-777 | The ledger refuses a state directory that is not a path as it is built, and the asset a fee is taken in is chosen by side rather than fixed to one. | `ledger.py` 223-224, and 138 into 418-422 | package sixty-five | is P65-06, the one check on building recorded |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 23:30 UTC
