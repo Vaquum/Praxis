@@ -857,6 +857,24 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 30 — two modules whose remainder is declaration
+
+Scope: the two modules the ledger marks `partial` whose uncited statements are now
+all declaration or pass-through, after the two packages before this. Nothing
+promotes; the remainder is recorded as an exclusion and both cells move to `full`.
+
+The way in to the trading side has fourteen statements left uncited. Nine declare
+what it expects to be handed — the shape of the trading side it calls and the
+shape of the venue registry — and each stands empty. Four hand a call straight on
+to the trading side: a command, an abort, a change, and a pull of the positions.
+One, at 133, opens the attempt whose two arms P29-01 states.
+
+The module that runs a replay has two left: one calls the building of the result
+the article on what a replay reports already has, and one reads the signal
+bindings the article on replay already walks.
+
+No behaviour hangs on any of these.
+
 ## Package 29 — registering an account, and what is undone
 
 Scope: the way in to the trading side, which the ledger marks `partial` with
@@ -4309,4 +4327,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 12:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 13:00 UTC
