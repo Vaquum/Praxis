@@ -1998,13 +1998,29 @@ class TestTheLedgerRows:
     def test_a_cell_omitting_a_row_that_cites_it_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        row = self._a_praxis_cell_with_two_rows()
+        name, state, column = row
+        kept = ', '.join(column.split(', ')[:-1])
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/domain/position.py` | full | P2-33, P4-12 |',
-            '| `praxis/core/domain/position.py` | full | P4-12 |',
+            f'| `{name}` | {state} | {column} |',
+            f'| `{name}` | {state} | {kept} |',
         )
 
-        assert any('position.py` names' in f for f in failures)
+        assert any(f'`{name}` names' in f for f in failures)
+
+    @staticmethod
+    def _a_praxis_cell_with_two_rows() -> tuple[str, str, str]:
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Praxis', '')
+
+        for name, state, column in check_wiki.LEDGER_ROW_RE.findall(body):
+            if len(check_wiki._ledger_listed(column)) > 1:
+                return name, state, column.strip()
+
+        pytest.skip('no Praxis cell names more than one row')
+        raise AssertionError
 
     @_NEEDS_BASELINE
     def test_an_uncited_file_not_marked_uncovered_is_refused(
