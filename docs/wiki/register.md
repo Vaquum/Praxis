@@ -857,6 +857,31 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 21 — the logging arrangement's other side, and the estimator's silence
+
+Scope: two modules the ledger marks `partial`, each left with statements that are
+either the same statement already written on the other side of the seam or a
+wrapper handing straight through to a library. The Nexus logging arrangement has
+ten of its fourteen statements uncited; the estimator of the price an order would
+get has ten of forty-three.
+
+### Merge and promote, package 21
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-589 | The stamping in universal time, the writer on standard output, the plain binding of context and the serializer that renders to text are each the same statement on the two sides. | Add to the article on what the Nexus logging adds, which already records the level lookup and the emptied root as shared statements. This is the rest of that sharing |
+| Row H-590 | Neither estimator makes an estimate where the book lacks a bid or an ask. | Add to the article on how the likely price is worked out, which has the walk and the figures and not what is answered where there is no middle to measure from |
+
+Nothing promotes and nothing is declined. Two statements are added to two
+articles.
+
+What is left is recorded as an exclusion. In the Nexus arrangement, lines 35 and
+135 wrap a library call and hand its answer straight back, and 56, 66, 77 and 80
+are the four steps of one arrangement whose statements the article now covers
+between them. In the estimator, 70, 135 and 172-173 build the answer or set a
+running total to nought before a walk the article already has. No behaviour hangs
+on any of these, so the two cells go to `full`.
+
 ## Package 20 — what counts as raising what a buy commits
 
 Scope: the inbound check on a change, which the ledger marks `partial` with
@@ -3908,8 +3933,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-586 | The second price listed for a single order can never be reached, a change naming it being refused before the weighing. | `praxis/core/validate_trade_modify.py` 27 against 200-203, which raises at 204-208 before 220 | Praxis package twenty | folds into P20-01 |
 | H-587 | A ladder's change takes the amended prices and weights, or the original where not amended. | `praxis/core/validate_trade_modify.py` 66-72 | Praxis package twenty | is P20-02 |
 | H-588 | Shares that do not match the new prices in number raise what is committed, and otherwise the weighted sums are compared, a side with no shares giving each of its own rungs an equal share. | `praxis/core/validate_trade_modify.py` 74-75, or 77-79, the shares at 43-45 | Praxis package twenty | folds into P20-02 |
+| H-589 | The stamping in universal time, the writer on standard output, the plain binding of context and the serializer that renders to text are each the same statement on the two sides. | `nexus/infrastructure/observability.py` 50, 77-83, 93 and 35, against `praxis/infrastructure/observability.py` 49-50, 77-82, 98 and 30 | Praxis package twenty-one | added to what the Nexus logging adds |
+| H-590 | Neither estimator makes an estimate where the book lacks a bid or an ask. | `praxis/core/estimate_slippage.py` 106-109, or 166-169 | Praxis package twenty-one | added to how the likely price is worked out |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 02:00 UTC
