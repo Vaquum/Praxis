@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 327 not.**
+**6 of them reviewed, 328 not.**
 
 ## Package 1
 
@@ -856,6 +856,44 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 29 — registering an account, and what is undone
+
+Scope: the way in to the trading side, which the ledger marks `partial` with
+twenty-six of its thirty-four statements uncited — most of them a declaration of
+what it expects to be handed, or a call passed straight on. What registering an
+account refuses, the order it registers in, and what it undoes are in no article.
+
+### Merge and promote, package 29
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-614 | Registering refuses an empty account name and an account with no credentials configured, the name tested for truth alone. | Promote. What the way in refuses is in no article, and this is a fourth place on this side where a name is tested for truth rather than content |
+| Row H-615 | The venue is registered before the trading side, and a failure on the trading side undoes the venue registration before raising on. | Merge with H-614. The order and the undoing are one subject, and the undoing is the only thing this module does that nothing else would |
+| Row H-616 | Unregistering removes the venue credentials whatever the trading side did, including where it raised. | Merge with H-614, the same undoing from the other end |
+| Row H-617 | The credentials it was handed are copied as it is built. | Merge with H-614. What it holds is settled at the build, which is what makes a missing account a configuration matter rather than a timing one |
+
+One subject promotes and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P29-01 | Registering an account, and undoing it | written | [registering-an-account-and-undoing-it.md](atoms/registering-an-account-and-undoing-it.md) |
+
+### Re-seed, after writing package 29
+
+The reader had the article before it was committed and reported three times on one
+line: the undoing catches two named kinds of failure and nothing else.
+
+| What it found | What came of it |
+|---|---|
+| A failure of any other kind leaves the venue registered while the trading side is not. | That is now a claim of its own, and the article says the undoing is unconditional at the unregistering end and conditional at the registering end |
+| A failure inside the undoing itself, other than a missing key, replaces the failure being raised on. | Recorded as a candidate below rather than written, since what a caller sees in that case belongs with the launcher that calls this |
+
+| Candidate | What proves it |
+|---|---|
+| The undoing can replace the failure it was undoing for | `praxis/trading_inbound.py` 136-137 suppresses a missing key alone while undoing the venue registration, and 138 then raises the original on. An undoing that fails any other way propagates from inside the handler, so the caller sees the undoing's failure in place of the trading side's. P29-01 states what is caught and what is not; which failure a caller ends up with is in no article |
+
+One candidate.
 
 ## Package 28 — how a replay settles a bar, and the mode it gives itself
 
@@ -4263,8 +4301,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-611 | A settling that never reaches a round draining nothing raises after a fixed number of rounds, ending the run. | `praxis/replay/run_replay.py` 275-276, the count at 263 | Praxis package twenty-eight | folds into P28-01 |
 | H-612 | A replay sets the account's mode to active itself, under the positions lock, with the replay named as what moved it. | `praxis/replay/run_replay.py` 161 into 205-210 | Praxis package twenty-eight | is P28-02 |
 | H-613 | A run raises where the launcher left it without a trading side, a loop or a record. | `praxis/replay/run_replay.py` 153-159 | Praxis package twenty-eight | folds into P28-02 |
+| H-614 | Registering refuses an empty account name and an account with no credentials configured, the name tested for truth alone. | `praxis/trading_inbound.py` 119-121, or 123-126 | Praxis package twenty-nine | is P29-01 |
+| H-615 | The venue is registered before the trading side, and a failure on the trading side undoes the venue registration before raising on. | `praxis/trading_inbound.py` 132 into 133-138 | Praxis package twenty-nine | folds into P29-01 |
+| H-616 | Unregistering removes the venue credentials whatever the trading side did, including where it raised. | `praxis/trading_inbound.py` 157-161 | Praxis package twenty-nine | folds into P29-01 |
+| H-617 | The credentials it was handed are copied as it is built. | `praxis/trading_inbound.py` 94 | Praxis package twenty-nine | folds into P29-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 11:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 12:30 UTC
