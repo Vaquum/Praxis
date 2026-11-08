@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38 |
 
-Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four `uncovered` ones are modules the wiki has written around: a fill's own type, the bracket exit identifier, the scheme parameter type and the replay report's own module each have their behaviour traced through a caller instead, so no row cites the file. Closing those is a later package, and so is the Nexus side the brief also covers.
+Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four `uncovered` ones are modules the wiki has written around: the bracket exit identifier, the scheme projection and the replay report each have their behaviour traced through a caller instead, so no row cites the file. A fill's own type has no caller to trace — nothing outside the tests builds one. Package 7 is seeded against all four.
 
 ## Nexus — 70 modules
 
@@ -162,18 +162,19 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39, N10-02, N10-06 |
 | `nexus/strategy/runner.py` | partial | N10-01, N10-04 |
 | `nexus/strategy/executor.py` | partial | N10-01 |
+| `nexus/infrastructure/observability.py` | partial | cited, not traced |
 | `nexus/infrastructure/strategy_event.py` | partial | N14-01, N14-02 |
 | `nexus/strategy/base.py` | partial | N10-03 |
 | `nexus/strategy/params.py` | partial | N14-04, N14-05 |
 | `nexus/strategy/signal.py` | partial | N14-03, N14-04 |
 | `nexus/strategy/timer_loop.py` | partial | N10-02, N10-05, N10-06 |
 | `nexus/strategy/context.py` | partial | N10-06 |
-| the other 7 | uncovered | — |
+| the other 6 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 52 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 18 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+12 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 52 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 18 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 23:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 05:00 UTC
