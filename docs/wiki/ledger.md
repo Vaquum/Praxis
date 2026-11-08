@@ -14,7 +14,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/fill.py` | partial | P7-01, P7-02, P7-03 |
 | `praxis/core/account_ledger.py` | partial | N3-12, P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
-| `praxis/core/validate_trade_modify.py` | partial | P3-13, P4-09, S-03 |
+| `praxis/core/validate_trade_modify.py` | partial | P20-01, P20-02, P3-13, P4-09, S-03 |
 | `praxis/infrastructure/binance_ws.py` | partial | N7-02, P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P16-01, P3-17 |
 | `praxis/core/health_tracker.py` | full | P13-01, P13-02, P3-15 |
@@ -87,10 +87,10 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/interval_slice_params.py` | full | P2-19, P4-08 |
 | `praxis/core/domain/scheduled_vwap_params.py` | partial | P18-02, P2-19, P4-08, P4-35 |
 | `praxis/core/domain/trade_modify.py` | full | P4-09 |
-| `praxis/core/domain/single_shot_modify.py` | full | P4-09, P4-35 |
+| `praxis/core/domain/single_shot_modify.py` | full | P20-01, P4-09, P4-35 |
 | `praxis/core/domain/bracket_modify.py` | full | P4-09, P4-35 |
-| `praxis/core/domain/iceberg_modify.py` | full | P3-13, P4-09, P4-35 |
-| `praxis/core/domain/ladder_dca_modify.py` | full | P3-13, P4-09, P4-35 |
+| `praxis/core/domain/iceberg_modify.py` | full | P20-01, P3-13, P4-09, P4-35 |
+| `praxis/core/domain/ladder_dca_modify.py` | full | P20-02, P3-13, P4-09, P4-35 |
 | `praxis/core/domain/scheduled_vwap_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/trade_abort.py` | full | P4-10 |
 | `praxis/core/domain/order.py` | full | P4-11, P4-36, P8-01 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:00 UTC

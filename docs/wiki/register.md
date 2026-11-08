@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 313 not.**
+**6 of them reviewed, 315 not.**
 
 ## Package 1
 
@@ -872,7 +872,7 @@ where all but one of the uncited statements sit.
 | Row H-581 | A sell's change can never raise what is committed, the test answering no before anything else is read. | Promote. How a rise is decided is in no article, and this is the first thing the deciding reads |
 | Row H-582 | For the ways of working that list commitment prices, each named price is weighed against the original and any above it raises. | Merge with H-581, the plain case of the same deciding |
 | Row H-583 | A named price with no original to weigh against raises. | Merge with H-581. What happens where there is nothing to compare is the half a reader would get wrong |
-| Row H-584 | Where the price is a row of rungs, a differing count raises, and otherwise any rung above its old one does. | Merge with H-581, the same deciding over a row rather than one figure |
+| Row H-584 | Where the price is a row of rungs, a differing count raises, and otherwise any rung above its old one does. | Merge with H-581 — but as a path nothing reaches, which the reader's pass established: both fields the deciding lists are refused unless they are single exact figures, and the ladder's rows go another way |
 | Row H-585 | A way of working with no commitment prices listed has nothing weighed at all. | Merge with H-581. Which ways of working the deciding reaches is part of what it decides |
 | Row H-586 | The second price listed for a single order can never be reached, a change naming it being refused before the weighing. | Merge with H-581. A listed field nothing can reach belongs beside the list |
 | Row H-587 | A ladder's change takes the amended prices and weights, or the original where not amended. | Promote. A ladder is weighed by its own road, and what that road resolves before comparing anything is in no article |
@@ -882,6 +882,11 @@ Two subjects promote and six rows merge, with nothing declined.
 
 The plain deciding comes first. The ladder's own road comes second, since it is
 reached from inside the first.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P20-01 | What counts as raising what a buy commits | written | [what-counts-as-raising-what-a-buy-commits.md](atoms/what-counts-as-raising-what-a-buy-commits.md) |
+| P20-02 | How a ladder's change is weighed | written | [how-a-ladders-change-is-weighed.md](atoms/how-a-ladders-change-is-weighed.md) |
 
 ## Package 18 — the last statements in the six modules next nearest the line
 
@@ -3867,13 +3872,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-581 | A sell's change can never raise what is committed, the test answering no before anything else is read. | `praxis/core/validate_trade_modify.py` 97-98 | Praxis package twenty | is P20-01 |
 | H-582 | For the ways of working that list commitment prices, each named price is weighed against the original and any above it raises. | `praxis/core/validate_trade_modify.py` 109-110 into 127-128, the lists at 26-29 | Praxis package twenty | folds into P20-01 |
 | H-583 | A named price with no original to weigh against raises. | `praxis/core/validate_trade_modify.py` 117-118 | Praxis package twenty | folds into P20-01 |
-| H-584 | Where the price is a row of rungs, a differing count raises, and otherwise any rung above its old one does. | `praxis/core/validate_trade_modify.py` 120-122, or 124-125 | Praxis package twenty | folds into P20-01 |
+| H-584 | The branch for a price arriving as a row of figures cannot be reached, both listed fields being refused unless they are single exact figures. | `praxis/core/validate_trade_modify.py` 120-125, the fields held to single figures at `praxis/core/domain/single_shot_modify.py` 45-51 and `praxis/core/domain/iceberg_modify.py` 42-48 | Praxis package twenty | folds into P20-01 |
 | H-585 | A way of working with no commitment prices listed has nothing weighed at all. | `praxis/core/validate_trade_modify.py` 109 finding nothing for a mode absent from 26-29 | Praxis package twenty | folds into P20-01 |
 | H-586 | The second price listed for a single order can never be reached, a change naming it being refused before the weighing. | `praxis/core/validate_trade_modify.py` 27 against 200-203, which raises at 204-208 before 220 | Praxis package twenty | folds into P20-01 |
 | H-587 | A ladder's change takes the amended prices and weights, or the original where not amended. | `praxis/core/validate_trade_modify.py` 66-72 | Praxis package twenty | is P20-02 |
-| H-588 | A rung count leaving the two incomparable raises, and otherwise the weighted sums are compared, equal shares standing in where no weights are given. | `praxis/core/validate_trade_modify.py` 74-75, or 77-79, the shares at 43-45 | Praxis package twenty | folds into P20-02 |
+| H-588 | Shares that do not match the new prices in number raise what is committed, and otherwise the weighted sums are compared, a side with no shares giving each of its own rungs an equal share. | `praxis/core/validate_trade_modify.py` 74-75, or 77-79, the shares at 43-45 | Praxis package twenty | folds into P20-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 23:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:00 UTC
