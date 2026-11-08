@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 321 not.**
+**6 of them reviewed, 322 not.**
 
 ## Package 1
 
@@ -856,6 +856,46 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 25 — the interval each scheduler is built with
+
+Scope: the timer that checkpoints while a host runs, which the ledger marks
+`partial` with sixteen of its thirty-two statements uncited. Articles have what it
+does on a tick, which hosts it runs on, and what its stop leaves running. What it
+is built with, and what starting it does twice, are in no article — and its check
+on its own interval is the counterpart of the one the package before this found
+missing on the Praxis side.
+
+### Merge and promote, package 25
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-603 | The interval must be a number above nought, with a true-or-false refused outright, and is kept as a plain number. | Promote. What this timer is built with is in no article, and it asks after the kind of its interval where the sampler on the other side only compares |
+| Row H-604 | Starting takes the lock and does nothing where the timer is already running. | Merge with H-603. The pair reads together, and this one answers a second start as the strategy timers do rather than as the sampler does |
+| Row H-605 | Scheduling the next tick does nothing once the running mark has gone, so a stop between ticks ends the chain. | Merge with H-603, the other place the mark is read |
+
+One subject promotes and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N25-01 | The interval a checkpoint timer takes | written | [the-interval-a-checkpoint-timer-takes.md](atoms/the-interval-a-checkpoint-timer-takes.md) |
+
+### Re-seed, after writing Nexus package 25
+
+The reader had the article before it was committed and returned five reports,
+which between them overturned the comparison the package was seeded on.
+
+| What it found | What came of it |
+|---|---|
+| This timer lets a figure that is no number through as well. It asks the interval's kind and compares it with nought, and asks nothing about being finite, so the comparison answers false and the figure is kept. | The article now says so, and the pair across the seam is narrowed to its one real difference: this one turns back an interval of the wrong kind, and the sampler takes any kind the comparison survives |
+| A tick reads the running mark before anything else, so a tick entering after a stop never reaches the scheduling at all. | The article now has the mark read twice, and the three ways a stop reaches the chain |
+| The citation named the checkpoint as the scheduling. | Corrected: the scheduling is its own call, after the checkpoint |
+
+The first is worth recording as a figure. Of the six records the register has
+found refusing a figure by comparing it, this one does ask the figure's kind — and
+still lets the same figure through, because the kind it asks for admits a value
+that is no number. The class is therefore larger than it looked: a record can ask
+after the kind and be no stricter for it.
 
 ## Package 24 — what the mark sampler is built with, and what starts and stops it
 
@@ -4098,8 +4138,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-600 | The interval is refused at or below nought by comparison, nothing being asked of its kind, so an interval that is not a number and one without end are both kept. | `praxis/paper/mark_sampler.py` 56-57, kept at 64 and used at 139 | Praxis package twenty-four | folds into P24-01 |
 | H-601 | Starting a sampler already running raises, and starting otherwise clears the stop signal and sets the loop going as a task named for the account and the pair. | `praxis/paper/mark_sampler.py` 77-78, or else 80-83, the test at 71 | Praxis package twenty-four | is P24-02 |
 | H-602 | Stopping sets the stop signal, cancels the task, swallows the cancellation and forgets the task, so a sampler never started is stopped without complaint. | `praxis/paper/mark_sampler.py` 94 into 96-102 | Praxis package twenty-four | folds into P24-02 |
+| H-603 | The interval must be a number above nought, with a true-or-false refused outright, and is kept as a plain number. | `nexus/infrastructure/snapshot_scheduler.py` 51-57, kept at 61 | Nexus package twenty-five | is N25-01 |
+| H-604 | Starting takes the lock and does nothing where the timer is already running. | `nexus/infrastructure/snapshot_scheduler.py` 75-77, or else 79-80 | Nexus package twenty-five | folds into N25-01 |
+| H-605 | Scheduling the next tick does nothing once the running mark has gone, so a stop between ticks ends the chain. | `nexus/infrastructure/snapshot_scheduler.py` 111-112 | Nexus package twenty-five | folds into N25-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 08:00 UTC
