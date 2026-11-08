@@ -803,6 +803,43 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 18 — the last corners of the small records
+
+Scope: the behaviour left uncited in thirteen small records on the Nexus side, found
+by comparing every line an article cites against every line that runs. Most of what
+the comparison turned up was a field being declared, which needs no article. Five
+modules had real behaviour nothing reached: the record of how processing went, the
+record of one entry in the log, a signal's way of answering for a key it lacks, how
+the six kinds of outcome are cut into groups, and what the breaker limits are before
+anything sets them.
+
+Closing these lets thirteen modules move from `partial` to `full`. Four on this
+side carry that mark for their own behaviour today, and six carry it as shapes.
+
+### Merge and promote, package 18
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-485 | The kind on a record of processing must be one of the named ones. | Promote. What the record saying how processing went refuses is in no article, the one row reaching that module citing two of its fields being passed on rather than any of its checks |
+| Row H-486 | A record saying it failed must carry a reason, and one saying it succeeded must carry none, two checks facing each other. | Merge with H-485. The pair is the whole of what this record weighs beyond its kind |
+| Row H-487 | The flag those two checks turn on is never asked to be a flag, nor are the two saying what was changed, so text in its place is read for truth alone. | Merge with H-485. The field both checks turn on being the one field whose type is never asked is what makes the pair worth reading |
+| Row H-488 | Three kinds of entry are named for the log. | Promote. What one entry in the log refuses is in no article, the module being reached only through the reader that walks it |
+| Row H-489 | An entry's number is refused below nought and asked nothing else, so a true-or-false or a fraction at or above nought is let by. | Merge with H-488. The number that orders the log being asked only for its sign is the sharpest of its four checks |
+| Row H-490 | Its kind must be one of the named ones and what it carries must be bytes. | Merge with H-488, the two checks that do ask a type |
+| Row H-491 | Its moment must be a moment, with no zone demanded of it. | Merge with H-488. It is a third moment on this side held to the weaker rule, and it belongs with the record's other checks rather than with the pair already written |
+| Row H-493 | Two of the six kinds of outcome count as a fill and four as an ending, one kind belonging to both groups and one to neither. | Promote. This is the candidate package 12's re-seed left open. Two articles reach the module — one citing the six members for a dispatch, the other citing the endings group — and neither states the two cuts across the six or that one kind falls in both and one in neither |
+| Row H-492 | Asking a signal for a value it does not hold answers with whatever the asking named as its default. | Promote. Two places on this side answer for something nobody set, and what each answers with is one subject |
+| Row H-494 | All three limits that trip the breakers are absent unless set, so a policy built with none given turns every breaker off. | Merge with H-492. A field absent until set and a key absent from a mapping are the same question asked of the record and of the caller |
+
+Four subjects promote and six rows merge, with nothing declined.
+
+The two records come first, each with its own subject, because what each refuses has
+nothing in common with the other. The cuts across the kinds of outcome follow, as
+the thing an earlier package found and left. What stands where nothing was set comes
+last, and takes its two halves from two different modules because the question is
+the same in both: one answers a caller's own default, the other answers absent, and
+in each case nothing was set.
+
 ## Nexus package 17 — what a host is configured with, and what loads a strategy
 
 Scope: the last two modules the ledger reaches only by citation — the record of
@@ -2802,8 +2839,18 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-482 | The file must carry something under the expected name, that something must be a class, it must inherit from the base, and it must not be the base itself. | `nexus/strategy/loader.py` 78-80, or 84-86, or 88-90, or 92-94 | Nexus package seventeen | is N17-07 |
 | H-483 | A module whose loading plan cannot be made is refused, and a failure while running the module is wrapped as one error naming the path. | `nexus/strategy/loader.py` 105-107, or 111-115 | Nexus package seventeen | folds into N17-07 |
 | H-484 | A failure building the strategy is wrapped as one error naming the strategy rather than the file. | `nexus/strategy/loader.py` 31-35 | Nexus package seventeen | folds into N17-07 |
+| H-485 | The kind on a record of processing must be one of the named ones. | `nexus/infrastructure/praxis_connector/process_result.py` 37-39 | Nexus package eighteen | is N18-01 |
+| H-486 | A record saying it failed must carry a reason, and one saying it succeeded must carry none, two checks facing each other. | `nexus/infrastructure/praxis_connector/process_result.py` 41-43, against 45-47 | Nexus package eighteen | folds into N18-01 |
+| H-487 | The flag those two checks turn on is never asked to be a flag, nor are the two saying what was changed, so text in its place is read for truth alone. | `nexus/infrastructure/praxis_connector/process_result.py` 34-47, which asks the type of one field and not of those three | Nexus package eighteen | folds into N18-01 |
+| H-488 | Three kinds of entry are named for the log. | `nexus/infrastructure/wal_entry.py` 19-21 | Nexus package eighteen | is N18-02 |
+| H-489 | An entry's number is refused below nought and asked nothing else, so a true-or-false or a fraction at or above nought is let by. | `nexus/infrastructure/wal_entry.py` 43-45 | Nexus package eighteen | folds into N18-02 |
+| H-490 | Its kind must be one of the named ones and what it carries must be bytes. | `nexus/infrastructure/wal_entry.py` 51-53, or 55-57 | Nexus package eighteen | folds into N18-02 |
+| H-491 | Its moment must be a moment, with no zone demanded of it. | `nexus/infrastructure/wal_entry.py` 47-49 | Nexus package eighteen | folds into N18-02 |
+| H-492 | Asking a signal for a value it does not hold answers with whatever the asking named as its default. | `nexus/strategy/signal.py` 94 | Nexus package eighteen | is N18-04 |
+| H-493 | Two of the six kinds of outcome count as a fill and four as an ending, one kind belonging to both groups and one to neither. | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` 48, and 37-42, the six at 26-31 | Nexus package eighteen | is N18-03 |
+| H-494 | All three limits that trip the breakers are absent unless set, so a policy built with none given turns every breaker off. | `nexus/core/domain/risk_breaker_thresholds.py` 25-27 | Nexus package eighteen | folds into N18-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 22:30 UTC
