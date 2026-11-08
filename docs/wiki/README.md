@@ -250,6 +250,12 @@ the others where it appears.
 - [The two roads a turn's answer takes](atoms/the-two-roads-a-turns-answer-takes.md) — without a controller the tick writes its answer straight through, doing nothing when the answer matches and otherwise replacing the whole record; with one, the answer is stored and the mode recomputed over every standing hold, so the result can differ from what the tick asked for.
 - [What the records of the mode refuse](atoms/what-the-records-of-the-mode-refuse.md) — a single hold needs a true-or-false flag, text for its reason and a timestamp or nothing, and may claim to be holding without saying since when; the mode record needs a recognised mode and a usable driver name; and the records that gather holds validate nothing at all.
 - [The moments with no marker](atoms/the-moments-with-no-marker.md) — the timestamp on the mode record and a hold’s own timestamp are each checked only for being timestamps, with no zone required and the mode record defaulting to the earliest possible instant, where the records crossing to the other side are rejected without the standard universal-time marker.
+- [What the translation refuses](atoms/what-the-translation-refuses.md) — turning a passed decision into an instruction is refused for a decision that did not pass, a timestamp without the standard universal-time marker, an empty command identifier, or a modify action named outright, with a lookup table standing as the last barrier past those.
+- [The kind of command nothing builds](atoms/the-kind-of-command-nothing-builds.md) — three command kinds are declared and the translation reaches two, so the amend kind is built nowhere on this side, though the command record still carries the rules for one.
+- [What an exit is given where it asked for nothing](atoms/what-an-exit-is-given-where-it-asked-for-nothing.md) — an exit missing its execution style, order kind or deadline is handed a single shot, a market order and sixty seconds, where an entry is handed nothing and a non-order action has all three set aside; a spend and a quantity can never both be present.
+- [What a funds movement refuses](atoms/what-a-funds-movement-refuses.md) — the record of money entering or leaving an account is rejected unless its two identifiers are usable text, its timestamp carries the standard universal-time marker, its amount is a finite decimal above zero, and its direction matches one of two words exactly, case included.
+- [What a mismatch refuses](atoms/what-a-mismatch-refuses.md) — the record of a disagreement with the venue is rejected unless its three identifiers are usable text, its timestamp carries the standard universal-time marker, and both figures are finite decimals — and rejected when those figures agree, so it cannot be made to report that nothing is wrong.
+- [The named values copied from the other side](atoms/the-named-values-copied-from-the-other-side.md) — the execution styles, order kinds and maker preferences are declared again on this side so the strategy layer need not import the trading package, which means each list agrees with its counterpart only while both are maintained, and nothing checks that they do.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -363,7 +369,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 266
+Both sides are the subject, and Praxis is the side that has been written. 272
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 56 carry a row of their own, and 14 are reached by an article, a
@@ -374,4 +380,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 14:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 17:00 UTC

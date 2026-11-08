@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 265 not.**
+**6 of them reviewed, 271 not.**
 
 ## Package 1
 
@@ -844,6 +844,15 @@ a venue's own news arrives as follow, each with its own subject, because what ea
 refuses has nothing in common with the other beyond the shape of its tests. The
 sets of named values come last, with the queue beside them, as the two of these six that ask
 nothing of what they are given.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N16-01 | What the translation refuses | written | [what-the-translation-refuses.md](atoms/what-the-translation-refuses.md) |
+| N16-02 | The kind of command nothing builds | written | [the-kind-of-command-nothing-builds.md](atoms/the-kind-of-command-nothing-builds.md) |
+| N16-03 | What an exit is given where it asked for nothing | written | [what-an-exit-is-given-where-it-asked-for-nothing.md](atoms/what-an-exit-is-given-where-it-asked-for-nothing.md) |
+| N16-04 | What a funds movement refuses | written | [what-a-funds-movement-refuses.md](atoms/what-a-funds-movement-refuses.md) |
+| N16-05 | What a mismatch refuses | written | [what-a-mismatch-refuses.md](atoms/what-a-mismatch-refuses.md) |
+| N16-06 | The named values copied from the other side | written | [the-named-values-copied-from-the-other-side.md](atoms/the-named-values-copied-from-the-other-side.md) |
 
 ## Nexus package 15 — health, and the mode it settles
 
@@ -2669,4 +2678,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 16:45 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 17:00 UTC
