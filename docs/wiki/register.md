@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 450 not.**
+**6 of them reviewed, 457 not.**
 
 ## Package 1
 
@@ -856,6 +856,75 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 72 — what starting a host asks of its strategies
+
+Scope: the sequencer that starts a host, which the ledger marks `partial` with a
+hundred and eighteen of its two hundred and twenty-four statements uncited.
+Eighteen articles reach it already, between them covering the squaring of capital,
+the importing of a position, the restoring of a strategy's saved state and the
+checkpoint. What a strategy's startup answer does, the buffer that holds one, which
+saved events a strategy is handed, the mode a start begins with, what a start hands
+the loops, how the strategies are built, and what each step wraps are in no article.
+
+### Merge and promote, Nexus package 72
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-834 | Each strategy the manifest names is asked at startup with an empty run of holdings and a share of the pool, an ordinary failure from a strategy stopping the whole starting while the same failure from the road for submitting is logged and the next strategy asked. | Promote. What a strategy is asked and what its answer does are in no article, and the same failure being fatal on one side of a few lines and not the other is the part worth stating |
+| Row H-835 | An answer is buffered per strategy where no road for submitting was given at the building, and three things must be in hand before any of it: the runner, the manifest and the mode. | Merge with H-834, and N72-02 states the buffering. Which road an answer takes is settled at the building rather than per answer |
+| Row H-836 | Draining takes the buffer into a local name and empties the field before submitting anything, submits each strategy in the order held, logs an ordinary failure against that strategy and carries on, and tries nothing twice. | Promote. What draining does is in no article, and emptying the field first is what decides what a failed submitting leaves |
+| Row H-837 | Handing over saved events requires the runner and the manifest, answers at once on an empty reading, matches names trimmed on both sides, warns past an unknown name, and logs an ordinary failure from a strategy before handing on the next event. | Promote. Which events reach a strategy is in no article, and this step treating a strategy's failure as survivable is the opposite of the startup question's choice |
+| Row H-838 | A mode is read from the health figures where both the weigher and a reading were given and set to reduce-only otherwise, written into the recovered state's health reading alone, and handed to each strategy asked at startup. | Promote. The mode a start begins with is in no article, and defaulting to the narrower answer is a choice rather than an accident |
+| Row H-839 | One binding is made per strategy from the manifest's own fields with nothing read from disk, timers are gathered per strategy with a strategy having none left out, and each is offered through a reading of its own with no loop built here. | Promote. What a start prepares for the loops without starting them is in no article |
+| Row H-840 | Every strategy is built inside one attempt naming the ordinary kind of failure, filed under its own name trimmed where the manifest has already refused a padded one, and the runner written over the field only once the whole collection is built. | Promote. How the strategies are built is in no article, and the trimming that cannot change anything is worth recording as such |
+| Row H-841 | Reading the manifest wraps each ordinary failure as one complaint, recovering the state lets a complaint of the starting's own kind through while wrapping an ordinary one, and registering with the trading side is skipped with a warning written on each attempt where a dependency is absent. | Promote. Which failures each step reshapes is in no article, and one step letting a shaped complaint through is the exception that makes the pattern readable |
+
+Seven subjects promote and one row merges, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N72-01 | What a strategy's startup answer does | written | [what-a-strategys-startup-answer-does.md](atoms/what-a-strategys-startup-answer-does.md) |
+| N72-02 | What the buffer of startup answers is for | written | [what-the-buffer-of-startup-answers-is-for.md](atoms/what-the-buffer-of-startup-answers-is-for.md) |
+| N72-03 | Which saved events a strategy is handed | written | [which-saved-events-a-strategy-is-handed.md](atoms/which-saved-events-a-strategy-is-handed.md) |
+| N72-04 | The mode a start begins with | written | [the-mode-a-start-begins-with.md](atoms/the-mode-a-start-begins-with.md) |
+| N72-05 | What a start hands the loops | written | [what-a-start-hands-the-loops.md](atoms/what-a-start-hands-the-loops.md) |
+| N72-06 | How the strategies are built | written | [how-the-strategies-are-built.md](atoms/how-the-strategies-are-built.md) |
+| N72-07 | What a start wraps, and what it lets through | written | [what-a-start-wraps-and-what-it-lets-through.md](atoms/what-a-start-wraps-and-what-it-lets-through.md) |
+
+### Re-seed, after writing Nexus package 72
+
+The reader returned nineteen reports and all nineteen were valid. Seven of them are
+one cluster, and that cluster is the module's docstrings talking about other
+modules.
+
+| What it found | What came of it |
+|---|---|
+| Seven sentences made claims this module cannot support: that the launcher cannot wire the submitting road earlier, that the launcher drains the buffer, that the road runs its checks before any venue contact, that a first start finds no saved events, that events survive a manifest change, that reduce-only stops a position being opened, that the controller is the only writer of the account's mode, and what a caller builds from the bindings. | Each was cut or scoped to this module, several with a sentence naming where the rest is settled. The sequencer's docstrings describe the system around it at length, and the draft had absorbed that account as though it were evidence |
+| The startup context's empty holdings do not mean a strategy knows of no positions: the restoring of its state and the handing over of its events both run first. | N72-01 says what this step shows and leaves the rest to the steps before it |
+| An ordinary failure from a strategy is fatal only during the startup question; the same failure during restoring or replay is logged. | N72-01 scopes the contrast to those few lines |
+| Every catch here names the ordinary kind of failure, so one of another kind passes untouched. | Named once in each article rather than left as "any failure". This is package sixty-eight's lesson, not carried forward |
+| A second draining finds nothing only where no further asking has refilled the field. | N72-02 says so |
+| After a failed submitting the sequencer holds the answers nowhere and tries nothing twice; what the road did with them before failing is that road's business. | N72-02 scopes the claim to the sequencer |
+| One strategy's failure during replay leaves whatever it had already changed in place, nothing here undoing it. | N72-03 says so |
+| The runner is written over the field only once the whole collection is built, the strategies built so far existing in what a failure discards. | N72-06 says that rather than "no strategy is reachable" |
+| The complaint about building keeps the original failure as its cause, so which strategy failed is not only in the message. | N72-06 says so |
+| Recovery lets through a complaint of the starting's own kind whatever step raised it, rather than only its own. | N72-07 says so |
+| The warning about a skipped registration is written on each attempt, nothing remembering it was written. | N72-07 says so |
+
+The cluster is worth naming precisely. A module's docstrings are the best available
+account of the system around it, and that is exactly what makes them dangerous to a
+writer working module by module: they describe what callers do, what the system
+guarantees, and why a choice was made, in the same voice as what the code does. The
+rule the corpus already has — cite the statement that does the work — stops short
+of this case, because here there is no statement to cite at all. The repair is to
+stop at the module's edge and say where the rest is settled.
+
+Fifty-one statements of the module are left uncited and are an exclusion rather than
+work outstanding: the fields set as the sequencer is built, the readings it offers,
+the parts of the capital squaring and the position importing that eighteen other
+articles account for, the readings of a manifest and a strategy into local names,
+and the log lines of the steps above.
 
 ## Nexus package 71 — what a turn of the prediction loop reads and writes
 
@@ -6433,8 +6502,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-831 | The manifest is read from a fixed name, must parse and be a mapping with nothing catching a failure of the parsing, and its moment must be text with the universal-time letter swapped for the offset before parsing. | `nexus/strategy/predict_loop.py` 428-438, and 445-455 | Nexus package seventy-one | is N71-05 |
 | H-832 | A line naming the series and the cohort's name and reference is written on every turn that gets that far, a reference that is not text is remembered nowhere, and a differing one writes a second line naming both. | `nexus/strategy/predict_loop.py` 527-537, then 539-540, then 542-552, then 554 | Nexus package seventy-one | is N71-06 |
 | H-833 | Starting gives every pairing a first due moment one interval ahead so none is served as the loop starts, and a turn asked for by hand refuses while the loop is up, schedules nothing, and hands a failure to its caller where a scheduled turn's is logged. | `nexus/strategy/predict_loop.py` 233-251, and 277-282 against 307-316 | Nexus package seventy-one | is N71-07 |
+| H-834 | Each strategy the manifest names is asked at startup with an empty run of holdings and a share of the pool, an ordinary failure from a strategy stopping the whole starting while the same failure from the road for submitting is logged and the next strategy asked. | `nexus/startup/sequencer.py` 719-726, then 727-735, against 747-753 | Nexus package seventy-two | is N72-01 |
+| H-835 | An answer is buffered per strategy where no road for submitting was given at the building, and three things must be in hand before any of it: the runner, the manifest and the mode. | `nexus/startup/sequencer.py` 740-745, and 708-715 | Nexus package seventy-two | folds into N72-01, and N72-02 states the buffering |
+| H-836 | Draining takes the buffer into a local name and empties the field before submitting anything, submits each strategy in the order held, logs an ordinary failure against that strategy and carries on, and tries nothing twice. | `nexus/startup/sequencer.py` 210-225 | Nexus package seventy-two | is N72-02 |
+| H-837 | Handing over saved events requires the runner and the manifest, answers at once on an empty reading, matches names trimmed on both sides, warns past an unknown name, and logs an ordinary failure from a strategy before handing on the next event. | `nexus/startup/sequencer.py` 568-577, then 579-589, then 591-594 | Nexus package seventy-two | is N72-03 |
+| H-838 | A mode is read from the health figures where both the weigher and a reading were given and set to reduce-only otherwise, written into the recovered state's health reading alone, and handed to each strategy asked at startup. | `nexus/startup/sequencer.py` 671-679, then 681-682, read at 717 into 725 | Nexus package seventy-two | is N72-04 |
+| H-839 | One binding is made per strategy from the manifest's own fields with nothing read from disk, timers are gathered per strategy with a strategy having none left out, and each is offered through a reading of its own with no loop built here. | `nexus/startup/sequencer.py` 605-616, and 634-641 into 650, offered at 130 and 136 | Nexus package seventy-two | is N72-05 |
+| H-840 | Every strategy is built inside one attempt naming the ordinary kind of failure, filed under its own name trimmed where the manifest has already refused a padded one, and the runner written over the field only once the whole collection is built. | `nexus/startup/sequencer.py` 506-516, trimmed at 510 against `nexus/infrastructure/manifest.py` 136-142 | Nexus package seventy-two | is N72-06 |
+| H-841 | Reading the manifest wraps each ordinary failure as one complaint, recovering the state lets a complaint of the starting's own kind through while wrapping an ordinary one, and registering with the trading side is skipped with a warning written on each attempt where a dependency is absent. | `nexus/startup/sequencer.py` 495-498, and 238-250, and 255-262 | Nexus package seventy-two | is N72-07 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 04:00 UTC

@@ -462,6 +462,13 @@ the others where it appears.
 ## Starting and stopping a host
 
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
+- [What a strategy's startup answer does](atoms/what-a-strategys-startup-answer-does.md) — each strategy is asked what it wants to do before trading begins, and the same kind of failure stops the whole boot from one side of a few lines and is merely logged from the other.
+- [What the buffer of startup answers is for](atoms/what-the-buffer-of-startup-answers-is-for.md) — where there is no way to send a strategy's opening request yet, it is held for later, and the holding place is emptied before anything is sent.
+- [Which saved events a strategy is handed](atoms/which-saved-events-a-strategy-is-handed.md) — a host coming back up replays what was saved so a strategy can rebuild what it knew, skipping events for strategies the settings no longer name.
+- [The mode a start begins with](atoms/the-mode-a-start-begins-with.md) — a host with no health reading yet begins in the state that allows less rather than more, and what this step settles is an input to the mode rather than the mode.
+- [What a start hands the loops](atoms/what-a-start-hands-the-loops.md) — the descriptions the polling and timing need are worked out from the settings file alone, with nothing read from disk and no loop built here.
+- [How the strategies are built](atoms/how-the-strategies-are-built.md) — every strategy is built inside one attempt, so any one of them failing arrives as a single complaint that names the step rather than the strategy.
+- [What a start wraps, and what it lets through](atoms/what-a-start-wraps-and-what-it-lets-through.md) — most steps turn whatever went wrong into one complaint of their own, and one of them passes a complaint already shaped for a caller straight out.
 - [What a starting host reports](atoms/what-a-starting-host-reports.md) — what the figures a starting host publishes actually confirm, and why reading healthy does not mean every account is ready.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [What startup does with orphaned work](atoms/what-startup-does-with-orphaned-work.md) — work the record cannot account for, and orders at the venue it has never heard of.
@@ -548,15 +555,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 451
+Both sides are the subject, and Praxis is the side that has been written. 458
 articles exist. Of Praxis's own source files 75 are accounted for in full and 13 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 51 are accounted for in full and 13 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 52 are accounted for in full and 12 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 03:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 04:00 UTC
