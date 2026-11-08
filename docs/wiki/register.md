@@ -831,6 +831,37 @@ The window comes first, as the earlier of the two in a day's work.
 | P16-01 | The window a backfill opens | written | [the-window-a-backfill-opens.md](atoms/the-window-a-backfill-opens.md) |
 | P16-02 | What an even split refuses | written | [what-an-even-split-refuses.md](atoms/what-an-even-split-refuses.md) |
 
+### Re-seed, after writing package 16
+
+What verifying the two articles turned up that neither of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| What counts as a readable trade name is wider than it looks | `praxis/infrastructure/mytrades_backfill.py` 38-39 reads the name with the standard reader for whole numbers, which accepts blank space either side, a leading sign, underscores between the digits, leading noughts, and digits of other writing systems. A name of twelve with a space either side, one written with a plus, and one written with an underscore between its digits are all read as twelve, so each writes the same mark; a name with a decimal point is not read at all. The article on backfilling and P16-01 both speak of a readable name without saying what reading accepts. This belongs to the shape the register has recorded before, of a name carried as written where the thing reading it is more forgiving than the name's own rules |
+
+One candidate. It is what the reader admits rather than what it refuses, and the
+mark it writes is a plain number, so two names that differ only in their blank
+space leave the same mark behind.
+
+A note on method. The gap map now reports fifteen modules marked `full` with an
+uncited statement, against sixteen before this package. No module carries a gap
+above eight, and the widest are `praxis/metrics/limen_snapshot.py` at eight of a
+hundred and `praxis/replay/replay_api.py` at seven of seventy-three.
+
+A note on verification, as for the twelve packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running both modules on the cases each claim turns on. Running
+them is what showed a count carrying a fraction refused by the division rather
+than by the count's own check, and ten children of a thousandth each where no lot
+size is known.
+
+One claim was dropped before it was written. The reader of trade names turns back
+only a complaint about the characters, so a name that is no text at all raises
+instead of answering nothing — but the one road that reaches this reader is handed
+names already turned into text where the venue's answer is read, so no such name
+can arrive. The claim was true of the reader and false of the backfill, which is
+the distinction the register's own rule about paths asks for.
+
 ## Package 15 — what the figures are measured from, and what the series are read as
 
 Scope: the module reproducing the training side's own distribution figures, which
@@ -3525,4 +3556,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 16:30 UTC
