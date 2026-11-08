@@ -2,10 +2,12 @@
 row: P1-06
 baseline: 49aa659
 created: 2026-09-20 17:33 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-11 02:00 UTC
 evidence:
   - claim: "The book is fetched before the walk"
     source: "`execution_manager.py` 4192-4205"
+  - claim: "Where there is no middle, neither estimator walks the book at all"
+    source: "`estimate_slippage.py` 108-109, or 168-169"
   - claim: "One side is walked: the sell offers for a buy, the buy bids for a sell"
     source: "`estimate_slippage.py` 111, by money 171"
   - claim: "The walk takes what is on offer level by level"
@@ -40,6 +42,8 @@ Only one side is ever walked. So long as the venue returns each side in price or
 ## The middle
 
 Halfway between the first price listed on each side, which is taken to be the best one there.
+
+Where there is no middle, neither estimator walks the book at all: the walk is never reached, whichever way the order was expressed.
 
 ## The figure
 

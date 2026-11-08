@@ -48,7 +48,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61 |
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | N2-07, P11-01, P11-02, P11-03, P2-13, P2-26 |
-| `praxis/core/estimate_slippage.py` | partial | P1-06, P3-03 |
+| `praxis/core/estimate_slippage.py` | full | P1-06, P3-03 |
 | `praxis/replay/run_replay.py` | partial | N9-01, N9-02, N9-05, P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
 | `praxis/replay/replay_clock.py` | full | P3-02, P8-03 |
 | `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P2-46, P3-03, P3-04, P3-15, P3-18, P4-13 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here: 50 are `full` and 38 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here: 51 are `full` and 37 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -162,7 +162,7 @@ Every Praxis module is named here: 50 are `full` and 38 `partial`, with none `un
 | `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39, N10-02, N10-06 |
 | `nexus/strategy/runner.py` | partial | N10-01, N10-04 |
 | `nexus/strategy/executor.py` | full | N10-01 |
-| `nexus/infrastructure/observability.py` | partial | P7-05 |
+| `nexus/infrastructure/observability.py` | full | P7-05 |
 | `nexus/infrastructure/strategy_event.py` | full | N14-01, N14-02 |
 | `nexus/strategy/base.py` | partial | N10-03 |
 | `nexus/strategy/params.py` | full | N14-04, N14-05, N17-02 |
@@ -178,8 +178,8 @@ Every Praxis module is named here: 50 are `full` and 38 `partial`, with none `un
 
 Modules are listed individually as tracing reaches them, and every one of Nexus's 70 is now listed. Six are marked `full` as shapes: five sets of named values across three of them, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types. Each declares names or a shape, or keeps what it was handed, and makes no check of its own, so there is no behaviour for an article to trace; a value outside one of those sets is refused by the machinery the set is built on rather than by anything in the module. Package 7 recorded that, and it is an exclusion rather than work outstanding.
 
-6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 26 are accounted for in full and 38 are not.
+6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 27 are accounted for in full and 37 are not.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 02:00 UTC
