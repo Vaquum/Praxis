@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 341 not.**
+**6 of them reviewed, 343 not.**
 
 ## Package 1
 
@@ -856,6 +856,48 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 41 — the stop that blocks a restart
+
+Scope: the loop reading outcomes back from Praxis, which the ledger marks
+`partial` with twenty-eight of its eighty-seven statements uncited. One article
+has the parking of an outcome whose strategy cannot be found and the retries that
+follow. What starting and stopping the loop do, and what a stop that does not
+finish leaves behind, are in no article.
+
+### Merge and promote, Nexus package 41
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-651 | Starting under the lock does nothing where a live worker is already held, and otherwise clears the stop signal and sets one going. | Promote. What starting and stopping this loop do is in no article, and the pair is unlike every other loop on this side |
+| Row H-652 | Stopping takes the worker under the lock, sets the stop signal, lets the lock go, and waits on the worker for a given span. | Merge with H-651, the first half of the stopping |
+| Row H-653 | A worker still alive when that wait runs out keeps its place, so a later start finds a live worker held and does nothing. | Promote. A stop that cannot finish leaving the loop unstartable is a subject of its own |
+| Row H-654 | A worker that did exit has its place cleared, and only where the place still holds that same worker. | Merge with H-653. What the clearing asks before it clears is what makes a second stop harmless |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N41-01 | Starting and stopping the outcome loop | written | [starting-and-stopping-the-outcome-loop.md](atoms/starting-and-stopping-the-outcome-loop.md) |
+| N41-02 | The stop that blocks a restart | written | [the-stop-that-blocks-a-restart.md](atoms/the-stop-that-blocks-a-restart.md) |
+
+### Re-seed, after writing Nexus package 41
+
+The reader had both articles before they were committed and returned four
+reports, one of which turned the second article's close into something better than
+it had.
+
+| What it found | What came of it |
+|---|---|
+| The block does not last until a stop clears the slot. A start asks whether the slot holds a worker still alive, so once the retained worker finishes a start puts a new one there with no stop in between. | N41-02 says how long the block lasts, which is exactly as long as that worker runs |
+| The identity question does not make a second stop harmless. It stops a late stop clearing a worker it never waited for, and nothing more: every stop sets one shared signal, so a stop entering after a restart tells the new worker to exit. | N41-02 has a section for the signal they share, which is the sharper half of the subject |
+| The reason given for letting the lock go before waiting — that the worker needs it — is unsupported: the worker never takes that lock. | N41-01 now says what letting it go actually allows, which is a start or a second stop running while the first waits |
+
+The first two are the same correction twice: a guard read as stronger than it is.
+The slot held past a failed stop reads like a latch, and the identity question
+reads like a guard against any late stop. Both are narrower, and the narrower
+reading is the one that shows the hazard — one signal, three callers, and the
+order deciding whether a restarted worker lives.
 
 ## Nexus package 40 — the keys that must match, and what a tracked order must be
 
@@ -4715,8 +4757,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-648 | A tracked order's three names must each be text with something left once trimmed, the trimming only testing them. | `nexus/core/capital_controller/tracked_order.py` 59-61, or 63-65, or 67-69 | Nexus package forty | is N40-02 |
 | H-649 | Its three figures must each be finite and at or above nought, and what is left must not exceed the whole. | `nexus/core/capital_controller/tracked_order.py` 71-95, or 97-99 | Nexus package forty | folds into N40-02 |
 | H-650 | Its state must be one of the two named, and its moment must carry the universal-time marker itself. | `nexus/core/capital_controller/tracked_order.py` 101-103, or 105-110 | Nexus package forty | folds into N40-02 |
+| H-651 | Starting under the lock does nothing where a live worker is already held, and otherwise clears the stop signal and sets one going. | `nexus/core/outcome_loop.py` 145-147, or else 149-155 | Nexus package forty-one | is N41-01 |
+| H-652 | Stopping takes the worker under the lock, sets the stop signal, lets the lock go, and waits on the worker for a given span. | `nexus/core/outcome_loop.py` 169-175 into 177 | Nexus package forty-one | folds into N41-01 |
+| H-653 | A worker still alive when that wait runs out keeps its place, so a later start finds a live worker held and does nothing. | `nexus/core/outcome_loop.py` 179-185 against 146-147 | Nexus package forty-one | is N41-02 |
+| H-654 | A worker that did exit has its place cleared, and only where the place still holds that same worker. | `nexus/core/outcome_loop.py` 187-189 | Nexus package forty-one | folds into N41-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 23:00 UTC
