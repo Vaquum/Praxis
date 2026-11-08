@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 319 not.**
+**6 of them reviewed, 321 not.**
 
 ## Package 1
 
@@ -874,6 +874,39 @@ and what starting and stopping it do, are in no article.
 | Row H-602 | Stopping sets the stop signal, cancels the task, swallows the cancellation and forgets the task, so a sampler never started is stopped without complaint. | Merge with H-601, the other half of the pair |
 
 Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P24-01 | What the mark sampler is built with | written | [what-the-mark-sampler-is-built-with.md](atoms/what-the-mark-sampler-is-built-with.md) |
+| P24-02 | Starting and stopping the sampler | written | [starting-and-stopping-the-sampler.md](atoms/starting-and-stopping-the-sampler.md) |
+
+### Re-seed, after writing package 24
+
+The reader had both articles before they were committed and returned seven
+reports, the most of any package in this run. Two of the seven matter beyond their
+own sentences.
+
+| What it found | What came of it |
+|---|---|
+| Two sentences about stopping came from the module's own docstring: that the signal ends the loop within one interval, and that the cancelling bounds the wait so stopping cannot hang. Neither is enforced. The sample's own recording is awaited with no deadline, and the waiting after the cancel has none either. | Both sentences are gone. The article now says what the lines do: the signal is set, the task is cancelled, the task is waited for |
+| The waiting swallows the cancelling and nothing else, so a task that failed another way comes back out of the stopping and is still held afterwards. | P24-02 has that, and a section on what a sampler holds afterwards |
+| The task's name is not unique: two samplers built for the same account and pair take the same name. | The sentence claiming they are told apart is gone |
+| The claim about what a wait of no number and a wait without end do was written without running either. | Running them gives something better and true: a wait of no number ends at once, so the loop samples with no pause, and an interval of the exact kind makes the wait raise outside the catch that covers a sample, ending the task. P24-01 now carries both |
+
+The first is the one to keep in view. The rule the register works to says a
+docstring is a claim about the code and the body is the code; these two sentences
+were written from a docstring that makes a promise the body does not keep, and the
+gate cannot tell the difference because the citation pointed at real lines. The
+reader found it by asking what bounds the waiting, and nothing does.
+
+| Candidate | What proves it |
+|---|---|
+| Nothing bounds how long stopping waits | `praxis/paper/mark_sampler.py` 118 awaits the recording of a sample with no deadline, and 100 awaits the cancelled task with none either. A recording that does not return leaves the loop inside the sample, where the stop signal is read only between samples at 131 and 139, and leaves the stopping inside its own wait. The module's docstring at 89-91 says the cancel bounds this; the lines do not. P24-02 states what the lines do and stops there |
+
+One candidate. It is the first in this run drawn from a docstring that overstates
+its own body, and it is recorded here rather than written into an article because
+what the stopping of a paper run should bound is a question about the host rather
+than about the sampler.
 
 ## Package 23 — starting and stopping the timers, and what the walk is built from
 
@@ -4069,4 +4102,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 06:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 07:00 UTC
