@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 278 not.**
+**6 of them reviewed, 282 not.**
 
 ## Package 1
 
@@ -839,6 +839,13 @@ the thing an earlier package found and left. What stands where nothing was set c
 last, and takes its two halves from two different modules because the question is
 the same in both: one answers a caller's own default, the other answers absent, and
 in each case nothing was set.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N18-01 | What a record of processing refuses | written | [what-a-record-of-processing-refuses.md](atoms/what-a-record-of-processing-refuses.md) |
+| N18-02 | What an entry in the log refuses | written | [what-an-entry-in-the-log-refuses.md](atoms/what-an-entry-in-the-log-refuses.md) |
+| N18-03 | The two cuts across the kinds of outcome | written | [the-two-cuts-across-the-kinds-of-outcome.md](atoms/the-two-cuts-across-the-kinds-of-outcome.md) |
+| N18-04 | What stands where nothing was set | written | [what-stands-where-nothing-was-set.md](atoms/what-stands-where-nothing-was-set.md) |
 
 ## Nexus package 17 — what a host is configured with, and what loads a strategy
 
@@ -2853,4 +2860,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 22:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 23:00 UTC

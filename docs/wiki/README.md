@@ -263,6 +263,10 @@ the others where it appears.
 - [The field that must name its yardstick](atoms/the-field-that-must-name-its-yardstick.md) — the reference price source is optional, trimmed and lower-cased and written back over itself, and accepted only as one specific name; a deviation limit of either kind is rejected when no source is named, which is the only place this record compares one of its fields with another.
 - [What the loader asks of a path](atoms/what-the-loader-asks-of-a-path.md) — a strategy file must be named by a relative path ending in the module suffix, and the path is resolved before being tested for staying inside the base directory, so both a path climbing out and a link pointing out are caught; past that, the file must exist.
 - [What the loader asks of what it found](atoms/what-the-loader-asks-of-what-it-found.md) — the module is run with any failure wrapped as one error naming the file, then it must export something under the expected name that is a class inheriting from the base and is not the base itself, and building the class wraps any failure as one error naming the strategy instead.
+- [What a record of processing refuses](atoms/what-a-record-of-processing-refuses.md) — the record of how one report was handled needs a recognised kind, an explanation when it reports failure and none when it reports success, while the field those two checks read is never required to be a true-or-false, so text put there is read for truth alone.
+- [What an entry in the log refuses](atoms/what-an-entry-in-the-log-refuses.md) — a single log record needs a recognised kind, a timestamp with no zone required, and bytes for its payload, while its ordering number is rejected only below zero and never checked for type, so a true-or-false or a fraction stands as a number there.
+- [The two cuts across the kinds of outcome](atoms/the-two-cuts-across-the-kinds-of-outcome.md) — six outcome kinds are answered by two questions that do not line up: four count as finished and two as having filled, with the full fill answering yes to both and the acknowledgement yes to neither.
+- [What stands where nothing was set](atoms/what-stands-where-nothing-was-set.md) — a signal hands a missing key back to the caller's own fallback, while the risk limits are simply empty until set so an unconfigured policy disables every breaker, and neither record notes anywhere that a default was taken.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -376,7 +380,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 279
+Both sides are the subject, and Praxis is the side that has been written. 283
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -387,4 +391,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 21:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 23:00 UTC
