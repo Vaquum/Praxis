@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 651 not.**
+**6 of them reviewed, 653 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 157 — which order the watchdog asks about first, and how a new ladder grid is renumbered
+
+Scope: the order in which a protection in doubt has its candidates asked after, and
+the numbering of the grid an amend plans, part of a module the ledger marks `partial`.
+After the package before this one, seven hundred and twelve of its two thousand four
+hundred and eighty-seven statements were uncited. Neither subject is in an article.
+The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 157
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1439 | The replacement still owing is asked about before the protection the bracket holds, and a name appearing twice is asked about once. | Promote. The order is in no article, and it settles the usual case on the first question |
+| Row H-1440 | Each candidate is asked after in turn and the first found working ends the asking. | Merge with H-1439 |
+| Row H-1441 | A venue failure on a candidate is remembered and the next tried all the same, the memory consulted only where no candidate was found working. | Merge with H-1439 |
+| Row H-1442 | The three endings are a re-confirmation, a remediation as unconfirmable, and a resolution as confirmed finished. | Merge with H-1439 |
+| Row H-1443 | Each level of a planned grid that survives the venue's minimums is numbered by how many survived before it. | Promote. The renumbering is in no article, and finding the rungs again walking the numbers upwards is why it matters |
+| Row H-1444 | A level below the least amount, or worth less than the least sum at its own price, is passed over. | Merge with H-1443 |
+| Row H-1445 | Where no venue rules are held, nothing stands in for the step and nought for both minimums, which lets every level through. | Merge with H-1443 |
+| Row H-1446 | A remainder at or below nothing plans no levels at all. | Merge with H-1443 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P157-01 | Which order the watchdog asks about first | written | [which-order-the-watchdog-asks-about-first.md](atoms/which-order-the-watchdog-asks-about-first.md) |
+| P157-02 | How a new ladder grid is renumbered | written | [how-a-new-ladder-grid-is-renumbered.md](atoms/how-a-new-ladder-grid-is-renumbered.md) |
+
+### Re-seed, after writing package 157
+
+The second subject is a consequence of the name-working-out written down twenty-one
+packages ago, and could not have been stated without it.
+
+| What it found | What came of it |
+|---|---|
+| A surviving level is numbered by how many survived before it, so the numbers run without gaps. | Stated, with why it matters: a rung's name comes from its number and the walk that finds the rungs again goes from nothing upwards, so a gap would end that walk early |
+| The replacement still owing is asked about before the protection held. | Stated, with the reason it is the better order: an amend that placed its replacement leaves the newer list most likely to be working |
+| A venue failure on one candidate does not stop the next being tried. | Stated. The remembered failure is consulted only where no candidate was found working |
+| Where no venue rules are held, every level survives the minimums. | Stated. Both minimums read as nought and the step as nothing |
+
+Worth recording: the renumbering is meaningless on its own and decisive once the
+naming scheme is known. Written as a fact about a loop it is a detail; written as the
+reason a later walk terminates correctly it is the point. Twenty-one packages between
+the two, and the second needed the first in the corpus to be worth writing at all.
 
 ## Package 156 — what a scheme's change replans, and when a protection fills as it is placed
 
@@ -11075,7 +11121,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1436 | The protective order is read from the account's own state after those fills are applied. | `execution_manager.py` 5072 | package one hundred and fifty-six | folds into P156-02 |
 | H-1437 | An order already terminal having filled something has the exit's outcome built from the admitted totals. | `execution_manager.py` 5073-5077 into 5078-5080, then 5082-5084, then 5090-5091 | package one hundred and fifty-six | folds into P156-02 |
 | H-1438 | The prices, the entry price and the word active were all set before the order was read back. | `execution_manager.py` 5031-5036, ahead of 5072 | package one hundred and fifty-six | folds into P156-02 |
+| H-1439 | The replacement still owing is asked about before the protection the bracket holds, and a name appearing twice is asked about once. | `execution_manager.py` 7357, then 7358 into 7359, or 7361, then 7362 into 7363, then 7366-7373 | package one hundred and fifty-seven | is P157-01 |
+| H-1440 | Each candidate is asked after in turn and the first found working ends the asking. | `execution_manager.py` 7377, then 7379, then 7384 into 7385-7386 | package one hundred and fifty-seven | folds into P157-01 |
+| H-1441 | A venue failure on a candidate is remembered and the next tried all the same. | `execution_manager.py` 7380 into 7381-7382 | package one hundred and fifty-seven | folds into P157-01 |
+| H-1442 | The three endings are a re-confirmation, a remediation as unconfirmable, and a resolution as confirmed finished. | `execution_manager.py` 7388 into 7389-7391, then 7392, or 7394 into 7395-7396, or 7398 | package one hundred and fifty-seven | folds into P157-01 |
+| H-1443 | Each level of a planned grid that survives the venue's minimums is numbered by how many survived before it. | `execution_manager.py` 9089, then 9094 | package one hundred and fifty-seven | is P157-02 |
+| H-1444 | A level below the least amount, or worth less than the least sum at its own price, is passed over. | `execution_manager.py` 9088, then 9090, then 9091 into 9092, then 9096 | package one hundred and fifty-seven | folds into P157-02 |
+| H-1445 | Where no venue rules are held, nothing stands in for the step and nought for both minimums. | `execution_manager.py` 9080, then 9081, then 9082, then 9083 | package one hundred and fifty-seven | folds into P157-02 |
+| H-1446 | A remainder at or below nothing plans no levels at all. | `execution_manager.py` 9085 into 9086 | package one hundred and fifty-seven | folds into P157-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 22:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 23:00 UTC

@@ -166,6 +166,8 @@ the others where it appears.
 - [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
 - [Which figures settle a bracket's entry](atoms/which-figures-settle-a-brackets-entry.md) — the order's own fills decide whether anything filled and what price the protection rests on, while the admitted totals decide what the outcome reports, so an entry can be called part filled while its protection is sized from a larger figure.
 - [What a ladder's start plans before it posts](atoms/what-a-ladders-start-plans-before-it-posts.md) — every rung's amount and price is worked out before anything is recorded, so a grid that cannot be planned is refused with no start written at all.
+- [Which order the watchdog asks about first](atoms/which-order-the-watchdog-asks-about-first.md) — the replacement pair still owing is asked about before the pair the holding carries, which settles the usual case on the first question, and a venue failure on a name is remembered but does not stop the next name being tried.
+- [How a new ladder grid is renumbered](atoms/how-a-new-ladder-grid-is-renumbered.md) — rungs too small to trade are dropped and the survivors numbered without gaps, which is what lets the walk that finds them again run from nothing upwards without stopping early.
 - [How a ladder's rungs are found again](atoms/how-a-ladders-rungs-are-found-again.md) — a grid of resting orders is recovered by working out what each rung was called and asking the account whether that order is there, so a rung the venue accepted but the record never saw is still found.
 - [What a ladder amend caught mid-flight resumes as](atoms/what-a-ladder-amend-caught-mid-flight-resumes-as.md) — a price change interrupted by a restart comes back as a change still under way, holding rungs from both the old grid and the new, so the watchdog drives it on from where it stopped.
 - [How a protection in doubt is re-confirmed](atoms/how-a-protection-in-doubt-is-re-confirmed.md) — a protective pair the venue says is working is written back as live under the version it already had, and an order missing from the account's own records is a reason to wait rather than to write.
@@ -749,7 +751,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 652
+Both sides are the subject, and Praxis is the side that has been written. 654
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -760,4 +762,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 22:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 23:00 UTC
