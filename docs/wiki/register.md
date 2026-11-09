@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 508 not.**
+**6 of them reviewed, 511 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 89 — what binsim answers when it is only asked
+
+Scope: the endpoints of binsim's HTTP surface that answer rather than trade, part of
+a module the ledger marks `partial` with a hundred and forty-five of its two hundred
+and twenty-five statements uncited. Articles have what binsim is, how it signs a
+caller, and what its book holds. What its read endpoints answer, what asking for a
+signature buys, and the two shapes a refusal takes are in no article. The submitting
+of an order, the socket surface and the starting of the server are left for packages
+of their own, and the cell stays `partial`.
+
+### Merge and promote, package 89
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-942 | Health and time throw the request away, the exchange information weighs a symbol only where one was given, and the book demands one, refusing a missing symbol under a different code from an unknown one. | Promote. What the read endpoints answer is in no article, and a caller being able to tell a forgotten parameter from an untraded symbol is what the two codes buy |
+| Row H-943 | The depth asked for goes through its own reading, both sides are cut to it, and every figure is answered as text beside the book's own last-update name. | Merge with H-942 |
+| Row H-944 | Four endpoints demand a signed caller first, two answering an empty list, one raising a not-found in the venue's own shape, and one using the name to ask the ledger for balances. | Promote. What the demand buys is in no article, and an unknown account coming back as an unauthorized is what makes a bad signature indistinguishable from an unknown one |
+| Row H-945 | Both balances are answered as text with nothing locked against either. | Merge with H-944. A locked figure that always reads nought means untracked rather than none held |
+| Row H-946 | A refusal is a body carrying a code and a message; one status becomes a bad-request and one a service-unavailable, each handed back to raise, while any other status raises there and then. | Promote. The builder is in no article, and one road handing an error back where another throws it is the kind of thing a reader skims past |
+| Row H-947 | A depth with no figure answers a default, one that will not read as a whole number is refused carrying what arrived, and one at or below nought or past the cap is refused with a message naming the cap. | Merge with H-946 |
+
+Three subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P89-01 | What binsim's read endpoints answer | written | [what-binsims-read-endpoints-answer.md](atoms/what-binsims-read-endpoints-answer.md) |
+| P89-02 | What asking for a signature buys | written | [what-asking-for-a-signature-buys.md](atoms/what-asking-for-a-signature-buys.md) |
+| P89-03 | The two shapes a refusal takes | written | [the-two-shapes-a-refusal-takes.md](atoms/the-two-shapes-a-refusal-takes.md) |
+
+### Re-seed, after writing package 89
+
+The first package in this run to leave its module `partial` on purpose. A hundred
+and four statements remain, in three clusters that are each their own subject.
+
+| What it found | What came of it |
+|---|---|
+| The error builder hands back an exception for two statuses and raises one for every other, so the same routine is a factory on one road and a thrower on the other. | Stated, with why it misleads: both are exceptions and only one is the caller's to raise |
+| An unknown account and an unsigned request both come back as an unauthorized. | Stated. A caller cannot tell a bad signature from a good one for an account binsim never heard of, which is worth knowing before debugging either |
+| Binsim reports no locked amounts at all, so a locked figure reading nought means untracked. | Stated |
+| A hundred and four statements remain: the submitting of an order, the socket surface, and the building and running of the server. | Left for packages of their own. Each is a subject, and splitting a subject across a package boundary to make a cell move would be the wrong trade |
+
+Worth recording about the shape of this package rather than the module: a cell left
+`partial` on purpose is not a failure of the package. The alternative was to write
+four thin articles covering a hundred statements badly, so that one cell could
+change. The cell is a summary of the reading, and a cell made to move by a bad
+reading is worse than a cell that waits.
 
 ## Package 88 — how the projection routes an event and closes an order
 
@@ -7405,8 +7452,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-939 | The shared lookup reads the live book alone, warns on a miss, and hands back whatever it found; one handler looks in the closed book first. | `trading_state.py` 294, and 295, and 303, against 606 into 607 | package eighty-eight | is P88-03 |
 | H-940 | The projection refuses to be built without an account name, holds one lock guarding the positions alone, and hands back a copy of each position under that lock. | `trading_state.py` 149 into 150-151, and 161, and 174 into 175-176 | package eighty-eight | is P88-04 |
 | H-941 | A scheme already known makes its setting-up a warning and a scheme not known makes a change of its standing a warning, both events dropped. | `trading_state.py` 243 into 244-249, against 265 into 267-273 | package eighty-eight | folds into P88-04 |
+| H-942 | Health and time throw the request away, the exchange information weighs a symbol only where one was given, and the book demands one, refusing a missing symbol under a different code from an unknown one. | `server.py` 211 then 213, and 218 then 220, and 229 into 231-235 then 237, against 242 into 244 into 245-248, and 250 into 251-254 | package eighty-nine | is P89-01 |
+| H-943 | The depth asked for goes through its own reading, both sides are cut to it, and every figure is answered as text beside the book's own last-update name. | `server.py` 256 applied at 259 and 260, then 262-266, the book taken at 257 | package eighty-nine | folds into P89-01 |
+| H-944 | Four endpoints demand a signed caller first, two answering an empty list, one raising a not-found in the venue's own shape, and one using the name to ask the ledger for balances. | `server.py` 289, and 300, and 307, and 271, then 302, and 309, against 291-294 into 295, and 272 then 274-275 | package eighty-nine | is P89-02 |
+| H-945 | A name the ledger does not hold becomes an unauthorized, and both balances are answered as text with nothing locked against either. | `server.py` 276 into 277, and 279-284 | package eighty-nine | folds into P89-02 |
+| H-946 | A refusal is a body carrying a code and a message; one status becomes a bad-request and one a service-unavailable, each handed back to raise, while any other status raises there and then. | `server.py` 738, then 740 into 741, or 743 into 744, against 746 | package eighty-nine | is P89-03 |
+| H-947 | A depth with no figure answers a default, one that will not read as a whole number is refused carrying what arrived, and one at or below nought or past the cap is refused with a message naming the cap. | `server.py` 751 into 752, or 754-755 into 756 into 757-760, or 762 into 763-766, else 768 | package eighty-nine | folds into P89-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 00:00 UTC

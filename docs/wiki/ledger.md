@@ -59,7 +59,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/replay/materialize_bar_frames.py` | full | P3-04, P4-39 |
 | `praxis/replay/replay_api.py` | full | P14-01, P14-02, P4-16, P4-17, P4-40 |
 | `praxis/replay/metrics_serialization.py` | full | P3-10, P4-40 |
-| `praxis/binsim/server.py` | partial | P2-47, P2-48, P3-05, P3-06, P3-07, P3-22 |
+| `praxis/binsim/server.py` | partial | P2-47, P2-48, P3-05, P3-06, P3-07, P3-22, P89-01, P89-02, P89-03 |
 | `praxis/binsim/book.py` | full | P2-48, P3-06, P31-01 |
 | `praxis/binsim/feed.py` | full | P2-48, P3-06, P51-01, P51-02, P66-02, P85-01, P85-02 |
 | `praxis/binsim/ledger.py` | full | P2-47, P3-07, P64-01, P64-02, P64-03, P64-04, P64-05, P64-06, P64-07, P64-08, P65-01, P65-02, P65-03, P65-04, P65-05, P65-06, P66-03, P75-02 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 00:00 UTC

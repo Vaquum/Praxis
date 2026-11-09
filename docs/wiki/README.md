@@ -419,6 +419,9 @@ the others where it appears.
 - [How the portfolio windows are cut](atoms/how-the-portfolio-windows-are-cut.md) — steps are grouped by truncating each timestamp to a caller-named span, a day by default, where the bar basis offers no such choice; each window reports its compounded return and that return over the fraction of steps in position, which is absent when no step held one.
 - [What the depth poller is built with](atoms/what-the-depth-poller-is-built-with.md) — its poll interval and request span are compared against zero, its URL and token tested for truthiness alone, its depth floor asked only for finiteness and positivity with no type check, and its stuck-poll threshold required to be at least two while a not-a-number value passes and disables the check it feeds.
 - [Starting and stopping the depth poller](atoms/starting-and-stopping-the-depth-poller.md) — starting raises while it already runs and otherwise clears the flag, opens a session and spawns the loop; stopping sets the flag and awaits the task, suppressing only the error a cancelled task raises, so another failure escapes with the task still held and the session still open.
+- [What binsim's read endpoints answer](atoms/what-binsims-read-endpoints-answer.md) — health and time ignore the request entirely, the trading-rules endpoint checks a symbol only when one is supplied, and the order-book endpoint insists on one, reporting a missing symbol under a different code from an unrecognised one.
+- [What asking for a signature buys](atoms/what-asking-for-a-signature-buys.md) — the endpoints that demand a signed caller use it for the account name, and an account the simulator has never heard of comes back as a refused signature, so a bad key and an unknown account look identical.
+- [The two shapes a refusal takes](atoms/the-two-shapes-a-refusal-takes.md) — the routine that builds an error returns one to be thrown for two known statuses and throws one itself for anything else, so the same call is a factory on one path and a failure on the other.
 - [What the feed demands of a depth payload](atoms/what-the-feed-demands-of-a-depth-payload.md) — the reply must be an object and so must the part read from it, while the timestamp, the book version and each side of the book are looked up by key, so a missing field is reported by name and a wrong shape by what arrived.
 - [What the feed keeps and what it waits on](atoms/what-the-feed-keeps-and-what-it-waits-on.md) — it holds a stop signal and three tallies that all start at zero, and between requests it waits on that signal with the interval as a ceiling, so a stop lands at once rather than after the current interval.
 - [The lock the marking insists on](atoms/the-lock-the-marking-insists-on.md) — where a positions lock is supplied it must be the same object the risk record holds, or construction is refused; a record holding none fails the same test, while a loop given no lock is built without the question being asked at all.
@@ -606,7 +609,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 509
+Both sides are the subject, and Praxis is the side that has been written. 512
 articles exist. Of Praxis's own source files 80 are accounted for in full and 8 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -617,4 +620,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 00:00 UTC
