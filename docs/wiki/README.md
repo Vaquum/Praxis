@@ -141,6 +141,8 @@ the others where it appears.
 - [When an amend places no replacement](atoms/when-an-amend-places-no-replacement.md) — what is left to protect is worked out by a subtraction that takes the old pair's own projected fills back out so they cannot count twice, and a remainder too small to trade is treated as closed.
 - [What the venue is asked when no protection is working](atoms/what-the-venue-is-asked-when-no-protection-is-working.md) — with both candidate pairs confirmed finished, the venue is asked what they actually filled, and three separate failures each leave the holding exactly as it was for a later pass.
 - [The remainder subtraction written twice](atoms/the-remainder-subtraction-written-twice.md) — one subtraction decides how much of a holding stands unprotected, written in two places, and the same arithmetic leads to closing the holding out on one road and to protecting it afresh on the other.
+- [How a protection's fills are brought up to the venue's figure](atoms/how-a-protections-fills-are-brought-up-to-the-venues-figure.md) — the venue's own trades are read back when it has filled more of a pair than Praxis counted, and what the reading cannot settle holds the change.
+- [What a protection change writes on the bracket](atoms/what-a-protection-change-writes-on-the-bracket.md) — the name and prices of the replacement pair are parked on the trade and read back off it, and only a recorded send clears them away.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
 - [The three kinds of orphan a boot finds](atoms/the-three-kinds-of-orphan-a-boot-finds.md) — a command the record shows starting and never finishing is sorted by what the record holds, and a send that failed counts as finishing one just as a send that succeeded does.
@@ -753,7 +755,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 656
+Both sides are the subject, and Praxis is the side that has been written. 658
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -764,4 +766,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 23:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 00:00 UTC

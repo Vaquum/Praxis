@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 655 not.**
+**6 of them reviewed, 657 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 159 — how a protection's fills are brought up to the venue's figure, and what a change writes on the bracket
+
+Scope: the reading of the venue's own trades that closes the gap in a cancelled pair's
+count, and the marks a protection change leaves on the bracket as it goes, part of a
+module the ledger marks `partial`. After the package before this one, five hundred and
+ninety-three of its two thousand four hundred and eighty-seven statements were uncited.
+The reading is named in one article and its insides are in none; the marks are in no
+article. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 159
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1455 | The names of the pair's own legs are taken as the set a trade must match, and the venue's whole trade list for the symbol asked for. | Promote. The reading is named as a step elsewhere and nowhere worked through |
+| Row H-1456 | A matching trade is written down against the name the record keeps locally rather than the leg's own. | Merge with H-1455 |
+| Row H-1457 | Only a fill the record answered with a place is counted towards the running total, which starts at what was already counted. | Merge with H-1455 |
+| Row H-1458 | A failure to answer and a total still short of the venue's figure both hold the change. | Merge with H-1455 |
+| Row H-1459 | The new pair's name and its three prices are parked on the bracket and read back off it by the driving. | Promote. The marks are in no article, and the one road that clears them is the finding |
+| Row H-1460 | The version the change carries is one past the version standing, and the new pair's name worked out from it as a retry number. | Merge with H-1459 |
+| Row H-1461 | The request is recorded before the version is put on the bracket and the standing moved. | Merge with H-1459 |
+| Row H-1462 | The four parked figures are cleared on one road only, once the replacement's send has been recorded. | Merge with H-1459 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P159-01 | How a protection's fills are brought up to the venue's figure | written | [how-a-protections-fills-are-brought-up-to-the-venues-figure.md](atoms/how-a-protections-fills-are-brought-up-to-the-venues-figure.md) |
+| P159-02 | What a protection change writes on the bracket | written | [what-a-protection-change-writes-on-the-bracket.md](atoms/what-a-protection-change-writes-on-the-bracket.md) |
+
+### Re-seed, after writing package 159
+
+The second subject answers a question the package before this one raised and could not
+settle: the scan picks a bracket up by a stamped moment, and what the bracket still
+carries when it does is what the figures written here are for.
+
+| What it found | What came of it |
+|---|---|
+| The four figures are cleared on one road only, once the replacement's send is recorded. | Stated. Every ending short of that send leaves them standing, which is what a second pass needs |
+| Both legs' fills are written down under the name the record keeps locally. | Stated. The legs supply the set a trade is matched against and no leg's own name is written |
+| A failure to answer and a total still short both hold the change. | Stated together, because the two say the same thing about the local count |
+| The new pair's name is the first pair's name with the version as its retry number. | Stated. A name a pair rests under says which change put it up |
+
+Worth recording: the parking and the clearing are twenty-six lines and two hundred and
+sixty apart, and reading either alone says nothing. The finding is the distance between
+them — which endings fall inside it.
 
 ## Package 158 — how a cancelled protection pair is judged still working, and what picks a held change up again
 
@@ -11183,7 +11230,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1452 | The pass ends for an account the manager does not hold, or walks a copy of that account's brackets. | `execution_manager.py` 9829, then 9830 into 9831, or 9833 | package one hundred and fifty-eight | folds into P158-02 |
 | H-1453 | Each bracket the stamp names is driven again with nothing given for the cancelled pair's venue name, the name recorded against the old pair standing in for it. | `execution_manager.py` 9837, against 9599-9602 | package one hundred and fifty-eight | folds into P158-02 |
 | H-1454 | The stamp goes on the first time the old pair's fills will not reconcile and comes off once they do, while the road where the asking fails clears it and leaves the standing unknown. | `execution_manager.py` 9572 into 9573, then 9577, or 9596, or 9553, then 9555 | package one hundred and fifty-eight | folds into P158-02 |
+| H-1455 | The names of the pair's own legs are taken as the set a trade must match, and the venue's whole trade list for the symbol asked for. | `execution_manager.py` 8171, then 8172, then 8173, then 8184, then 8185 into 8186 | package one hundred and fifty-nine | is P159-01 |
+| H-1456 | A matching trade is written down against the name the record keeps locally rather than the leg's own. | `execution_manager.py` 8188-8203, the name set at 8191 against the leg matched at 8185 | package one hundred and fifty-nine | folds into P159-01 |
+| H-1457 | Only a fill the record answered with a place is counted towards the running total, which starts at what was already counted. | `execution_manager.py` 8183, then 8204, then 8205 into 8206, then 8207 | package one hundred and fifty-nine | folds into P159-01 |
+| H-1458 | Nothing is asked where the venue's figure is at or below the count, while a failure to answer and a total still short of that figure both hold the change. | `execution_manager.py` 8168, then 8169, or 8174, then 8181, or 8209 | package one hundred and fifty-nine | folds into P159-01 |
+| H-1459 | The new pair's name and its three prices are parked on the bracket and read back off it by the driving. | `execution_manager.py` 9483, then 9484, then 9485, then 9486, then 9488, read at 9522-9525 | package one hundred and fifty-nine | is P159-02 |
+| H-1460 | The version the change carries is one past the version standing, and the new pair's name worked out from it as a retry number. | `execution_manager.py` 9430, then 9431-9436 | package one hundred and fifty-nine | folds into P159-02 |
+| H-1461 | The request is recorded before the version is put on the bracket and the standing moved, with the cancel's two answers each moving it again. | `execution_manager.py` 9449, then 9450, then 9451, then 9463, then 9464, or 9474, then 9480, then 9481 | package one hundred and fifty-nine | folds into P159-02 |
+| H-1462 | The four parked figures are cleared on one road only, once the replacement's send has been recorded. | `execution_manager.py` 9741, then 9744, then 9745, then 9746, then 9747 | package one hundred and fifty-nine | folds into P159-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 23:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 00:00 UTC
