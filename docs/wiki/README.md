@@ -116,6 +116,8 @@ the others where it appears.
 - [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, an order each, sent one after another in one pass.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
 - [When a weight curve plans nothing](atoms/when-a-weight-curve-plans-nothing.md) — a curve that passes every settings check can still split an amount into a part of nothing, caught on the way out rather than at the start.
+- [What a protection of unknown fate is rebuilt as](atoms/what-a-protection-of-unknown-fate-is-rebuilt-as.md) — a protective pair whose outcome the record never settles comes back marked as being in doubt, carrying both the list it had and the list meant to replace it, for the watchdog to ask the venue about.
+- [The one precedence written twice](atoms/the-one-precedence-written-twice.md) — the rule reducing a protective pair's two legs to a single status is written in two places that agree on the rule and differ on what it is applied to and on whether anything checks first that the pair has finished.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening one, to close the position at a good price or at a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — the protective pair goes up once and a second attempt is turned back — except where the prices are being changed, which sends a fresh pair past that guard.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
@@ -712,7 +714,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 615
+Both sides are the subject, and Praxis is the side that has been written. 617
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -723,4 +725,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 13:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 13:30 UTC

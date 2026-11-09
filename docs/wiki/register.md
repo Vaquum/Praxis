@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 614 not.**
+**6 of them reviewed, 616 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 138 — what a protection of unknown fate is rebuilt as, and the one precedence written twice
+
+Scope: the last of the four resumes, and the rule reducing a linked pair's two legs
+to one status, part of a module the ledger marks `partial`. After the package before
+this one, eleven hundred and forty-one of its two thousand four hundred and
+eighty-seven statements were uncited. Neither subject is in an article. The rest of
+the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 138
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1302 | Only a command whose latest protection record is neither active nor failed reaches this road, an active or failed record clearing the unresolved phase. | Promote. The road is in no article, and what reaches it is the whole of why it exists |
+| Row H-1303 | It comes back with its protection placed, its state unknown, the old list as its protection and the new as a replacement still owing, and the phase's moment as when it became unknown. | Merge with H-1302 |
+| Row H-1304 | An entry that filled nothing leaves the average price empty here, where it stops the ordinary bracket resume; and the three prices are read from the record here, where the ordinary resume works them out from the command. | Merge with H-1302. Two roads rebuilding one thing, parting on two choices |
+| Row H-1305 | A linked pair all done is reduced to one status by a fixed five-step precedence, and the same five steps in the same order are written again where the venue's answer to a fresh pair is read. | Promote. The duplication is in no article, and the two differ on what they weigh and on whether anything checks first that the pair is finished |
+| Row H-1306 | The adapter's precedence is reached only where the pair reports itself all done, any other list status going through a mapping that refuses an unknown one, where the manager's has no gate. | Merge with H-1305 |
+| Row H-1307 | A leg whose asking fails answers that the whole pair is live, so the manager's precedence runs only where every leg answered. | Merge with H-1305 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P138-01 | What a protection of unknown fate is rebuilt as | written | [what-a-protection-of-unknown-fate-is-rebuilt-as.md](atoms/what-a-protection-of-unknown-fate-is-rebuilt-as.md) |
+| P138-02 | The one precedence written twice | written | [the-one-precedence-written-twice.md](atoms/the-one-precedence-written-twice.md) |
+
+### Re-seed, after writing package 138
+
+One defect in this package was a citation class the corpus had not met before, and it
+is the one worth the record.
+
+| What it found | What came of it |
+|---|---|
+| Three citations landed on a docstring, because the lines were read out of the working tree while the gate reads them at the pinned commit — and this module carries seventy lines of uncommitted change. | Fixed, and a reading helper written that prints a range as pinned. The first divergence is at baseline line 4436; every citation in the five packages before this one sits below it, so none is affected |
+| The five-step precedence reducing a linked pair to one status is written twice, once over the venue's own words and once over statuses already read. | Promoted to an article. It is the fourth duplicated rule recorded in this corpus and the first spanning two modules |
+| The adapter's copy is gated on the pair reporting itself all done; the manager's copy has no gate. | Stated as the difference. The manager's is instead protected by a leg whose asking fails answering that the pair is live |
+| Two roads rebuild a bracket, and they part on what a missing average price costs and on where the three protective prices come from. | Stated in the first article from its own side, linking the ordinary resume |
+
+Worth recording: reading source out of the working tree is a defect this corpus was
+exposed to for a hundred and thirty-seven packages and only met now, because only now
+did a module under review carry uncommitted changes above a region being cited. The
+gate catches the symptom — a citation landing on a docstring — and says nothing about
+the cause. The reading helper removes the cause: every range printed comes from the
+pinned commit.
 
 ## Package 137 — what stops a bracket being resumed, and what a resumed bracket's protection is taken from
 
@@ -10069,7 +10114,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1299 | The amend whose legs are restored is found by matching the name of the list actually resting. | `execution_manager.py` 1673, then 1674 into 1683-1691 | package one hundred and thirty-seven | folds into P137-02 |
 | H-1300 | The average entry price is the entry's money over the amount it filled, and the three protective prices are the matched amend's or else worked out from the command and that price. | `execution_manager.py` 1668-1672, then 1702 into 1703-1705, or 1706 into 1707-1708 | package one hundred and thirty-seven | folds into P137-02 |
 | H-1301 | A bracket comes back either with its protection placed and active, or carrying only its command and its entry name. | `execution_manager.py` 1711-1722, against 1743-1746 | package one hundred and thirty-seven | folds into P137-02 |
+| H-1302 | Only a command whose latest protection record is neither active nor failed reaches this road. | `execution_manager.py` 1772-1774, then 1775, then 1776 into 1777, or 1779 into 1780, then 1781 into 1782, or 1784 into 1785 | package one hundred and thirty-eight | is P138-01 |
+| H-1303 | It comes back with its protection placed, its state unknown, the old list as its protection and the new as a replacement still owing. | `execution_manager.py` 1831-1839 | package one hundred and thirty-eight | folds into P138-01 |
+| H-1304 | An entry that filled nothing leaves the average price empty here, where it stops the ordinary bracket resume; and the three prices are read from the record here, where the ordinary resume works them out. | `execution_manager.py` 1812-1816, against 1693 into 1697, and 1827-1829, against 1706 into 1707-1708 | package one hundred and thirty-eight | folds into P138-01 |
+| H-1305 | A linked pair all done is reduced to one status by a fixed five-step precedence, written again where the venue's answer to a fresh pair is read. | `execution_manager.py` 204 into 205, or 207 into 208, or 210 into 211, or 213 into 214, or 216, against `binance_adapter.py` 985 into 986, or 987 into 988, or 989 into 990, or 991 into 992, or 993 into 994 | package one hundred and thirty-eight | is P138-02 |
+| H-1306 | The adapter's precedence is reached only where the pair reports itself all done, where the manager's has no gate. | `binance_adapter.py` 982, then 983, against 995 into 996-997, then 998 into 999-1000, with `execution_manager.py` 5690, then 5692 | package one hundred and thirty-eight | folds into P138-02 |
+| H-1307 | A leg whose asking fails answers that the whole pair is live. | `execution_manager.py` 5688, against 5690 | package one hundred and thirty-eight | folds into P138-02 |
+| H-1308 | A command the bracket resume already rebuilt is passed over, as is one with no start recorded and one that will not rebuild. | `execution_manager.py` 1787, then 1788 into 1789, or 1791, then 1792 into 1793, or 1795-1796, then 1797 into 1805 | package one hundred and thirty-eight | folds into P138-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 13:30 UTC
