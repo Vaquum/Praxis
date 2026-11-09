@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 475 not.**
+**6 of them reviewed, 477 not.**
 
 ## Package 1
 
@@ -856,6 +856,57 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 77 — a pass over the parked outcomes, and what a tick answers
+
+Scope: the loop that reads outcomes back from Praxis, which the ledger marks
+`partial` with twenty-three of its eighty-seven statements uncited. Articles have
+starting and stopping it, the stop that blocks a restart, what its stop leaves
+running, and an outcome waiting on a strategy. The shape of one pass over the parked
+outcomes, and what a tick's own answer does and does not say, are in no article.
+
+### Merge and promote, package 77
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-875 | One moment is read off the clock for the whole pass, every waiting weighed against it and every new waiting set from it, so a command whose waiting elapses mid-pass is judged against the moment the pass began. | Promote. The pass's shape is in no article, and one moment serving the weighing and the rescheduling both is what decides whether a command is reached this pass or the next |
+| Row H-876 | The pass walks a copy of the names, so the removals it makes leave the walk undisturbed and a command a drain puts back is not reached again in the same pass. | Merge with H-875. It is why the removals mid-walk are safe, and the thing a reader would doubt |
+| Row H-877 | A sibling that dispatched lets the drain move to the one behind it; one that did not ends the drain where it stands, the rest going back into the queue in order rather than each being tried. | Merge with H-875. The drain is one step of the pass and splitting them would leave neither whole |
+| Row H-878 | When a head runs out, every outcome of the queue is reported one at a time, the head and each sibling alike. | Merge with H-875 |
+| Row H-879 | A tick answers whether it took an outcome, and gives the same answer for one dispatched inline, one parked, and one put behind a parked sibling without being tried at all. | Promote. What the answer means is in no article, and three unlike fates sharing one answer is what a reader counting ticks would get wrong |
+| Row H-880 | The resolver answering with nothing is the only route to a dispatch reporting failure; the submitting of a strategy's actions failing falls through to the same answer as a dispatch that placed them. | Merge with H-879. Both are the same point about an answer that carries less than it looks like it does |
+| Row H-881 | Whether the loop is running is answered under the same lock as starting and stopping, and only a worker that both exists and is still alive counts. | Merge into the article on starting and stopping, which has the lock and the worker already |
+
+Two subjects promote, four rows merge into them and one merges into an article
+already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N77-01 | What one pass over the parked outcomes does | written | [what-one-pass-over-the-parked-outcomes-does.md](atoms/what-one-pass-over-the-parked-outcomes-does.md) |
+| N77-02 | What a tick of the outcome loop answers | written | [what-a-tick-of-the-outcome-loop-answers.md](atoms/what-a-tick-of-the-outcome-loop-answers.md) |
+
+### Re-seed, after writing Nexus package 77
+
+The reader produced no output at all on this package, a third run in a row ending
+without its findings, so the checks it was given were worked through here. One was a
+defect.
+
+| What it found | What came of it |
+|---|---|
+| A tick has three routes to answering that it took something, not two: the third puts the outcome behind a parked sibling and tries nothing. Naming two made the answer look like it covered the attempt. | The article names all three and links the third to the article that owns it |
+| The parking reads the clock again, so "one moment for the whole pass" would be wrong if parking were part of the pass. | It is not: parking is reached from the tick, after the pass has returned. The claim is scoped to the pass and stands |
+| Nothing clears the worker field except a join that succeeded, so a worker that died on its own leaves the loop reading as not running with the worker still held. | Stated in the article on starting and stopping |
+| A drain in which every sibling dispatched leaves the command out of the map altogether. | Already what the article says, the re-adding being the other branch |
+
+Worth recording about the reader rather than the module: three packages running, the
+reader has either ended on a summary without listing what it found or produced
+nothing. The checks themselves were what found the defect — written down before the
+reader ran, as questions with a line to look at. A list of questions pinned to lines
+survives the reader failing; a reader asked to "find problems" does not.
+
+Five statements of the module are left uncited and are an exclusion rather than work
+outstanding: all five are log calls, which the gate refuses as evidence for a claim.
+What each of them reports is stated by the articles around them.
 
 ## Nexus package 76 — the walks over the log, and what a recovery fills in
 
@@ -6784,8 +6835,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-872 | All three walks over the file measure its size before opening it, read the marker off the front, then take each record by reading a head of a fixed size and unpacking a length and a check from it. | `wal.py` 94 and 96-97 and 102 then 105, or 129 and 131-132 and 143 then 148, or 193 and 195-196 and 202 then 205-208 | package seventy-six | is N76-03 |
 | H-873 | Every ending inside the truncation scan's loop is an answer, so the answer standing after that loop cannot be reached whatever the file holds. | `wal.py` 117, against 104, or 110, or 113, or 116 | package seventy-six | folds into N76-03 |
 | H-874 | A refresh of the loss windows reads the log itself from inside the lock it holds, takes its own moment off the clock, and sets all three windows to nought for a strategy the derived losses do not name. | `state_store.py` 378 inside 377, and 379 used at 380, and 387 then 388-390 | package seventy-six | is N76-04 |
+| H-875 | One moment is read off the clock for the whole pass, every waiting weighed against it and every new waiting set from it, so a command whose waiting elapses mid-pass is judged against the moment the pass began. | `outcome_loop.py` 276, weighed at 281, then set again at 304, or handed on at 291 | package seventy-seven | is N77-01 |
+| H-876 | The pass walks a copy of the names, so the removals it makes leave the walk undisturbed and a command a drain puts back is not reached again in the same pass. | `outcome_loop.py` 278, against 287, or 296, and 331 | package seventy-seven | folds into N77-01 |
+| H-877 | A sibling that dispatched lets the drain move to the one behind it; one that did not ends the drain where it stands, the rest going back into the queue in order. | `outcome_loop.py` 329, or 343 after 331-333 | package seventy-seven | folds into N77-01 |
+| H-878 | When a head runs out, every outcome of the queue is reported one at a time, the head and each sibling alike. | `outcome_loop.py` 358, the whole queue handed over at 298 | package seventy-seven | folds into N77-01 |
+| H-879 | A tick answers whether it took an outcome, and gives the same answer for one dispatched inline, one parked, and one put behind a parked sibling without being tried at all. | `outcome_loop.py` 233 after 230-231, or 228 reached from 218-219, against 213-214 | package seventy-seven | is N77-02 |
+| H-880 | The resolver answering with nothing is the only route to a dispatch reporting failure; the submitting of a strategy's actions failing falls through to the same answer. | `outcome_loop.py` 444 reached from 436-438, against 398-399 | package seventy-seven | folds into N77-02 |
+| H-881 | Whether the loop is running is answered under the same lock as starting and stopping, and only a worker that both exists and is still alive counts. | `outcome_loop.py` 139-140, the lock made at 132, the field cleared only at 188-189 | package seventy-seven | recorded; starting-and-stopping-the-outcome-loop states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 11:00 UTC

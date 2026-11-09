@@ -452,6 +452,8 @@ the others where it appears.
 - [What an exit outcome changes](atoms/what-an-exit-outcome-changes.md) — closing a holding gives money back and reports what the trade made, and those are two different sums.
 - [When an entry's position grows](atoms/when-an-entrys-position-grows.md) — buying in pieces leaves one holding at an averaged price, and what that average is later measured against.
 - [An outcome waiting on a strategy](atoms/an-outcome-waiting-on-a-strategy.md) — a report matching no strategy yet is set aside, everything after it for that command waits behind, and a wait that never ends costs them all.
+- [What one pass over the parked outcomes does](atoms/what-one-pass-over-the-parked-outcomes-does.md) — each round through the set-aside reports takes one step for each command, judges every deadline against the single clock reading taken when the round began, and walks a snapshot of the names so that dropping a command partway through is safe.
+- [What a tick of the outcome loop answers](atoms/what-a-tick-of-the-outcome-loop-answers.md) — the loop reports only whether it picked a report off the queue, and says the same whether the report reached its strategy, was set aside, or was filed behind an earlier one without being tried.
 - [How Nexus sets money aside](atoms/how-nexus-sets-money-aside.md) — a trade is weighed against its share of the pool, its strategy's budget, the free capital and a ceiling on everything deployed, and the fees are held with it.
 - [What Nexus does when a command does not get across](atoms/what-nexus-does-when-a-command-does-not-get-across.md) — the money comes back on every road but one, and that one keeps it on purpose.
 
@@ -573,15 +575,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 476
+Both sides are the subject, and Praxis is the side that has been written. 478
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 55 are accounted for in full and 9 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 56 are accounted for in full and 8 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 09:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 11:00 UTC
