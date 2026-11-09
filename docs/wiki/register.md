@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 597 not.**
+**6 of them reviewed, 599 not.**
 
 ## Package 1
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 129 — what a submission remembers between its halves, and what a terminal outcome removes
+
+Scope: the mapping that carries a request from where it is built to where it is
+registered, and the three things a terminal outcome takes out of the host's records,
+part of a module the ledger marks `partial`. After the package before this one, two
+hundred and thirty of its twelve hundred and one statements were uncited. Neither is
+in an article, and the first is the mechanism behind a finding a package nine before
+this one recorded without explaining. The rest of the module is left for the packages
+after this, and the cell stays `partial`.
+
+### Merge and promote, package 129
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1225 | A fresh remembering is made for every call to the submitter, holding each built request under its command's name, and the registering reads it back by a lookup that demands the entry. | Promote. It is what hands the registering the request the checks already read, which a package nine before this one stated without naming the mechanism |
+| Row H-1226 | Three of the account's loops are each given that same submitter to call, where the registry of commands is made once for the account and shared. | Merge with H-1225. One mapping per call and one per account, side by side, is the finding |
+| Row H-1227 | A request with no command name is handed to the checks and remembered nowhere. | Merge with H-1225 |
+| Row H-1228 | The request builder drops an action whose strategy the settings do not name. | Merge with H-1225 |
+| Row H-1233 | It passes the venue's adapter through only where the trading stack stands. | Merge with H-1225. A host without one builds requests that are never snapped to the venue's steps |
+| Row H-1229 | A terminal outcome drops the command's registration under the registry's lock whatever the outcome says. | Promote. The three removals are in no article, and the one record kept exactly while there is a position to protect is what they add up to |
+| Row H-1230 | Where the command was an entry carrying a trade name, the position is looked up under the positions lock and deleted only where nothing is left of it. | Merge with H-1229 |
+| Row H-1231 | That deletion is remembered, and the memory is the only thing that sends the bracket's protective registration to be dropped. | Merge with H-1229 |
+| Row H-1232 | Whether the command still stands marked as unsaved is read under the registry's lock again, after all three removals. | Merge with H-1229 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P129-01 | What a submission remembers between its halves | written | [what-a-submission-remembers-between-its-halves.md](atoms/what-a-submission-remembers-between-its-halves.md) |
+| P129-02 | What a terminal outcome removes | written | [what-a-terminal-outcome-removes.md](atoms/what-a-terminal-outcome-removes.md) |
+
+### Re-seed, after writing package 129
+
+The first article answers a question package one hundred and twenty raised: where the
+request the registering hands over comes from.
+
+| What it found | What came of it |
+|---|---|
+| The request is carried by a mapping made fresh for each batch of actions, written as each request is built and read back by the registering. | Stated. Package one hundred and twenty said the registering hands over the request the checks already read; this says what holds it in between |
+| One mapping is per call and one is per account, side by side in the same routine, and only the per-account one is guarded by a lock. | Stated as the pair, with why the per-call one needs none |
+| A request carrying no command name is handed to the checks and remembered nowhere, and the registering's lookup demands its entry. | Stated as the two facts. Whether the two can meet is a question about what the checks require of a request, which this module does not settle |
+| The memory of a deleted position is the only thing that sends a bracket's protective record to be dropped. | Stated. The record is therefore kept exactly while there is a position for the protection to fill against |
+
+Worth recording: the per-call mapping carries a comment explaining why it is per call.
+The article states the shape — three loops given the same submitter, one mapping per
+account guarded by a lock and one per call not — and leaves the comment's reasoning
+to stand or fall on that. The three loops being given the submitter is citable; the
+absence of a lock between those three threads is not something this module shows.
 
 ## Package 128 — what the build refuses before an account runs, and what runs before an account's loops do
 
@@ -9537,7 +9586,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1222 | The accounting wiring is published part way through the build, then the unacknowledged outcomes of a previous run are re-delivered, then the held-over startup actions are drained, and only then are the loops built. | `launcher.py` 4348-4353, then 4354 into 4355, then 4547, then 4549, then 4551-4559, then 4563 into 4564-4569, then 4573-4581, then 4583-4589, then 4635 | package one hundred and twenty-eight | is P128-02 |
 | H-1223 | The host publishes the runtime only once the build has answered, and starts the loops after that. | `launcher.py` 3993 into 3994, then 3995 | package one hundred and twenty-eight | folds into P128-02 |
 | H-1224 | The replay routes its outcomes through the same working-through a live outcome takes, which reads the wiring. | `launcher.py` 4535-4537, into 2985-2986 | package one hundred and twenty-eight | folds into P128-02 |
+| H-1225 | A fresh remembering is made for every call to the submitter, holding each built request under its command's name, and the registering reads it back by a lookup that demands the entry. | `launcher.py` 4220-4222, then 4228, then 4230 into 4231-4235, then 2078 | package one hundred and twenty-nine | is P129-01 |
+| H-1226 | Three of the account's loops are each given that same submitter to call, where the registry of commands is made once for the account and shared. | `launcher.py` 4555, and 4568, and 4579, with 4209, against 4220-4222 | package one hundred and twenty-nine | folds into P129-01 |
+| H-1227 | A request with no command name is handed to the checks and remembered nowhere. | `launcher.py` 4230, then 4237 | package one hundred and twenty-nine | folds into P129-01 |
+| H-1228 | The request builder drops an action whose strategy the settings do not name. | `launcher.py` 4180, then 4182 into 4191 | package one hundred and twenty-nine | folds into P129-01 |
+| H-1233 | It passes the venue's adapter through only where the trading stack stands. | `launcher.py` 4201-4205 | package one hundred and twenty-nine | folds into P129-01 |
+| H-1229 | A terminal outcome drops the command's registration under the registry's lock whatever the outcome says. | `launcher.py` 4380, then 4381 into 4382 | package one hundred and twenty-nine | is P129-02 |
+| H-1230 | Where the command was an entry carrying a trade name, the position is looked up under the positions lock and deleted only where nothing is left of it. | `launcher.py` 4384-4387, then 4388, then 4389, then 4390 into 4391 | package one hundred and twenty-nine | folds into P129-02 |
+| H-1231 | That deletion is remembered, and the memory is the only thing that sends the bracket's protective registration to be dropped. | `launcher.py` 4392, then 4393 into 4394-4398 | package one hundred and twenty-nine | folds into P129-02 |
+| H-1232 | Whether the command still stands marked as unsaved is read under the registry's lock again, after all three removals. | `launcher.py` 4400, then 4401 | package one hundred and twenty-nine | folds into P129-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 08:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 09:00 UTC
