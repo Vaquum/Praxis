@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 608 not.**
+**6 of them reviewed, 610 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 135 — what stops a scheme being resumed, and what a resumed scheme comes back holding
+
+Scope: the first of the four resumes that run after a restart's walk, part of a
+module the ledger marks `partial`. After the package before this one, twelve hundred
+and nine of its two thousand four hundred and eighty-seven statements were uncited.
+The resuming of a scheme is in no article, and the two helpers it leans on are in
+none. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 135
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1275 | Five tests each pass a scheme start over rather than ending the walk: a terminal outcome, a state that is anything but running, a mode or slice count or interval that cannot be rebuilt from, missing volume weights, and a rebuild or replan that refuses. | Promote. The resuming is in no article, and a scheme whose plan cannot be worked out being left for the orphan pass rather than ended here is the finding |
+| Row H-1276 | An absent state is read as running, so a scheme that recorded a start and nothing else is treated as still going. | Merge with H-1275 |
+| Row H-1277 | The lot step comes from the venue's remembered rules where any are held and nothing where none are. | Merge with H-1275 |
+| Row H-1278 | A resumed scheme's command comes back as a market order with the rebuilt parameters and a replay timeout, its cursor the replayed one and its deadline the start's moment plus its timeout. | Promote. What a resumed scheme holds is in no article, and two of its fields are worked out rather than read |
+| Row H-1279 | Its live children are the replayed active names narrowed to those whose order is still there with a status that is not terminal. | Merge with H-1278. A child that finished while the host was down is not counted as live |
+| Row H-1280 | A replan replaces the slice plan outright and supplies the interval, so the plan the start recorded is never used. | Merge with H-1278 |
+| Row H-1281 | The timer is the state's where there is no replan, the replan's where there is no state or no place recorded, and otherwise whichever stands later in the history. | Merge with H-1278 |
+| Row H-1282 | The hold follows one precedence — draining, protection, a failed slice, then open — so a resumed scheme cannot hold anything looser than the running one would have. | Merge with H-1278 |
+| Row H-1283 | A scheme open, owing no terminal answer, with slices left, no timer and no live children is given the present moment as its timer. | Merge with H-1278. Without it such a scheme would sit with nothing to wake it |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P135-01 | What stops a scheme being resumed | written | [what-stops-a-scheme-being-resumed.md](atoms/what-stops-a-scheme-being-resumed.md) |
+| P135-02 | What a resumed scheme comes back holding | written | [what-a-resumed-scheme-comes-back-holding.md](atoms/what-a-resumed-scheme-comes-back-holding.md) |
+
+### Re-seed, after writing package 135
+
+Splitting the resuming into what stops it and what it rebuilds was the whole of the
+work; neither half fits in one article with the other.
+
+| What it found | What came of it |
+|---|---|
+| A scheme whose plan can no longer be worked out is passed over and not ended, so it waits for the pass that ends orphaned commands. | Stated. Five tests all pass over rather than ending the walk, and only two of the five say anything at all |
+| An absent state reads as running. | Stated. It is the one default in the five tests and it admits a scheme that recorded nothing beyond its start |
+| The timer is settled by comparing where two events stand in the history, which is why the pass before this one keeps a place for each. | Stated, linking the fold. The reason that pass records a place is only visible from here |
+| A resumed scheme with nothing to wake it is given the present moment as its timer, under five conditions. | Stated as the nudge. The conditions are the code's own and all five must hold |
+
+Worth recording: this is the first routine in the corpus whose two halves had to
+become two articles because the tests and the rebuilding share nothing but a loop.
+The register's usual pairing — a subject and what it refuses — would have put the
+five passes-over and the ten rebuilt fields in one place, over the cap and with no
+sentence joining them.
 
 ## Package 134 — how a restart reads its record back, and what one pass gathers for the schemes
 
@@ -9899,7 +9947,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1271 | A completion and an abort each clear the in-flight record. | `execution_manager.py` 1290, or 1292 into 1293 | package one hundred and thirty-four | folds into P134-02 |
 | H-1272 | A scheme start and a submitted intent each record what was asked for, and an accepted command is noted against the account while a terminal outcome marks it terminal and drops it. | `execution_manager.py` 1128 into 1129-1131, and 1155, then 1156, then 1157, then 1158-1160, with 1133 into 1134, and 1136 into 1137-1138 | package one hundred and thirty-four | folds into P134-01 |
 | H-1273 | A flatten record adds its order's name to the account's own set of them. | `execution_manager.py` 1121 into 1126 | package one hundred and thirty-four | folds into P134-01 |
+| H-1275 | Five tests each pass a scheme start over rather than ending the walk. | `execution_manager.py` 1895, then 1896 into 1897, or 1901 into 1902, or 1904-1908, or 1911-1914 into 1920, or 1924-1933, then 1934 into 1940 | package one hundred and thirty-five | is P135-01 |
+| H-1276 | An absent state is read as running. | `execution_manager.py` 1899, then 1900 | package one hundred and thirty-five | folds into P135-01 |
+| H-1277 | The lot step comes from the venue's remembered rules where any are held and nothing where none are. | `execution_manager.py` 1922, then 1923 | package one hundred and thirty-five | folds into P135-01 |
+| H-1278 | A resumed scheme's command comes back as a market order with the rebuilt parameters and a replay timeout, its cursor the replayed one and its deadline the start's moment plus its timeout. | `execution_manager.py` 1942-1947, then 1979, with 1957-1961 | package one hundred and thirty-five | is P135-02 |
+| H-1279 | Its live children are the replayed active names narrowed to those whose order is still there with a status that is not terminal. | `execution_manager.py` 1950, then 1951, then 1952, then 1953, then 1954 into 1955 | package one hundred and thirty-five | folds into P135-02 |
+| H-1280 | A replan replaces the slice plan outright and supplies the interval. | `execution_manager.py` 1963, then 1965 into 1969, then 1971-1978 | package one hundred and thirty-five | folds into P135-02 |
+| H-1281 | The timer is the state's where there is no replan, the replan's where there is no state or no place recorded, and otherwise whichever stands later in the history. | `execution_manager.py` 1981-1985, into 2050 into 2051, or 2053 into 2054, or 2056 into 2057, or 2059 | package one hundred and thirty-five | folds into P135-02 |
+| H-1282 | The hold follows one precedence — draining, protection, a failed slice, then open. | `execution_manager.py` 1987-1990, into 282 into 283, or 285 into 286, or 288 into 289, or 291 | package one hundred and thirty-five | folds into P135-02 |
+| H-1283 | A scheme open, owing no terminal answer, with slices left, no timer and no live children is given the present moment as its timer. | `execution_manager.py` 1998-2004 into 2005 | package one hundred and thirty-five | folds into P135-02 |
+| H-1284 | The terminal answer it is to end with is carried over, a draining scheme with live children is marked as still owing its cancels, and the scheme is then registered with its command installed, its owner noted and the trade's name recorded. | `execution_manager.py` 1993, then 1994-1995, then 2007, then 2008, then 2009, then 2010 | package one hundred and thirty-five | folds into P135-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 11:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 12:00 UTC
