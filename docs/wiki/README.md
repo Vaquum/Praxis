@@ -239,6 +239,8 @@ the others where it appears.
 
 ## What Nexus does with the money
 
+- [What each check is built holding](atoms/what-each-check-is-built-holding.md) — some of the checks a decision passes are handed their figures once and cannot see them change while the host is up, while others ask for a fresh reading each time a decision arrives.
+- [How the watch keeps itself going](atoms/how-the-watch-keeps-itself-going.md) — the watch sets its own timer after every pass, and a flag read before a pass and again after it means a stop is noticed only once the pass has finished.
 - [The checks a decision passes](atoms/the-checks-a-decision-passes.md) — a given list walked in order until one refuses, and most of it skipped for an action that closes rather than commits.
 - [What a check must answer with](atoms/what-a-check-must-answer-with.md) — two shapes an answer may take, and the answers the walk declines to interpret at all.
 - [What becomes of money set aside](atoms/what-becomes-of-money-set-aside.md) — money held back for a trade that never happens stays held back until something else comes along and asks.
@@ -673,7 +675,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 576
+Both sides are the subject, and Praxis is the side that has been written. 578
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -684,4 +686,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 03:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 03:30 UTC

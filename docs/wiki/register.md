@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 575 not.**
+**6 of them reviewed, 577 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 118 — what each check is built holding, and how the watch keeps itself going
+
+Scope: the building of the six checks a decision passes, and the timer the watch over
+timed-out handovers sets for itself, part of a module the ledger marks `partial`.
+After the package before this one, four hundred and seventy-four of its twelve
+hundred and one statements were uncited. The checks are written up as a walk and as
+six stages, and what each is built holding is in no article; the watch's content is
+written up and its scheduling is not. The rest of the module is left for the packages
+after this, and the cell stays `partial`.
+
+### Merge and promote, package 118
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1138 | Four sets of limits and the first check's hooks are made once as the walk is built, three of the four empty and the platform caps alone taken from the caller. | Promote. What a check holds is in no article, and the platform caps being the one set an operator reaches follows from it |
+| Row H-1139 | Three checks read nothing beyond what they hold, where the other three call a provider as each decision arrives. | Merge with H-1138. Which checks can see a figure change without the walk being rebuilt is the consequence |
+| Row H-1140 | Two of those providers are handed the decision's own context and the health one is handed nothing. | Merge with H-1138 |
+| Row H-1141 | The readings used where a caller supplies none are a fixed set of health figures, an empty platform reading and no price reading at all. | Merge with H-1138 |
+| Row H-1142 | The watch holds a lock of its own apart from the one over the registry, guarding only its flag and its timer. | Promote. The scheduling is in no article, and the two locks are what the rest of the routine turns on |
+| Row H-1143 | The flag is read as a tick begins and again as the next scan is scheduled, so a stop during a scan is caught at the scheduling rather than cutting the scan short. | Merge with H-1142 |
+| Row H-1144 | A failure out of a scan is caught and reported and the next scan scheduled all the same, and the timer is marked a daemon before it is started. | Merge with H-1142 |
+| Row H-1145 | A scan takes the moment once, gathers under the registry's lock, and works out the longest wait after that lock is let go. | Merge with H-1142 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P118-01 | What each check is built holding | written | [what-each-check-is-built-holding.md](atoms/what-each-check-is-built-holding.md) |
+| P118-02 | How the watch keeps itself going | written | [how-the-watch-keeps-itself-going.md](atoms/how-the-watch-keeps-itself-going.md) |
+
+### Re-seed, after writing package 118
+
+Both articles sit beside one already written, and both say what that one does not.
+
+| What it found | What came of it |
+|---|---|
+| Three of the six checks hold their configuration and read nothing else, so a figure they weigh against cannot change while the host is up. | Stated as the division it is, linking the walk. The walk's own article says what the six do and in what order, and nothing about what any of them can see change |
+| The health provider is handed nothing, where the price and platform ones are handed the decision. | Stated, with what it means: a health reading cannot depend on what is being decided |
+| The watch keeps a lock of its own, guarding only its flag and its timer, apart from the lock over the registry it scans. | Promoted to an article of its own. The watch's existing article covers what a pass finds and what lifts a mark, and nothing about how a pass comes round again |
+| A stop during a scan cannot cut the scan short, because the tick lets its lock go before scanning; it is caught at the scheduling instead. | Stated. This is the one thing the two reads of the flag are for, and neither read says so |
+
+Worth recording: the first article was nearly a duplicate. Six stages are already written
+up one at a time, and a walk over them is written up as well, so the question was
+whether anything remained. What remained was not any stage's behaviour but what the
+building hands each one — and that turned out to divide the six in a way none of the
+existing articles divides them.
 
 ## Package 117 — what a timing setting is held to, and how the mark-price series is settled
 
@@ -8924,7 +8971,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1135 | Every strategy the manifest declares is walked for its series and bar width, and a series declared twice with widths that disagree refuses the start. | `launcher.py` 2369, then 2370, then 2371, then 2373 into 2374-2379, then 2381 | package one hundred and seventeen | is P117-02 |
 | H-1136 | A series named in the environment takes the manifest's width where the manifest declares it, and a second setting's width where it does not, under three tests written out rather than taken from the reader that makes them. | `launcher.py` 2383, then 2385, then 2386 into 2387, or 2389, then 2390 into 2391-2396, or 2398-2399 into 2400, then 2401-2405, or 2407 into 2408-2412, or 2414 | package one hundred and seventeen | folds into P117-02 |
 | H-1137 | With nothing named, one gathered series is used, several refuse with them named in order, and none at all refuses too. | `launcher.py` 2416 into 2417-2418, or 2420 into 2421-2426, or 2428-2432 | package one hundred and seventeen | folds into P117-02 |
+| H-1138 | Four sets of limits and the first check's hooks are made once as the walk is built, three of the four empty and the platform caps alone taken from the caller. | `launcher.py` 959-963, then 964, then 965, then 966, then 967 | package one hundred and eighteen | is P118-01 |
+| H-1139 | Three checks read nothing beyond what they hold, where the other three call a provider as each decision arrives. | `launcher.py` 970, and 973, and 983, against 976-980, and 986-990, and 995-999 | package one hundred and eighteen | folds into P118-01 |
+| H-1140 | Two of those providers are handed the decision's own context and the health one is handed nothing. | `launcher.py` 979, and 998, against 988 | package one hundred and eighteen | folds into P118-01 |
+| H-1141 | The readings used where a caller supplies none are a fixed set of health figures, an empty platform reading and no price reading at all. | `launcher.py` 540-546, and 554, and 647 | package one hundred and eighteen | folds into P118-01 |
+| H-1142 | The watch holds a lock of its own apart from the one over the registry, guarding only its flag and its timer. | `launcher.py` 2252, then 2253, then 2254, read at 2260, and 2265 | package one hundred and eighteen | is P118-02 |
+| H-1143 | The flag is read as a tick begins and again as the next scan is scheduled. | `launcher.py` 2321, then 2322 into 2323, or 2325-2326, with 2313 into 2314 | package one hundred and eighteen | folds into P118-02 |
+| H-1144 | A failure out of a scan is caught and reported and the next scan scheduled all the same, and the timer is marked a daemon before it is started. | `launcher.py` 2327-2328, then 2330 into 2331, with 2316, then 2317, then 2318 | package one hundred and eighteen | folds into P118-02 |
+| H-1145 | A scan takes the moment once, gathers under the registry's lock, and works out the longest wait after that lock is let go. | `launcher.py` 2284, then 2286-2293, then 2298 | package one hundred and eighteen | folds into P118-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 03:30 UTC
