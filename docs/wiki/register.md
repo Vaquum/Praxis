@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 568 not.**
+**6 of them reviewed, 570 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 115 — what the allowance headers are trusted for, and which stated limits are adopted
+
+Scope: the reading of the venue's allowance headers and the adopting of the limits
+it states, part of a module the ledger marks `partial`. After the package before
+this one, seventy of its five hundred and thirty-four statements were uncited. What
+the headers are trusted for, and which stated limits the adapter adopts, are in no
+article. The streams and the execution-report parsing are left for the package after
+this, and the cell stays `partial`.
+
+### Merge and promote, package 115
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1116 | The used weight is taken from a header only where it is there, reads as a whole number and stands at or above nought, and keeping it restarts the window it expires with. | Promote. The trusting is in no article, and the keeping restarting the window is the link to the reckoning written seven packages ago |
+| Row H-1117 | The order count is read only where an account was named, under the same two tests, and keeping it restarts no window. | Merge with H-1116. The two figures taken with equal care and forgotten differently lives in this one routine |
+| Row H-1118 | The warning is reckoned from the stored figure rather than the one that expires, and given only on the crossing down. | Merge with H-1116. A warning able to speak of weight the headroom would treat as gone is the consequence |
+| Row H-1119 | Each stated limit is walked, any entry that is not a mapping or whose figure is not a positive whole number is passed over, and four fields are read before any is weighed. | Promote. The adopting is in no article, and the limits the headroom rests on being only those stated in a recognised form is what it means |
+| Row H-1120 | The weight limit and the order limit are each adopted only from an entry naming their own kind, span and count of spans, the two tests separate rather than alternatives. | Merge with H-1119 |
+| Row H-1121 | Recording health takes the tracker under a lock and answers where the account has none. | Merge with H-1119 |
+| Row H-1122 | The latency recorded is held at nought at the least, measured from the moment handed in. | Merge with H-1119 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P115-01 | What the allowance headers are trusted for | written | [what-the-allowance-headers-are-trusted-for.md](atoms/what-the-allowance-headers-are-trusted-for.md) |
+| P115-02 | Which stated limits the adapter adopts | written | [which-stated-limits-the-adapter-adopts.md](atoms/which-stated-limits-the-adapter-adopts.md) |
+
+### Re-seed, after writing package 115
+
+The first article closes a gap left by one written seven packages ago.
+
+| What it found | What came of it |
+|---|---|
+| Keeping the weight figure restarts the window it expires with, and keeping the order count restarts nothing. | Stated, linking the reckoning article. That article said the two differ in what they forget; this one shows where the difference is written — one keeping carries a companion line and the other does not |
+| The warning is reckoned from the stored figure rather than the expiring one, so it can speak of weight the headroom would treat as gone. | Stated |
+| The warning is given only on the crossing down, a flag remembering the last side. | Stated, with both consequences: a long spell below warns once, and recovering arms it again |
+| The two limit tests are separate rather than alternatives, so an entry may satisfy neither and nothing is adopted. | Stated, with what it costs: a venue renaming a span would leave the adapter on whatever limit it already held |
+
+Worth recording: the companion line is the whole of the first finding. One keeping
+is followed by a line that restarts a window and the other is not, and nothing names
+the difference — no comment, no asymmetry in the names, nothing but one statement
+present in one branch and absent in the other. Finding it needed the two branches
+read side by side with the question "what else does each do?", which is a different
+question from "what does each decide?".
 
 ## Package 114 — what the trading rules asking insists on, and what the rules are read as
 
@@ -8729,6 +8775,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1108 | Money in and money out are read by two parsings that take the same two fields under the same two names. | `binance_adapter.py` 2033-2035, and 2053-2055 | package one hundred and thirteen | folds into P113-02 |
 | H-1109 | The asking takes a session, waits for its turn against a budget, sends the symbol alone, and reads the weight headers before weighing the answer for failure. | `binance_adapter.py` 2170, then 2173, then 2174-2178, then 2179, then 2180, then 2181 | package one hundred and fourteen | is P114-01 |
 | H-1115 | An order refused becomes a plainer venue failure, a venue failure passes as it is, and a transport failure becomes a passing one. | `binance_adapter.py` 2182 into 2183-2184, or 2185 into 2186, or 2187 into 2188-2189 | package one hundred and fourteen | folds into P114-01 |
+| H-1116 | The used weight is taken from a header only where it is there, reads as a whole number and stands at or above nought, and keeping it restarts the window it expires with. | `binance_adapter.py` 2425, then 2427, then 2428, then 2430 into 2431, then 2432 | package one hundred and fifteen | is P115-01 |
+| H-1117 | The order count is read only where an account was named, under the same two tests, and keeping it restarts no window. | `binance_adapter.py` 2434 into 2435, then 2437 into 2438-2439, then 2440 into 2441 | package one hundred and fifteen | folds into P115-01 |
+| H-1118 | The warning is reckoned from the stored figure rather than the one that expires, and given only on the crossing down. | `binance_adapter.py` 2444, against 349-352, then 2445, then 2447, then 2454 | package one hundred and fifteen | folds into P115-01 |
+| H-1119 | Each stated limit is walked, any entry that is not a mapping or whose figure is not a positive whole number is passed over, and four fields are read before any is weighed. | `binance_adapter.py` 2476, then 2477 into 2478, then 2480, and 2481, and 2482, and 2483, then 2485 into 2486 | package one hundred and fifteen | is P115-02 |
+| H-1120 | The weight limit and the order limit are each adopted only from an entry naming their own kind, span and count of spans. | `binance_adapter.py` 2488-2492 into 2493, and 2495-2499 into 2500 | package one hundred and fifteen | folds into P115-02 |
+| H-1121 | Recording health takes the tracker under a lock and answers where the account has none. | `binance_adapter.py` 2309-2310, then 2311 into 2312 | package one hundred and fifteen | folds into P115-02 |
+| H-1122 | The latency recorded is held at nought at the least, measured from the moment handed in. | `binance_adapter.py` 2314, then 2315 | package one hundred and fifteen | folds into P115-02 |
 | H-1110 | The venue's own limits are read first, a body carrying no list of symbols or an empty one is refused, only the first symbol is read, and its rules are demanded under the same test. | `binance_adapter.py` 2191, then 2193, then 2195 into 2196-2197, then 2199, then 2200, then 2202 into 2203-2204 | package one hundred and fourteen | folds into P114-01 |
 | H-1111 | A caller handing in one symbol as text rather than a sequence is refused outright. | `binance_adapter.py` 2131 into 2132-2133 | package one hundred and fourteen | folds into P114-01 |
 | H-1112 | The rules are gathered by kind with any entry that is not a mapping or names no kind passed over, and three kinds are demanded with every missing one named together. | `binance_adapter.py` 2206-2210, then 2212, then 2213, then 2215 into 2216-2217 | package one hundred and fourteen | is P114-02 |
@@ -8759,4 +8812,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:00 UTC

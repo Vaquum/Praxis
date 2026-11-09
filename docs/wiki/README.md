@@ -19,6 +19,8 @@ the others where it appears.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [What a venue must offer](atoms/what-a-venue-must-offer.md) — Praxis writes down what it needs of any exchange as a list of named things with no code behind them, so the file says what must be answered to and nothing about how.
 - [How the adapter reckons its headroom](atoms/how-the-adapter-reckons-its-headroom.md) — the request allowance it believes it has used drops to zero all at once when its window closes rather than fading, and the per-account order allowance never expires here at all.
+- [What the allowance headers are trusted for](atoms/what-the-allowance-headers-are-trusted-for.md) — each figure is taken only if it reads as a sensible whole number, and storing the request figure restarts its expiry window while storing the order figure restarts nothing.
+- [Which stated limits the adapter adopts](atoms/which-stated-limits-the-adapter-adopts.md) — of all the limits the venue states, only those matching an exact kind, span and span-count are taken up, so anything stated another way is read and discarded.
 - [What signing a request adds](atoms/what-signing-a-request-adds.md) — the query text is built once, signed over exactly that text, and the signature appended to it, so what is sent and what was signed cannot differ; a closed adapter refuses to make a connection at all.
 - [How a venue failure is sorted](atoms/how-a-venue-failure-is-sorted.md) — the status code alone decides most kinds of failure without the reply body being read at all, so a helpful message returned with a server error is discarded.
 - [What the four asking calls share](atoms/what-the-four-asking-calls-share.md) — the calls that ask after or cancel an order are built alike, and a caller-supplied name for a paired order goes out under one key when cancelling and a different one when asking.
@@ -666,7 +668,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 569
+Both sides are the subject, and Praxis is the side that has been written. 571
 articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -677,4 +679,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 02:00 UTC
