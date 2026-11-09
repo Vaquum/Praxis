@@ -415,6 +415,9 @@ the others where it appears.
 - [Starting and stopping the depth poller](atoms/starting-and-stopping-the-depth-poller.md) — starting raises while it already runs and otherwise clears the flag, opens a session and spawns the loop; stopping sets the flag and awaits the task, suppressing only the error a cancelled task raises, so another failure escapes with the task still held and the session still open.
 - [The lock the marking insists on](atoms/the-lock-the-marking-insists-on.md) — where a positions lock is supplied it must be the same object the risk record holds, or construction is refused; a record holding none fails the same test, while a loop given no lock is built without the question being asked at all.
 - [The mark that ends a turn](atoms/the-mark-that-ends-a-turn.md) — symbols are read inside whatever guard the loop was given and the marks fetched outside it, and a mark that is missing or not a finite Decimal ends the entire turn at that point, leaving every position's unrealized figure as it stood and the later symbols unasked.
+- [How the mark loop paces itself](atoms/how-the-mark-loop-paces-itself.md) — each valuation round is scheduled by a fresh background timer made only after the previous round has finished, so the gap runs end to end and two rounds can never overlap; a stop part-way through lets the round in progress finish and schedules no other.
+- [What a mark works out for each position](atoms/what-a-mark-works-out-for-each-position.md) — a holding's paper profit is the current price less the price paid, times the amount, with the direction of the trade deciding the sign; one walk builds the figure for each holding, each strategy and the whole, and nothing is written until all three are done.
+- [What the mark loop leaves unguarded](atoms/what-the-mark-loop-leaves-unguarded.md) — the flag saying the round is on is read without the lock every write of it takes, a round can be asked for directly on a loop that was never started, and a round that throws is written to the log while the next is scheduled as usual.
 - [What each action is submitted inside](atoms/what-each-action-is-submitted-inside.md) — every action is handled inside a bound context carrying the strategy id and action type, plus trade and command ids where present but nothing naming the action itself; an abort forks away first, and a context builder raising an ordinary failure costs that action alone.
 - [When a submission does not reach capital](atoms/when-a-submission-does-not-reach-capital.md) — converting a submission into a tracked order is skipped for a non-submitted status, a missing command id, or no reservation, which is the ordinary course for aborts, exits and amendments; but the reservation is taken before the send, so a skip never means the account was left alone.
 - [What the ledger refuses to apply](atoms/what-the-ledger-refuses-to-apply.md) — an event for another account is rejected before the lock is even taken, then inside it a registration is handled first, anything arriving before one is rejected, a repeat registration is rejected, and only past those does a fill meet the symbol test; a close for an unknown trade is silently ignored.
@@ -579,15 +582,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 482
+Both sides are the subject, and Praxis is the side that has been written. 485
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 57 are accounted for in full and 7 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 58 are accounted for in full and 6 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 13:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 14:00 UTC

@@ -2,12 +2,12 @@
 row: N47-01
 baseline: 49aa659
 created: 2026-11-12 04:30 UTC
-modified: 2026-11-12 05:00 UTC
+modified: 2026-11-13 14:30 UTC
 evidence:
   - claim: "Each way across refuses before calling where the function it would call was never configured"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 248-250, or 303-305, or 343-345, or 361-363, or 400-402, or 434-436"
   - claim: "Four of them hand the call to the host's loop from another thread and wait on it for one span"
-    source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 256-264 into 267, or 311-321 into 324, or 365-368 into 371, or 404-409 into 412"
+    source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 256-264 into 266-267, or 311-321 into 323-324, or 365-368 into 371, or 404-409 into 411-412"
   - claim: "A wait that runs out asks for the pending call to be cancelled, reports the timeout, and raises on"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 268-271, or 326-328, or 372-375, or 413-416"
   - claim: "The asking neither waits for the cancelling nor reads whether it took"

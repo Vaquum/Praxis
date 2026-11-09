@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 481 not.**
+**6 of them reviewed, 484 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 79 — how the loop that values positions paces itself
+
+Scope: the loop that values open positions, which the ledger marks `partial` with
+thirty-three of its eighty-nine statements uncited. Articles have the lock the
+marking insists on, the mark that ends a turn, and which of a host's changes reach
+the log. How the loop paces itself, what a pass works out for each position, and
+what the loop leaves unguarded are in no article.
+
+### Merge and promote, package 79
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-891 | A tick is a fresh background timer made for the interval, and the next one is made only once the marking has returned, so the gap runs from the end of one pass to the start of the next. | Promote. How the loop paces itself is in no article, and a gap measured end to end rather than start to start is what decides whether two passes can ever overlap |
+| Row H-892 | A stop clears the flag and cancels the pending timer, and a stop during a marking lets that marking finish while the scheduling that follows finds the flag clear and sets nothing going. | Merge with H-891. It is the same mechanism read from the stopping end |
+| Row H-893 | A position's figure is the mark less the entry price times the size, signed by the side, kept against the trade's name, summed into its strategy's and into the whole over one walk. | Promote. How the figure is worked out is in no article at all, the existing rows having the fetching and the writing but not the arithmetic between them |
+| Row H-894 | All three tallies are built before anything is written, and a pass finding no positions answers where it stands without reaching the working out. | Merge with H-893 |
+| Row H-895 | Whether the loop is running is read without the lock every write of it takes, and one pass can be asked for outright, marking without consulting the flag at all. | Promote. What the loop leaves loose is in no article, and a pass that can run on a loop never started is what a reader of the flag would not expect |
+| Row H-896 | The whole of a pass stands inside a guard whose catch names any exception, and a pass that raises is reported while the tick that follows is scheduled all the same. | Merge with H-895 |
+| Row H-897 | The message the lock refusal carries is built where the refusal is made. | Merge into the article on the lock the marking insists on, which has the refusal already |
+
+Three subjects promote, three rows merge into them and one merges into an article
+already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N79-01 | How the mark loop paces itself | written | [how-the-mark-loop-paces-itself.md](atoms/how-the-mark-loop-paces-itself.md) |
+| N79-02 | What a mark works out for each position | written | [what-a-mark-works-out-for-each-position.md](atoms/what-a-mark-works-out-for-each-position.md) |
+| N79-03 | What the mark loop leaves unguarded | written | [what-the-mark-loop-leaves-unguarded.md](atoms/what-the-mark-loop-leaves-unguarded.md) |
+
+### Re-seed, after writing Nexus package 79
+
+The reader has produced nothing for four packages running, so the checks were again
+worked through here. Two were defects, both in the same sentence.
+
+| What it found | What came of it |
+|---|---|
+| "The lock the marking holds is what keeps the two from treading on each other" holds only where the loop was given a lock; given none, the hold is over nothing and two passes can overlap freely. | The article says "where the loop was given one to take" and links the article that owns the building check |
+| "Nothing anywhere records that a reading was skipped" is contradicted by the guard's own report, and whether a figure carries its own moment was never checked. | Cut. The article says what is verified: the figures stay as the last good pass left them |
+| Adding the guard and the loose flag to the pacing article took it past its cap. | Split rather than trimmed: what the loop leaves unguarded is its own subject, and the pacing article is the better for not carrying it |
+
+The pattern in both defects is a second clause that goes further than the line
+cited. The claim was true; the sentence built on it was not. A clause beginning
+"so" or "and" deserves its own line to point at, or it should not be written.
+
+One statement of the module is left uncited and is an exclusion rather than work
+outstanding: it is a log call, which the gate refuses as evidence for a claim.
 
 ## Nexus package 78 — what an outcome's answer records, and what a position change checks
 
@@ -6906,8 +6953,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-888 | Growing and reducing both read their figures before any lock is taken and a growing answers from outside it, while clearing a pending sale takes the lock before it even looks the position up. | `outcome_processor.py` 473-477 ahead of 487, and 513-514 ahead of 558, and 492, against 604 ahead of 605 | package seventy-eight | is N78-04 |
 | H-889 | Moving the strategy's own figures has a second way in that takes their lock itself, and nothing under `nexus/` calls it outside a comment. | `outcome_processor.py` 778-779, against the one call at 286 | package seventy-eight | folds into N78-04 |
 | H-890 | The name a success records is written only where the handler's answer said it worked, and that same answer is then handed back unchanged; the lock guarding the record is made as the processor is built. | `outcome_processor.py` 163 into 164-165, then 167, the lock made at 69 | package seventy-eight | recorded; what-writes-the-name-a-success-records states it |
+| H-891 | A tick is a fresh background timer made for the interval, and the next one is made only once the marking has returned, so the gap runs from the end of one pass to the start of the next. | `mtm_loop.py` 157, then 158, then 159, the marking at 166 ahead of 168-169 | package seventy-nine | is N79-01 |
+| H-892 | A stop clears the flag and cancels the pending timer, and a stop during a marking lets that marking finish while the scheduling that follows sets nothing going. | `mtm_loop.py` 137 against 166, the scheduling refused at 154-155 | package seventy-nine | folds into N79-01 |
+| H-893 | A position's figure is the mark less the entry price times the size, signed by the side, kept against the trade's name, summed into its strategy's and into the whole over one walk. | `mtm_loop.py` 284, then 285, then 286, then 287, and 283 into 288-289, and 291 from 280 | package seventy-nine | is N79-02 |
+| H-894 | All three tallies are built before anything is written, and a pass finding no positions answers where it stands without reaching the working out. | `mtm_loop.py` 280-282 ahead of 293, or 269 inside the branch opened at 256 | package seventy-nine | folds into N79-02 |
+| H-895 | Whether the loop is running is read without the lock every write of it takes, and one pass can be asked for outright, marking without consulting the flag at all. | `mtm_loop.py` 121 against 126, or 136, or 162, and 151 | package seventy-nine | is N79-03 |
+| H-896 | The whole of a pass stands inside a guard whose catch names any exception, and a pass that raises is reported while the tick that follows is scheduled all the same. | `mtm_loop.py` 217, the catch at 310, the scheduling standing after at 168-169 | package seventy-nine | folds into N79-03 |
+| H-897 | The message the lock refusal carries is built where the refusal is made. | `mtm_loop.py` 91-92 into 107 | package seventy-nine | recorded; the-lock-the-marking-insists-on states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 14:00 UTC
