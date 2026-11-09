@@ -2,7 +2,7 @@
 row: P6-04
 baseline: 49aa659
 created: 2026-11-06 15:07 UTC
-modified: 2026-11-07 00:00 UTC
+modified: 2026-11-13 18:30 UTC
 evidence:
   - claim: "The lock placed in the pair as its second half is the money's own, made once as the money is built and handed out by a reading that returns it"
     source: "`nexus/core/capital_controller/capital_controller.py` 107 returned at 127, put in the pair at `praxis/launcher.py` 2580"
@@ -11,7 +11,7 @@ evidence:
   - claim: "Ten of the money's own roads take that same lock"
     source: "`nexus/core/capital_controller/capital_controller.py` 181, 326, 511, 546, 610, 663, 768, 875, 992 and 1055"
   - claim: "The road that sets money aside raises five refusals before taking it at all"
-    source: "`nexus/core/capital_controller/capital_controller.py` 302-304, or 306-308, or 312-314, or 316-318, or 320-322, each of them before 326"
+    source: "`nexus/core/capital_controller/capital_controller.py` 297-301 into 302-304, or 306-308, or 312-314, or 316-318, or 320-322, each of them before 326"
   - claim: "Once it has the lock it holds it across the clearing out of what has expired and whichever ending is reached"
     source: "`nexus/core/capital_controller/capital_controller.py` 326 holding 327, which reaches the clearing at 480-491, and then a refusal at 362, or one at 370, or one at 379, or one at 388, or one at 399, or the record at 408-415 with the figures set at 417-420 and the answer at 422"
   - claim: "That road asks for no store write of any kind, and outside the tests it is reached from one line"

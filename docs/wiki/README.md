@@ -471,6 +471,10 @@ the others where it appears.
 - [What one pass over the parked outcomes does](atoms/what-one-pass-over-the-parked-outcomes-does.md) — each round through the set-aside reports takes one step for each command, judges every deadline against the single clock reading taken when the round began, and walks a snapshot of the names so that dropping a command partway through is safe.
 - [What a tick of the outcome loop answers](atoms/what-a-tick-of-the-outcome-loop-answers.md) — the loop reports only whether it picked a report off the queue, and says the same whether the report reached its strategy, was set aside, or was filed behind an earlier one without being tried.
 - [How Nexus sets money aside](atoms/how-nexus-sets-money-aside.md) — a trade is weighed against its share of the pool, its strategy's budget, the free capital and a ceiling on everything deployed, and the fees are held with it.
+- [What a strategy's budget is worked out from](atoms/what-a-strategys-budget-is-worked-out-from.md) — a strategy's allowance is a slice of the pool, and where compounding is on, that slice plus whatever the strategy has made or lost, so a losing one gets less; the profit figure is checked for being usable only on the compounding road.
+- [What a fill against a reservation refuses](atoms/what-a-fill-against-a-reservation-refuses.md) — unreadable figures throw before any lock is taken while figures that read but do not match the book come back as failures, and a working total left a hair either side of zero is snapped to zero.
+- [How a rejection and a cancel mark the same failure](atoms/how-a-rejection-and-a-cancel-mark-the-same-failure.md) — both do identical work to the money and label the same failures differently, one as a broken rule and the other as something to be expected, so a count of broken rules includes a race from one handler and not the other.
+- [What the money keeper is built with](atoms/what-the-money-keeper-is-built-with.md) — one figure is checked three ways as the keeper is built, the first complaint being about its type and the rest about its value; the clock it is given times everything afterwards, including the sweep a send asks for before it tracks anything.
 - [What Nexus does when a command does not get across](atoms/what-nexus-does-when-a-command-does-not-get-across.md) — the money comes back on every road but one, and that one keeps it on purpose.
 
 ## The settings a host runs on
@@ -591,15 +595,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 494
+Both sides are the subject, and Praxis is the side that has been written. 498
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 62 are accounted for in full and 2 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 63 are accounted for in full and 1 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 18:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 19:00 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 493 not.**
+**6 of them reviewed, 497 not.**
 
 ## Package 1
 
@@ -856,6 +856,61 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 84 — what the keeper of a host's money weighs
+
+Scope: the keeper of a host's money, which the ledger marks `partial` with
+seventy-seven of its two hundred and eighty-eight statements uncited. Articles have
+how Nexus sets money aside, what becomes of it, when a reservation times out, what a
+boot finds stranded and what moves a strategy's committed figure. What a strategy's
+budget is worked out from, what a fill against a reservation refuses, how a
+rejection and a cancellation mark the same failure, and what the keeper is built
+with are in no article.
+
+### Merge and promote, package 84
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-917 | A budget is the pool times a share that must stand above nought and at or below a hundred, plus the realized figure sign and all where compounding is asked for. | Promote. How a budget is reached is in no article, and the realized figure going in signed is what makes a losing strategy's budget shrink |
+| Row H-918 | The realized figure is weighed for being finite only where compounding is asked for, the weighing standing after the answer the plain road gives. | Merge with H-917. The same figure being refused on one road and ignored on the other is the finding |
+| Row H-919 | A fill's four figures are weighed and raised on before the lock is taken, while an unknown order, a wrong state and an oversized notional are answered as failures instead. | Promote. What a fill refuses is in no article, and the line between raising and answering is the module's own distinction |
+| Row H-920 | A working total left within a hair of nought is snapped to nought. | Merge with H-919. It is what keeps arithmetic residue from standing as money at work |
+| Row H-921 | A rejection and a cancel do the same work to the money and mark the same two failures differently, one as a broken rule and the other as an expected miss. | Promote. The contrast is in no article, and a caller counting broken rules counting a race as one from a single handler is what it costs |
+| Row H-922 | The share allowed per trade is weighed three ways as the keeper is built, the first of them raising a different kind of complaint from the other two. | Promote. What the building refuses is in no article, and a complaint about a type against a complaint about a value is a distinction a reader can act on |
+| Row H-923 | The keeper's clock, where none is handed in, reads the current moment in UTC, and the sweep of stale reservations takes its moment from that clock. | Merge with H-922 |
+
+Four subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N84-01 | What a strategy's budget is worked out from | written | [what-a-strategys-budget-is-worked-out-from.md](atoms/what-a-strategys-budget-is-worked-out-from.md) |
+| N84-02 | What a fill against a reservation refuses | written | [what-a-fill-against-a-reservation-refuses.md](atoms/what-a-fill-against-a-reservation-refuses.md) |
+| N84-03 | How a rejection and a cancel mark the same failure | written | [how-a-rejection-and-a-cancel-mark-the-same-failure.md](atoms/how-a-rejection-and-a-cancel-mark-the-same-failure.md) |
+| N84-04 | What the money keeper is built with | written | [what-the-money-keeper-is-built-with.md](atoms/what-the-money-keeper-is-built-with.md) |
+
+### Re-seed, after writing Nexus package 84
+
+Two things were nearly written wrong, both caught by reading past the line the gap
+map pointed at.
+
+| What it found | What came of it |
+|---|---|
+| A rejection releases from the working pot and a cancellation from the in-flight pot, read off one line each. Reading the branch above showed both handle both pots. | The articles say they do the same work, and the difference that survived is the mark each puts on the same failure |
+| The order the two handlers test their two pots in differs. | Not written. It changes nothing, and dressing an ordering with no consequence as a finding is how a reader learns to distrust the rest |
+| Twelve statements were left over after the four articles: the walk that weighs the three reserve figures, a reading into a name of its own, the building of a tracked order, two success answers, and the exit's three refusals. | Each went into the article that already owned its subject. The exit's three were the same weighing the budget does, so they went there with a section saying the pattern is the module's rather than the routine's |
+
+The near-miss worth recording is the second one. A difference that exists and
+changes nothing is still a difference, and the pull to write it up is strong when
+the gap map has just pointed at both lines. What makes it worth leaving out is that
+a reader cannot do anything with it — and every such sentence makes the ones that
+do matter harder to find.
+
+Two statements of the module are left uncited and are an exclusion rather than work
+outstanding: a log call, which the gate refuses as evidence for a claim, and one
+reading into a name of its own whose use the article on setting money aside already
+states. That one could have been swallowed by widening that article's citation, but
+it carries a review stamp, and widening a citation under a stamp makes the stamp
+cover something nobody read.
 
 ## Nexus package 83 — what a stopping host builds, sends and waits on
 
@@ -7154,8 +7209,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-914 | The builder of the request answers with nothing on three roads, reporting two of them; the builder of the order raises on the same absences. | `shutdown_sequencer.py` 536 into 537-538, or 540-541 into 542-547, or 549 into 550, against 491 into 492-493, or 495 into 496-497 | package eighty-three | is N83-03 |
 | H-915 | Both submissions do nothing at all where either the road out or the configuration is missing, while the escalation of what is still pending reports before it returns. | `shutdown_sequencer.py` 391 into 392, and 574 into 575, against 780 into 781-785 | package eighty-three | is N83-04 |
 | H-916 | A sent exit raises the position's pending sale under the positions lock, or under no lock where none was given, and is kept under the name that came back. | `shutdown_sequencer.py` 445-448 into 455-458, the lock chosen at 450-454, the name kept at 460 then 461 | package eighty-three | folds into N83-04 |
+| H-917 | A budget is the pool times a share that must stand above nought and at or below a hundred, plus the realized figure sign and all where compounding is asked for. | `capital_controller.py` 455 into 456-457, and 459, and 474 | package eighty-four | is N84-01 |
+| H-918 | The realized figure is weighed for being finite only where compounding is asked for, the weighing standing after the answer the plain road gives. | `capital_controller.py` 464-467 into 468-472, standing after 461-462 | package eighty-four | folds into N84-01 |
+| H-919 | A fill's four figures are weighed and raised on before the lock is taken, while an unknown order, a wrong state and an oversized notional are answered as failures instead. | `capital_controller.py` 859 into 860-861, or 863 into 864-865, or 867 into 868-869, or 871 into 872-873, all before 875, against 876 into 878-879, or 888-889, or 892-893 | package eighty-four | is N84-02 |
+| H-920 | A working total left within a hair of nought is snapped to nought. | `capital_controller.py` 969 into 970 | package eighty-four | folds into N84-02 |
+| H-921 | A rejection and a cancel do the same work to the money and mark the same two failures differently. | `capital_controller.py` 670, against 999, and 684, against 1013 | package eighty-four | is N84-03 |
+| H-922 | The share allowed per trade is weighed three ways as the keeper is built, the first of them raising a different kind of complaint from the other two. | `capital_controller.py` 86 into 87-91, or 92 into 93-97, or 98 into 99-103 | package eighty-four | is N84-04 |
+| H-923 | The keeper's clock, where none is handed in, reads the current moment in UTC, and the sweep of stale reservations takes its moment from that clock. | `capital_controller.py` 41, and 477 into 478 | package eighty-four | folds into N84-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 18:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 19:00 UTC
