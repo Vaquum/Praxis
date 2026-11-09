@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 635 not.**
+**6 of them reviewed, 637 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 149 — what a queue reservation is for, and what a caller-supplied command name must be
+
+Scope: the holding of a place in an account's queue, and the demands made of a name a
+caller supplies, part of a module the ledger marks `partial`. After the package before
+this one, eight hundred and ninety-eight of its two thousand four hundred and
+eighty-seven statements were uncited. Neither subject is in an article. The rest of
+the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 149
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1378 | The queue is weighed as what it holds plus the reservations standing against it, and a reservation is taken past that test and given back whatever happens after. | Promote. The reservation is in no article, and two commands admitted at once being unable to both be told there is room is what it is for |
+| Row H-1379 | A failure writing the acceptance undoes both the acceptance and any abort noted against the command, then passes the failure on. | Merge with H-1378 |
+| Row H-1380 | An account that fail-stopped or failed its startup while that record was being written has its command ended as refused, and the name answered all the same. | Merge with H-1378. A caller gets a name for a command that was never queued |
+| Row H-1381 | A queue that refuses the command at the moment of putting raises the same full-queue failure the first test raises. | Merge with H-1378 |
+| Row H-1382 | A name a caller supplies must not be empty, must be something a client order id can be built from, and must be neither already accepted nor already held. | Promote. The demands are in no article, and a made-up name meeting none of them is the contrast |
+| Row H-1383 | Where no name is supplied one is made instead, and none of the three tests applies to it. | Merge with H-1382 |
+| Row H-1384 | The in-use test reads two places, so a name is in use while its command waits to be dequeued and also while it is held as a live command. | Merge with H-1382 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P149-01 | What a queue reservation is for | written | [what-a-queue-reservation-is-for.md](atoms/what-a-queue-reservation-is-for.md) |
+| P149-02 | What a caller-supplied command name must be | written | [what-a-caller-supplied-command-name-must-be.md](atoms/what-a-caller-supplied-command-name-must-be.md) |
+
+### Re-seed, after writing package 149
+
+Both subjects are about a thing that exists only to make a later line rare.
+
+| What it found | What came of it |
+|---|---|
+| The queue's capacity is weighed against its length plus a count of reservations, and the reservation is given back in a clause that runs whatever happens. | Stated as what it is for: two commands admitted at once cannot both be told there is room |
+| The put itself can still refuse, raising the same failure as the capacity test. | Stated. The reservation makes that second refusal rare rather than impossible, which is the honest reading of having both |
+| A command whose acceptance fails to record has the acceptance and any abort noted against it both undone. | Stated. It is the only place in this routine that undoes a write it made |
+| A made-up name meets none of the three tests a supplied name must meet. | Stated as the contrast. It is trusted by the way it is made rather than by being checked |
+
+Worth recording: a reservation and a capacity test are the same subject, and writing
+only the test would have described a guard that cannot work — two callers passing it
+together is exactly what the reservation exists to stop. The question that found it
+was asking what the number being compared is made of, rather than what the comparison
+decides.
 
 ## Package 148 — which child news a scheme acts on, and what starting a bracket writes before its entry
 
@@ -10646,7 +10690,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1375 | An entry whose send answered with no order ends the command with nothing filled. | `execution_manager.py` 4525 into 4526-4533 | package one hundred and forty-eight | folds into P148-02 |
 | H-1376 | Otherwise the command is mapped to that order, a live bracket registered, and an entry already terminal settled at once. | `execution_manager.py` 4535, then 4536, then 4537, then 4539, then 4541 into 4542 | package one hundred and forty-eight | folds into P148-02 |
 | H-1377 | A bracket still working answers from the admitted totals. | `execution_manager.py` 4544-4546, then 4547-4549, then 4551 | package one hundred and forty-eight | folds into P148-02 |
+| H-1378 | The queue is weighed as what it holds plus the reservations standing against it, and a reservation is taken past that test and given back whatever happens after. | `execution_manager.py` 3497-3500, then 3507-3511, or 3513, then 3562 into 3563 | package one hundred and forty-nine | is P149-01 |
+| H-1379 | A failure writing the acceptance undoes both the acceptance and any abort noted against the command, then passes the failure on. | `execution_manager.py` 3524-3525, then 3526 into 3527-3529 | package one hundred and forty-nine | folds into P149-01 |
+| H-1380 | An account that fail-stopped or failed its startup while that record was being written has its command ended as refused, and the name answered all the same. | `execution_manager.py` 3531 into 3535-3544, then 3547 | package one hundred and forty-nine | folds into P149-01 |
+| H-1381 | A queue that refuses the command at the moment of putting raises the same full-queue failure, and the command is installed only once the reservation is given back. | `execution_manager.py` 3549-3550, then 3551 into 3561, with 3565, then 3566, past 3563 | package one hundred and forty-nine | folds into P149-01 |
+| H-1382 | A name a caller supplies must not be empty, must be something a client order id can be built from, and must be neither already accepted nor already held. | `execution_manager.py` 3445, then 3446 into 3447-3448, then 3450, then 3452-3455 into 3456-3457 | package one hundred and forty-nine | is P149-02 |
+| H-1383 | Where no name is supplied one is made instead, and the command is built from the name and everything the caller gave. | `execution_manager.py` 3458 into 3459, then 3461-3470 | package one hundred and forty-nine | folds into P149-02 |
+| H-1384 | A command is refused first where the account is unregistered, has fail-stopped, or failed its startup. | `execution_manager.py` 3429, then 3430 into 3431-3432, or 3434 into 3435-3436, or 3438 into 3443 | package one hundred and forty-nine | folds into P149-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 18:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 19:00 UTC
