@@ -857,6 +857,48 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 189 — the last four stale dispositions, and the register read against itself
+
+Scope: four harvest rows from the first Nexus package, and no article. With these
+corrected, no row of the register's one thousand six hundred and fifty-three is left
+open, and no question is left unassigned.
+
+### What was wrong
+
+Row H-072 read `candidate`, where the merge table records it merged into N1-03 with
+H-071, one sentence with alternative conditions for the same answer. Row H-073 read
+`candidate`, where the table records it promoted and then split out to N1-04 at the
+verify stage. Row H-074 read `candidate`, where the table records it promoted into
+N1-03, as the reason a refusal has something to give back. Row H-075 read `candidate;
+folds into the first topic or queues as its own`, which was true when it was written and
+has not been since: N1-08 cites the abort's own road line for line, and N53-01 cites it
+again.
+
+Each disposition is the row's own note about its fate, and each was superseded by a
+table a few hundred lines above it.
+
+### Why they survived a hundred and eighty-seven packages
+
+The check that refuses a module reading `full` with a candidate on it reads only the
+ledger's Praxis section. All four rows cite Nexus modules, so nothing ever objected.
+Package 187 corrected the one row of the four whose file the Nexus ledger could still be
+measured against; these four were invisible to every check the gate makes.
+
+### Re-seed, after writing package 189
+
+Two packages in a row have now been corrections rather than articles, and both were
+found the same way: reading the register against itself rather than against the code.
+
+| What it found | What came of it |
+|---|---|
+| A disposition is prose, and no check compares it against the merge table that supersedes it. | Corrected, twice. The pattern is a candidate for a check: a row reading `candidate` while a merge table names its fate |
+| The candidate check reads one side of the ledger only. | Recorded. The Nexus side's rows were never measured, which is why these four outlived every package |
+| H-075 was a real candidate when it was written and is covered twice over now. | Pointed at N1-08, the article that cites its lines line for line |
+| Nothing in the register is now open: no candidate, no unassigned question. | Stated here, and the ledger's own summaries say the same on both sides |
+
+Worth recording: the wiki's own record was the last thing in it to be checked. Every
+module was traced against the code before anyone read the register against the register.
+
 ## Package 188 — the two questions answered as far as the wiki can, and the Praxis side closed
 
 Scope: the two findings that held three ledger cells open. Each is written as the path
@@ -11242,10 +11284,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-069 | A host-supplied outcome receiver is called as one with Praxis's own routing, and the pair is retried together, so a receiver that acts before raising is handed the same outcome again and the routing before it runs again with it. Delivery is reported exhausted only after the last attempt. | the pair at `launcher.py` 3001-3003, set at 3005, retried at `execution_manager.py` 760-794 | P2-44 | recorded; P2-44 states it |
 | H-070 | The adapter's lot-step test can never refuse an order. The amount is floored to the step immediately before the test runs, on every path that reaches it, so the remainder it looks for is always zero. A symbol with no figures kept is neither floored nor tested. Flooring can still take an amount under the smallest size, which the next test does refuse. | floored at `binance_adapter.py` 1518 into 1314-1317, tested at 1194-1198, both passed over for an uncached symbol at 1315-1316 and 1188-1192 | P2-46 | recorded; P2-46 states that the step test cannot turn an order away |
 | H-071 | The order the checks run in is a configured list, not a fixed sequence. The default runs intake, risk, price, capital, health, then platform limits. | `nexus/core/validator/pipeline_models.py` 50-57, walked at `nexus/core/validator/pipeline_executor.py` 47 | Nexus package one | is N1-03 |
-| H-072 | Five of the six stages are skipped outright for an exit, an abort, a cancel and a change: capital, health, platform limits, risk and price. Only intake runs for those, so a closing action is weighed on ownership alone. | `nexus/core/validator/pipeline_executor.py` 162-176, reached at 48 | Nexus package one | candidate |
-| H-073 | A stage returning something other than a decision raises rather than being read as a pass, and so does a denial naming a stage other than the one that produced it. | `nexus/core/validator/pipeline_executor.py` 52-56 and 59-63 | Nexus package one | candidate |
-| H-074 | A reservation granted by an earlier stage is carried on the decision a later stage denies, where that denial carries none of its own — so the denial hands back what was already held rather than losing it. | `nexus/core/validator/pipeline_executor.py` 65-72, the carry at 75-76 and 78 | Nexus package one | candidate |
-| H-075 | An abort action is submitted by its own road rather than through this pipeline's result, which is why the skipping above is not the whole account of how a closing action reaches Praxis. | `nexus/strategy/action_submit.py` 201-203 | Nexus package one | candidate; folds into the first topic or queues as its own |
+| H-072 | Five of the six stages are skipped outright for an exit, an abort, a cancel and a change: capital, health, platform limits, risk and price. Only intake runs for those, so a closing action is weighed on ownership alone. | `nexus/core/validator/pipeline_executor.py` 162-176, reached at 48 | Nexus package one | folds into N1-03 |
+| H-073 | A stage returning something other than a decision raises rather than being read as a pass, and so does a denial naming a stage other than the one that produced it. | `nexus/core/validator/pipeline_executor.py` 52-56 and 59-63 | Nexus package one | is N1-04 |
+| H-074 | A reservation granted by an earlier stage is carried on the decision a later stage denies, where that denial carries none of its own — so the denial hands back what was already held rather than losing it. | `nexus/core/validator/pipeline_executor.py` 65-72, the carry at 75-76 and 78 | Nexus package one | folds into N1-03 |
+| H-075 | An abort action is submitted by its own road rather than through this pipeline's result, which is why the skipping above is not the whole account of how a closing action reaches Praxis. | `nexus/strategy/action_submit.py` 201-203 | Nexus package one | folds into N1-08 |
 | H-076 | An outcome that cannot be matched to a strategy is parked under its command's name, with the first retry due a twentieth of a second later. | `nexus/core/outcome_loop.py` 230-231 into 246-248, the schedule at 58-66 | Nexus package one | folds into N1-05 |
 | H-077 | A later outcome for a command already parked queues behind it rather than being tried, so the order they arrived in is kept. | `nexus/core/outcome_loop.py` 216-228 | Nexus package one | folds into N1-05 |
 | H-078 | Only the head of that queue is retried. Where it resolves, the rest are drained behind it in order. | `nexus/core/outcome_loop.py` 284-288 into 327-328 | Nexus package one | folds into N1-05 |
@@ -12828,4 +12870,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 14:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 15:00 UTC
