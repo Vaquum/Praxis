@@ -565,6 +565,8 @@ the others where it appears.
 - [The order a strategy entry is read in](atoms/the-order-a-strategy-entry-is-read-in.md) — a strategy's name and the file it points at are asked only to be present while the settings are being read, and asked to be text afterwards; a timer's schedule is asked what kind of value it is before the timer's own name is.
 - [What a strategy's file must be](atoms/what-a-strategys-file-must-be.md) — the file named for a strategy has to sit inside the folder the settings file sits in, be there, read back as UTF-8, and parse as Python, and none of that is looked at until everything else about the settings has passed.
 - [Which settings are refused](atoms/which-settings-are-refused.md) — the checks a host's settings are read through, any one of which failing ends the start.
+- [What a timing setting is held to](atoms/what-a-timing-setting-is-held-to.md) — a setting saying how often the host saves its state, marks its holdings, warns about an unclear send or samples a price falls back to a figure of its own when left out, and one holding something endless or no greater than nothing refuses the start as firmly as a misspelt one.
+- [How the mark-price series is settled](atoms/how-the-mark-price-series-is-settled.md) — the host prices against one run of bars at one width, taken from the strategies it was given where they agree on one, and from a setting where they name several or none.
 - [The deployment caps](atoms/the-deployment-caps.md) — the ceilings a host's settings can put on what it may do, from an order's worth to a book's age.
 - [Which accounts are refused](atoms/which-accounts-are-refused.md) — the checks each account faces as its manifest is read.
 - [Where credentials come from](atoms/where-credentials-come-from.md) — the key and secret for an account, fetched once at startup and handed on to be kept.
@@ -671,7 +673,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 574
+Both sides are the subject, and Praxis is the side that has been written. 576
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -682,4 +684,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 02:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 03:00 UTC

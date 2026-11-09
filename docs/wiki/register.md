@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 573 not.**
+**6 of them reviewed, 575 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 117 — what a timing setting is held to, and how the mark-price series is settled
+
+Scope: the reading of the settings that say how often the host does something, and
+the settling of the one series of bars it prices against, part of a module the ledger
+marks `partial`. Five hundred and twenty-five of its twelve hundred and one
+statements were uncited before this package. Neither subject is in an article. The
+rest of the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 117
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1132 | A timing setting absent or holding nothing falls back to a figure standing behind it, where anything unreadable, endless or at or below nought refuses the start. | Promote. The reading is in no article, and an endless figure being turned away as firmly as a misspelt one is what the finiteness test is for |
+| Row H-1133 | Five settings are read that way, and the sampling cadence alone is then refused unless it is a whole number of seconds. | Merge with H-1132 |
+| Row H-1134 | A cap read from the same environment answers nothing where its setting holds nothing, and refuses with a failure of another kind. | Merge with H-1132. The two readers parting twice is what distinguishes a setting that may be left out from one that may not |
+| Row H-1135 | Every strategy the manifest declares is walked for its series and bar width, and a series declared twice with widths that disagree refuses the start. | Promote. The settling is in no article, and the gathering is what the rest of the routine reads from |
+| Row H-1136 | A series named in the environment takes the manifest's width where the manifest declares it, and a second setting's width where it does not, under three tests written out rather than taken from the reader that makes them. | Merge with H-1135. Nothing on that road weighs the given width against anything |
+| Row H-1137 | With nothing named, one gathered series is used, several refuse with them named in order, and none at all refuses too. | Merge with H-1135 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P117-01 | What a timing setting is held to | written | [what-a-timing-setting-is-held-to.md](atoms/what-a-timing-setting-is-held-to.md) |
+| P117-02 | How the mark-price series is settled | written | [how-the-mark-price-series-is-settled.md](atoms/how-the-mark-price-series-is-settled.md) |
+
+### Re-seed, after writing package 117
+
+Both findings are about one routine doing again what another already does, found by
+reading the two readers side by side.
+
+| What it found | What came of it |
+|---|---|
+| The timing reader and the cap reader make nearly the same tests and part on two things: what an empty setting answers, and what kind of failure a bad one raises. | Stated in the timing article, linking the caps. Which settings may be left out and which may not is the consequence |
+| The mark-price settling writes out the positive-whole-number tests itself rather than calling the reader that already makes them, and raises a failure of the other kind. | Stated. The duplication is the finding; nothing in either routine names the other |
+| Nothing on the road that takes a width from the environment weighs it against the manifest. | Stated. A series the manifest never mentions is priced at whatever the setting holds |
+| The setting that chooses a series is needed exactly when the manifest is ambiguous. | Stated as the shape of the three endings, each of which names what the operator must do |
+
+Worth recording: the first two findings are the same shape — a test written twice in
+one module, with the copies disagreeing on the kind of failure they raise. Neither is
+visible from the routine being read; both came from the question "is this written
+anywhere else in this file?", asked because the module is long enough that it is
+worth asking every time.
 
 ## Package 116 — how a venue answer becomes a record, which health figures are read under the lock, and which askings make their own request
 
@@ -8874,7 +8918,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1129 | Each of the three addresses the adapter is built with has a trailing slash taken off. | `binance_adapter.py` 294, then 295, then 296 | package one hundred and sixteen | folds into P116-03 |
 | H-1130 | Two askings make their own request on the session instead of handing one to the retrying to build. | `binance_adapter.py` 2174-2178, and 2264-2267, against 732-734 | package one hundred and sixteen | is P116-03 |
 | H-1131 | Each of the two carries two tries, the making of the request under one and the reading of the answer under another. | `binance_adapter.py` 2172, and 2262, then 2219, and 2281 | package one hundred and sixteen | folds into P116-03 |
+| H-1132 | A timing setting absent or holding nothing falls back to a figure standing behind it, where anything unreadable, endless or at or below nought refuses the start. | `launcher.py` 227, then 228 into 229, or 231-232 into 233, then 234-238, or 240 into 241-246, or 248 | package one hundred and seventeen | is P117-01 |
+| H-1133 | Five settings are read that way, and the sampling cadence alone is then refused unless it is a whole number of seconds. | `launcher.py` 4591-4594, and 4601-4604, and 4619-4622, and 4623-4626, and 254-256, then 258 into 259-263, then 265 | package one hundred and seventeen | folds into P117-01 |
+| H-1134 | A cap read from the same environment answers nothing where its setting holds nothing, and refuses with a failure of another kind. | `launcher.py` 696 into 697, against 228 into 229, with 705-707, against 240-246 | package one hundred and seventeen | folds into P117-01 |
+| H-1135 | Every strategy the manifest declares is walked for its series and bar width, and a series declared twice with widths that disagree refuses the start. | `launcher.py` 2369, then 2370, then 2371, then 2373 into 2374-2379, then 2381 | package one hundred and seventeen | is P117-02 |
+| H-1136 | A series named in the environment takes the manifest's width where the manifest declares it, and a second setting's width where it does not, under three tests written out rather than taken from the reader that makes them. | `launcher.py` 2383, then 2385, then 2386 into 2387, or 2389, then 2390 into 2391-2396, or 2398-2399 into 2400, then 2401-2405, or 2407 into 2408-2412, or 2414 | package one hundred and seventeen | folds into P117-02 |
+| H-1137 | With nothing named, one gathered series is used, several refuse with them named in order, and none at all refuses too. | `launcher.py` 2416 into 2417-2418, or 2420 into 2421-2426, or 2428-2432 | package one hundred and seventeen | folds into P117-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 03:00 UTC
