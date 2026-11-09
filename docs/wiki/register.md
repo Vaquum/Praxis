@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 558 not.**
+**6 of them reviewed, 560 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 110 — how a venue failure is sorted, and which one counts as healthy
+
+Scope: the sorting of a failing answer from the venue and the health each failure is
+recorded against, part of a module the ledger marks `partial`. After the package
+before this one, two hundred and five of its five hundred and thirty-four statements
+were uncited. How a failure is sorted, and which failures a retry counts as healthy,
+are in no article. The sending, the parsing and the streams are left for packages of
+their own, and the cell stays `partial`.
+
+### Merge and promote, package 110
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1084 | One status becomes a failure to authenticate, three become a rate limiting and anything at or above the server's range becomes a passing failure, none of them reading the body at all. | Promote. The sorting is in no article, and a helpful message discarded because the status already settled the kind is what a reader debugging a server error needs |
+| Row H-1085 | The wait a rate limiting carries is kept only where it reads as a finite figure at or above nought, a reading that will not parse being suppressed rather than raised. | Merge with H-1084. A nonsense wait becoming no wait rather than a different failure is the finding |
+| Row H-1086 | Only what is left after the statuses reads the body, and a body that will not give a code and a reason leaves an unknown code and a reason naming the status. | Merge with H-1084 |
+| Row H-1087 | A not-found is recorded as healthy before it is raised on, where every other venue failure is recorded as unhealthy. | Promote. The exception is in no article, and a run full of not-founds leaving the health untouched is what it buys |
+| Row H-1088 | A rate limiting is retried only where attempts remain and the status was the one meaning too many, so the other two are raised at once. | Merge with H-1087 |
+| Row H-1089 | The wait before a retry is the venue's own where it gave one, and otherwise drawn at random from a span that doubles with each attempt. | Merge with H-1087 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P110-01 | How a venue failure is sorted | written | [how-a-venue-failure-is-sorted.md](atoms/how-a-venue-failure-is-sorted.md) |
+| P110-02 | Which failures a retry counts as healthy | written | [which-failures-a-retry-counts-as-healthy.md](atoms/which-failures-a-retry-counts-as-healthy.md) |
+
+### Re-seed, after writing package 110
+
+Four findings, two of them about a kind of failure being treated unlike its neighbours.
+
+| What it found | What came of it |
+|---|---|
+| A not-found is recorded as healthy, alone among the venue failures. | Stated with the reason: the venue answered correctly and the thing asked about was absent, so a run full of them leaves the health untouched |
+| Three statuses produce a rate limiting and only one of them is retried, so the other two are raised at once. | Stated. The kind of error says nothing about whether it will be retried, and the status does |
+| The statuses that decide alone never read the body, so a helpful message on a server error is discarded. | Stated, since a reader debugging one will look for that message and should know where it went |
+| A wait that will not parse becomes no wait rather than a different failure. | Stated |
+
+Worth recording: both articles turn on a kind of failure being treated unlike the
+others that look like it. A not-found among venue failures; one rate-limit status
+among the three. In each case the code groups them and then singles one out, and the
+singling is invisible from the grouping. Reading the grouping and stopping is how
+both would have been missed.
 
 ## Package 109 — what signing adds, and what an order type decides
 
@@ -8483,6 +8527,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1081 | An entry can demand a price or a stop price and can equally forbid a price. | `binance_adapter.py` 784 into 785-786, or 788 into 789-790, against 792 | package one hundred and nine | folds into P109-02 |
 | H-1082 | A price goes out in full decimal rather than as a figure, a time in force is filled from a default, and a caller's own name is added only where given. | `binance_adapter.py` 808 into 809, and 811 into 812, and 826, and 828 into 829, the whole answered at 831 | package one hundred and nine | folds into P109-02 |
 | H-1083 | Reading a kind back weighs the plain limit kind first and splits it by its time in force, every other kind coming from a table whose absence raises. | `binance_adapter.py` 912, then 914 into 915, or 916, against 918 into 919-920, then 922-923 | package one hundred and nine | folds into P109-02 |
+| H-1084 | One status becomes a failure to authenticate, three become a rate limiting and anything at or above the server's range becomes a passing failure, none reading the body. | `binance_adapter.py` 1118 into 1119-1120, or 1122 into 1132-1133, or 1135 into 1136-1137, against 1115 into 1116 | package one hundred and ten | is P110-01 |
+| H-1085 | The wait a rate limiting carries is kept only where it reads as a finite figure at or above nought, a reading that will not parse being suppressed. | `binance_adapter.py` 1123-1124, then 1126 into 1127-1128, then 1129 into 1130 | package one hundred and ten | folds into P110-01 |
+| H-1086 | Only what is left after the statuses reads the body, and a body that will not give a code and a reason leaves an unknown code and a reason naming the status. | `binance_adapter.py` 1139-1142, against 1143 into 1144-1145 | package one hundred and ten | folds into P110-01 |
+| H-1090 | A code among the not-found ones becomes a not-found, and everything else becomes an order refused carrying its code and reason. | `binance_adapter.py` 1147 into 1148-1149, or 1151-1152 | package one hundred and ten | folds into P110-01 |
+| H-1087 | A not-found is recorded as healthy before it is raised on, where every other venue failure is recorded as unhealthy. | `binance_adapter.py` 655 then 656, against 657 into 658 then 659 | package one hundred and ten | is P110-02 |
+| H-1088 | A rate limiting is retried only where attempts remain and the status was the one meaning too many, and otherwise recorded unhealthy and raised. | `binance_adapter.py` 605 into 606, then 607, then 608 | package one hundred and ten | folds into P110-02 |
+| H-1089 | The wait before a retry is the venue's own where it gave one, and otherwise drawn at random from a span that doubles with each attempt. | `binance_adapter.py` 609 | package one hundred and ten | folds into P110-02 |
+| H-1091 | A transport failure, a timing out or an unreadable answer is turned into a passing failure and kept rather than raised. | `binance_adapter.py` 660 into 661-662 | package one hundred and ten | folds into P110-02 |
 | H-1075 | Registering keeps credentials and makes a health tracker only where none stood, where unregistering removes the credentials outright and drops the tracker tolerantly. | `binance_adapter.py` 444, then 445 into 446, against 460, then 461 into 462 | package one hundred and eight | folds into P108-03 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
@@ -8505,4 +8557,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 21:00 UTC
