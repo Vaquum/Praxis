@@ -413,6 +413,8 @@ the others where it appears.
 - [How the portfolio windows are cut](atoms/how-the-portfolio-windows-are-cut.md) — steps are grouped by truncating each timestamp to a caller-named span, a day by default, where the bar basis offers no such choice; each window reports its compounded return and that return over the fraction of steps in position, which is absent when no step held one.
 - [What the depth poller is built with](atoms/what-the-depth-poller-is-built-with.md) — its poll interval and request span are compared against zero, its URL and token tested for truthiness alone, its depth floor asked only for finiteness and positivity with no type check, and its stuck-poll threshold required to be at least two while a not-a-number value passes and disables the check it feeds.
 - [Starting and stopping the depth poller](atoms/starting-and-stopping-the-depth-poller.md) — starting raises while it already runs and otherwise clears the flag, opens a session and spawns the loop; stopping sets the flag and awaits the task, suppressing only the error a cancelled task raises, so another failure escapes with the task still held and the session still open.
+- [What the feed demands of a depth payload](atoms/what-the-feed-demands-of-a-depth-payload.md) — the reply must be an object and so must the part read from it, while the timestamp, the book version and each side of the book are looked up by key, so a missing field is reported by name and a wrong shape by what arrived.
+- [What the feed keeps and what it waits on](atoms/what-the-feed-keeps-and-what-it-waits-on.md) — it holds a stop signal and three tallies that all start at zero, and between requests it waits on that signal with the interval as a ceiling, so a stop lands at once rather than after the current interval.
 - [The lock the marking insists on](atoms/the-lock-the-marking-insists-on.md) — where a positions lock is supplied it must be the same object the risk record holds, or construction is refused; a record holding none fails the same test, while a loop given no lock is built without the question being asked at all.
 - [The mark that ends a turn](atoms/the-mark-that-ends-a-turn.md) — symbols are read inside whatever guard the loop was given and the marks fetched outside it, and a mark that is missing or not a finite Decimal ends the entire turn at that point, leaving every position's unrealized figure as it stood and the later symbols unasked.
 - [How the mark loop paces itself](atoms/how-the-mark-loop-paces-itself.md) — each valuation round is scheduled by a fresh background timer made only after the previous round has finished, so the gap runs end to end and two rounds can never overlap; a stop part-way through lets the round in progress finish and schedules no other.
@@ -595,8 +597,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 498
-articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
+Both sides are the subject, and Praxis is the side that has been written. 500
+articles exist. Of Praxis's own source files 78 are accounted for in full and 10 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -606,4 +608,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 19:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 20:00 UTC

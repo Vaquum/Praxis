@@ -61,7 +61,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/replay/metrics_serialization.py` | full | P3-10, P4-40 |
 | `praxis/binsim/server.py` | partial | P2-47, P2-48, P3-05, P3-06, P3-07, P3-22 |
 | `praxis/binsim/book.py` | full | P2-48, P3-06, P31-01 |
-| `praxis/binsim/feed.py` | partial | P2-48, P3-06, P51-01, P51-02, P66-02 |
+| `praxis/binsim/feed.py` | full | P2-48, P3-06, P51-01, P51-02, P66-02, P85-01, P85-02 |
 | `praxis/binsim/ledger.py` | full | P2-47, P3-07, P64-01, P64-02, P64-03, P64-04, P64-05, P64-06, P64-07, P64-08, P65-01, P65-02, P65-03, P65-04, P65-05, P65-06, P66-03, P75-02 |
 | `praxis/binsim/__main__.py` | full | P3-05, P3-07, P66-01, P66-02, P66-03, P66-04, P66-05 |
 | `praxis/metrics/metric_conventions.py` | full | P3-10, P4-18 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here: 77 are `full` and 11 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here: 78 are `full` and 10 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 20:00 UTC

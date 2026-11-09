@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 497 not.**
+**6 of them reviewed, 499 not.**
 
 ## Package 1
 
@@ -856,6 +856,43 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 85 — what binsim's feed asks for and what it keeps
+
+Scope: the feed that polls binsim for the book, which the ledger marks `partial`
+with twenty of its seventy-eight statements uncited. Articles have what the depth
+poller is built with, starting and stopping it, and what a stuck update name costs.
+What it demands of a payload, and what it keeps between polls, are in no article.
+
+### Merge and promote, package 85
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-924 | The payload and the part the rest is read from must both be objects, while the moment, the last-update name and the two sides are read by key, so an absence fails on the key rather than on a message. | Promote. What the feed demands is in no article, and a refusal that says which key was absent against one that says what shape arrived is the difference a reader chasing a bad payload needs |
+| Row H-925 | Every price and quantity goes through one check that raises where the figure will not read as finite, and each entry of either side must unpack into exactly a pair. | Merge with H-924 |
+| Row H-926 | A feed is built holding a stop signal and three counters all starting at nought, and counts as running where a task exists and has not finished. | Promote. What it keeps is in no article, and a task that ended on its own reading as stopped while still held is what a reader of the flag would miss |
+| Row H-927 | Between polls the feed waits on the stop signal with the interval as the longest it will wait, and the wait running out is what sends it round again. | Merge with H-926. The interval being a ceiling rather than a sleep is why a stop is acted on at once |
+
+Two subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P85-01 | What the feed demands of a depth payload | written | [what-the-feed-demands-of-a-depth-payload.md](atoms/what-the-feed-demands-of-a-depth-payload.md) |
+| P85-02 | What the feed keeps and what it waits on | written | [what-the-feed-keeps-and-what-it-waits-on.md](atoms/what-the-feed-keeps-and-what-it-waits-on.md) |
+
+### Re-seed, after writing package 85
+
+The first Praxis-side package in nine, and the first module since package 76 whose
+whole remainder was two coherent subjects rather than a scatter.
+
+| What it found | What came of it |
+|---|---|
+| The two shape checks carry words saying what arrived; the three key reads carry nothing of their own. | Stated as the difference it makes to a reader chasing a bad payload: one kind of refusal names the key, the other names the shape |
+| The interval is the longest the feed will wait on the stop signal, not a sleep between polls. | Stated. A reader who assumes a sleep expects a stop to take up to an interval to land, and it does not |
+| A feed whose task ended on its own reads as stopped with the task still held. | Stated. It is the same shape as the outcome loop's, which package seventy-seven recorded, and worth saying in both places rather than linking across |
+
+One statement of the module is left uncited and is an exclusion rather than work
+outstanding: it is a log call, which the gate refuses as evidence for a claim.
 
 ## Nexus package 84 — what the keeper of a host's money weighs
 
@@ -7216,8 +7253,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-921 | A rejection and a cancel do the same work to the money and mark the same two failures differently. | `capital_controller.py` 670, against 999, and 684, against 1013 | package eighty-four | is N84-03 |
 | H-922 | The share allowed per trade is weighed three ways as the keeper is built, the first of them raising a different kind of complaint from the other two. | `capital_controller.py` 86 into 87-91, or 92 into 93-97, or 98 into 99-103 | package eighty-four | is N84-04 |
 | H-923 | The keeper's clock, where none is handed in, reads the current moment in UTC, and the sweep of stale reservations takes its moment from that clock. | `capital_controller.py` 41, and 477 into 478 | package eighty-four | folds into N84-04 |
+| H-924 | The payload and the part the rest is read from must both be objects, while the moment, the last-update name and the two sides are read by key. | `feed.py` 354 into 355, or 359 into 360, against 357, and 362, and 363, and 364-365 | package eighty-five | is P85-01 |
+| H-925 | Every price and quantity goes through one check that raises where the figure will not read as finite, and each entry of either side must unpack into exactly a pair. | `feed.py` 364-365 into 383 into 384, then 386 | package eighty-five | folds into P85-01 |
+| H-926 | A feed is built holding a stop signal and three counters all starting at nought, and counts as running where a task exists and has not finished. | `feed.py` 133, then 134, and 135, and 136, and 146 | package eighty-five | is P85-02 |
+| H-927 | Between polls the feed waits on the stop signal with the interval as the longest it will wait, and the wait running out is what sends it round again. | `feed.py` 329, then 330-331 | package eighty-five | folds into P85-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 20:00 UTC
