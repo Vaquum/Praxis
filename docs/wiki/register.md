@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 593 not.**
+**6 of them reviewed, 595 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 127 — which roads out wait for an account to be ready, and the order an account's loops start and stop in
+
+Scope: the four roads the trading side reports back along, and the loops an account's
+thread starts and stops, part of a module the ledger marks `partial`. After the
+package before this one, three hundred and forty-two of its twelve hundred and one
+statements were uncited. Each road is written up on its own and what they do not
+share is in no article; the loops' order is in none. The rest of the module is left
+for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 127
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1213 | Three of the four roads out resolve the account's runtime and refuse where none stands, where the road an outcome takes resolves none and reads the queue and the wiring instead. | Promote. The division is in no article, and it is what the two mappings exist to make possible |
+| Row H-1214 | Where the settings carry a caller's own road, the host's routing runs first and the caller's is awaited after. | Merge with H-1213. A caller's road being unable to stop the host's or run before it follows from the order |
+| Row H-1215 | The trading side is started only after all four roads are set, and starting it refuses outright where the host's loop has not been started. | Merge with H-1213 |
+| Row H-1216 | Seven loops are started in a fixed order, the timer one only where the account has one, with the producing loop ahead of the consuming one. | Promote. The order is in no article, and the split in how they stop is what it leads to |
+| Row H-1217 | An ordinary stop stops four of them by hand, and hands the other three to the stopping sequence. | Merge with H-1216 |
+| Row H-1218 | The four stopped by hand are exactly the four the sequence is not given. | Merge with H-1216. Nothing stopped twice and nothing left running is the whole of it |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P127-01 | Which roads out wait for an account to be ready | written | [which-roads-out-wait-for-an-account-to-be-ready.md](atoms/which-roads-out-wait-for-an-account-to-be-ready.md) |
+| P127-02 | The order an account's loops start and stop in | written | [the-order-an-accounts-loops-start-and-stop-in.md](atoms/the-order-an-accounts-loops-start-and-stop-in.md) |
+
+### Re-seed, after writing package 127
+
+The first article closes the loop on the two packages before it; the second is a
+count that the code itself enumerates.
+
+| What it found | What came of it |
+|---|---|
+| Three roads out resolve the runtime and the fourth does not, so the outcome road is the one that can act on an account the others would refuse. | Stated, linking both the runtime article and the two-mappings article. Each road is written up on its own elsewhere and none of those says what the four do not share |
+| A caller's own road is awaited after the host's routing, so it can neither stop it nor precede it. | Stated |
+| The four loops stopped by hand are exactly the four the stopping sequence is not given. | Stated as the division. Both halves were already written down in separate places and the complement was in neither |
+| The four stopped by hand each run on their own cadence, which would explain the split. | Not stated. Why the split falls there is not in this module, and the article gives the division and the three handed over, without a reason |
+
+Worth recording: a rationale was drafted and cut. The split is real and the article
+states it; the explanation — that the four stopped by hand answer to nothing outside
+themselves — is a reading of what those loops do, which lives in their own modules.
+The gate would not have caught it, since it carries no obligation word. What caught
+it was asking which line the sentence cites, and finding none.
 
 ## Package 126 — what a host refuses to be built as, and the two mappings an account lives in
 
@@ -9433,7 +9478,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1210 | An account's accounting wiring is written from inside its build, where its runtime is written only once the build has answered. | `launcher.py` 4355, against 3993 into 3994, past 3992 | package one hundred and twenty-six | is P126-02 |
 | H-1211 | The runtime is taken out again on both ways out, where nothing in the host takes an account out of the wiring. | `launcher.py` 4001 into 4002, or 4037-4038 | package one hundred and twenty-six | folds into P126-02 |
 | H-1212 | An arriving report reads the wiring by the account it names, where reaching an account reads the runtime and refuses where none stands. | `launcher.py` 2986, against 3969, then 3972 into 3973-3977 | package one hundred and twenty-six | folds into P126-02 |
+| H-1213 | Three of the four roads out resolve the account's runtime and refuse where none stands, where the road an outcome takes resolves none and reads the queue and the wiring instead. | `launcher.py` 3008-3009, and 3019-3020, and 3030-3031, into 3969, then 3972 into 3973-3977, against 2974, then 2985-2986 | package one hundred and twenty-seven | is P127-01 |
+| H-1214 | Where the settings carry a caller's own road, the host's routing runs first and the caller's is awaited after. | `launcher.py` 2996 into 2997, or 3001-3002, then 3003 | package one hundred and twenty-seven | folds into P127-01 |
+| H-1215 | The trading side is started only after all four roads are set, and starting it refuses outright where the host's loop has not been started. | `launcher.py` 3042, then 3043, past 3038-3040, with 2946 into 2947-2948 | package one hundred and twenty-seven | folds into P127-01 |
+| H-1216 | Seven loops are started in a fixed order, the timer one only where the account has one. | `launcher.py` 4668, then 4670 into 4671, then 4673, then 4674, then 4675, then 4676, then 4677 | package one hundred and twenty-seven | is P127-02 |
+| H-1217 | An ordinary stop stops four of them by hand, and hands the other three to the stopping sequence. | `launcher.py` 4004, then 4005, then 4006, then 4007, with 4018, and 4019, and 4020, into 4030 | package one hundred and twenty-seven | folds into P127-02 |
+| H-1218 | The four stopped by hand are exactly the four the sequence is not given. | `launcher.py` 4004-4007, against 4009-4029 | package one hundred and twenty-seven | folds into P127-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 07:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 08:00 UTC
