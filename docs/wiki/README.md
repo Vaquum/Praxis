@@ -21,6 +21,9 @@ the others where it appears.
 - [How the adapter reckons its headroom](atoms/how-the-adapter-reckons-its-headroom.md) — the request allowance it believes it has used drops to zero all at once when its window closes rather than fading, and the per-account order allowance never expires here at all.
 - [What the allowance headers are trusted for](atoms/what-the-allowance-headers-are-trusted-for.md) — each figure is taken only if it reads as a sensible whole number, and storing the request figure restarts its expiry window while storing the order figure restarts nothing.
 - [Which stated limits the adapter adopts](atoms/which-stated-limits-the-adapter-adopts.md) — of all the limits the venue states, only those matching an exact kind, span and span-count are taken up, so anything stated another way is read and discarded.
+- [How a venue answer becomes a record](atoms/how-a-venue-answer-becomes-a-record.md) — the fields of a venue's reply are picked out by name, so a reply leaving one out stops the reading, while an absent list of fills or of legs is read as an empty one, which refuses one record and lets the other through.
+- [Which health figures are read under the lock](atoms/which-health-figures-are-read-under-the-lock.md) — the lock is held only while the account's record is found and the clock gap read, and the share of the venue's allowance in use is worked out after it is let go, so one answer carries figures read at two moments.
+- [Which askings make their own request](atoms/which-askings-make-their-own-request.md) — the asking after a symbol's trading rules and the asking after how deep the market stands each build and send their own request rather than hand one to the code that sends again, so a passing failure in either goes straight back to the caller.
 - [What signing a request adds](atoms/what-signing-a-request-adds.md) — the query text is built once, signed over exactly that text, and the signature appended to it, so what is sent and what was signed cannot differ; a closed adapter refuses to make a connection at all.
 - [How a venue failure is sorted](atoms/how-a-venue-failure-is-sorted.md) — the status code alone decides most kinds of failure without the reply body being read at all, so a helpful message returned with a server error is discarded.
 - [What the four asking calls share](atoms/what-the-four-asking-calls-share.md) — the calls that ask after or cancel an order are built alike, and a caller-supplied name for a paired order goes out under one key when cancelling and a different one when asking.
@@ -668,8 +671,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 571
-articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
+Both sides are the subject, and Praxis is the side that has been written. 574
+articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -679,4 +682,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 02:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 02:30 UTC

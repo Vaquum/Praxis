@@ -2,12 +2,14 @@
 row: P113-02
 baseline: 49aa659
 created: 2026-11-14 10:00 UTC
-modified: 2026-11-14 10:00 UTC
+modified: 2026-11-14 11:30 UTC
 evidence:
   - claim: "An asking after no assets at all answers with nothing, before the venue is troubled"
     source: "`binance_adapter.py` 1851 into 1852"
   - claim: "Otherwise the whole account is asked for with no parameters, and the asked-for assets are picked out of what comes back"
     source: "`binance_adapter.py` 1854, then 1856-1858"
+  - claim: "An asking after what the key may do sends no parameters either, and builds its answer from two flags read by the demanding reading"
+    source: "`binance_adapter.py` 2084, then 2088"
   - claim: "An asking after trades refuses a starting name together with either end of a window"
     source: "`binance_adapter.py` 1896 into 1897-1898"
   - claim: "Both ends of that window are weighed for carrying a zone before anything is built"
@@ -28,6 +30,8 @@ Two askings about an account send very different things: one sends nothing and f
 An asking after no assets at all answers with nothing, before the venue is troubled. Otherwise the whole account is asked for with no parameters, and the asked-for assets are picked out of what comes back.
 
 So the filtering happens here rather than at the venue, and asking after one asset costs the same request as asking after twenty.
+
+An asking after what the key may do sends no parameters either, and builds its answer from two flags read by [the demanding reading](what-the-adapter-refuses-to-be-told.md).
 
 ## The asking that builds
 

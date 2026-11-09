@@ -2,7 +2,7 @@
 row: P4-53
 baseline: 49aa659
 created: 2026-10-14 10:10 UTC
-modified: 2026-10-14 10:10 UTC
+modified: 2026-11-14 11:30 UTC
 evidence:
   - claim: "A call marked repeatable gets three attempts, and one that is not gets a single attempt"
     source: "`binance_adapter.py` 580, the three at 96"
@@ -14,8 +14,8 @@ evidence:
     source: "`binance_adapter.py` 599-604 under the loop at 582, the half second at 97 and the three at 96"
   - claim: "Only the answer meaning too many requests is waited on, and any other escapes at once"
     source: "`binance_adapter.py` 606-608, the one at 85"
-  - claim: "That answer's own waiting time is honoured where it gives one, and the doubling stretch stands in otherwise"
-    source: "`binance_adapter.py` 609"
+  - claim: "That answer's own waiting time is honoured where it gives one, the doubling stretch stands in otherwise, and the wait is taken before the next attempt"
+    source: "`binance_adapter.py` 609, then 614"
   - claim: "The last attempt raises rather than waiting again"
     source: "`binance_adapter.py` 597-598"
 ---
@@ -33,7 +33,7 @@ Placing an order is sent as not repeatable, because a send that failed on the wa
 
 A failure that looks temporary waits a random stretch before the next attempt, drawn from a window that doubles: up to half a second before the second attempt, up to one before the third. Three attempts allow two waits, so the window never widens past that.
 
-Being turned away for calling too often is handled separately, and only the one answer that means too many requests is waited on at all — any other escapes immediately. Where that answer names its own waiting time, Praxis waits exactly that, and otherwise falls back to the doubling window.
+Being turned away for calling too often is handled separately, and only the one answer that means too many requests is waited on at all — any other escapes immediately. Where that answer names its own waiting time, Praxis waits exactly that, and otherwise falls back to the doubling window, taking that wait before the next attempt goes out.
 
 The last attempt never waits — it raises, and the caller deals with it.
 

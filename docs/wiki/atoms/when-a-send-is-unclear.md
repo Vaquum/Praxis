@@ -2,10 +2,10 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-10-14 08:50 UTC
+modified: 2026-11-14 11:30 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout, where the send carried a name of its own"
-    source: "`binance_adapter.py` 1637-1643 past the test at 1628, wrapping what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
+    source: "`binance_adapter.py` 1633-1636 under the wrap at 1637-1643, past the test at 1628, taking what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
   - claim: "A send with no order name of its own returns earlier and is not wrapped"
     source: "`binance_adapter.py` 1628-1631"
   - claim: "One rejection code is wrapped as a duplicate name, whatever its reason, where the send carried a name of its own"

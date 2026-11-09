@@ -2,14 +2,14 @@
 row: P112-02
 baseline: 49aa659
 created: 2026-11-14 09:30 UTC
-modified: 2026-11-14 09:30 UTC
+modified: 2026-11-14 11:30 UTC
 evidence:
   - claim: "Against the simulator the asking answers with nothing at all, before any check is made"
     source: "`binance_adapter.py` 1954 into 1955"
   - claim: "Both ends of the window are weighed for carrying a zone, and each is sent as whole milliseconds only where it was given"
     source: "`binance_adapter.py` 1957, and 1958, then 1962 into 1963, and 1965 into 1966"
-  - claim: "Money in and money out are asked after separately, and their answers joined afterwards"
-    source: "`binance_adapter.py` 1968-1970, then 1971-1973, joined at 1975"
+  - claim: "Money in and money out are asked after separately, their answers joined afterwards, and the whole handed back in order of the moment each movement happened"
+    source: "`binance_adapter.py` 1968-1970, then 1971-1973, joined at 1975, then 1985"
   - claim: "The paging walks from an offset that starts at nothing, each page asked with the window's parameters and that offset"
     source: "`binance_adapter.py` 2012-2013, then 2015, then 2016-2020, then 2021"
   - claim: "Every page's rows are added to one list"
@@ -33,7 +33,7 @@ Both ends are weighed for carrying a zone. Each is sent as whole milliseconds, a
 
 ## The two askings
 
-Money in and money out are asked after separately, and their answers joined afterwards. So each gets its own paging, and a failure part-way through the second leaves the first's pages fetched and discarded.
+Money in and money out are asked after separately, and their answers joined afterwards. So each gets its own paging, and a failure part-way through the second leaves the first's pages fetched and discarded. What survives both is handed back in order of the moment each movement happened, so the two kinds arrive interleaved rather than one after the other.
 
 ## The walk
 

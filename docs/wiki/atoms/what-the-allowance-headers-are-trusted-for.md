@@ -2,7 +2,7 @@
 row: P115-01
 baseline: 49aa659
 created: 2026-11-14 11:00 UTC
-modified: 2026-11-14 11:00 UTC
+modified: 2026-11-14 11:30 UTC
 evidence:
   - claim: "The used weight is taken from a header, read only where the header is there"
     source: "`binance_adapter.py` 2425, then 2427"
@@ -16,6 +16,10 @@ evidence:
     source: "`binance_adapter.py` 2434 into 2435, then 2437 into 2438-2439, then 2440 into 2441"
   - claim: "Keeping the order count restarts no window, so it stands until the next header replaces it"
     source: "`binance_adapter.py` 2441, carrying no companion to 2432"
+  - claim: "The warning is weighed only where a weight limit stands above nought"
+    source: "`binance_adapter.py` 2443"
+  - claim: "The share the message names is held at nought at the least, where the comparison that armed it is made on the figure as it stands"
+    source: "`binance_adapter.py` 2445, then 2448"
   - claim: "The warning is reckoned from the stored figure rather than the one that expires"
     source: "`binance_adapter.py` 2444, against 349-352"
   - claim: "It is given only on the crossing down, a flag remembering which side the last reckoning fell on"
@@ -39,9 +43,11 @@ So the two figures are taken with equal care and forgotten quite differently, an
 
 ## The warning
 
-Reckoned from the stored figure rather than the one that expires. So the warning can speak of weight the headroom reckoning would already treat as gone.
+Weighed only where a weight limit stands above nought. Reckoned from the stored figure rather than the one that expires. So the warning can speak of weight the headroom reckoning would already treat as gone.
 
 It is given only on the crossing down, a flag remembering which side the last reckoning fell on. So a long spell below the threshold warns once, and recovering above it arms the warning again.
+
+The share the message names is held at nought at the least, where the comparison that armed it is made on the figure as it stands. So a weight past the limit warns of nothing remaining rather than of less than nothing.
 
 ## Related
 

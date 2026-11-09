@@ -23,7 +23,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/secret_store.py` | full | P3-19, P32-01, P32-02, P4-03, P4-26 |
 | `praxis/core/live_only_modes.py` | full | P3-22 |
 | `praxis/infrastructure/alert_sink.py` | full | P3-20, P8-04 |
-| `praxis/core/domain/health_snapshot.py` | full | P3-15, P9-01, P9-02 |
+| `praxis/core/domain/health_snapshot.py` | full | P116-02, P3-15, P9-01, P9-02 |
 | `praxis/core/domain/modify_params.py` | full | P3-13, P4-09 |
 | `praxis/core/domain/interval_slice_modify.py` | full | P3-13, P4-09, P4-35 |
 | `praxis/core/bracket_exit_command_id.py` | full | P27-01, P7-04 |
@@ -34,7 +34,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/trading_state.py` | partial | N3-10, N4-04, N5-03, P1-01, P1-07, P2-12, P2-16, P2-19, P2-29, P2-30, P2-31, P2-33, P2-49, P3-07, P4-11, P4-12, P4-33, P4-36, P88-01, P88-02, P88-03, P88-04 |
 | `praxis/core/validate_trade_abort.py` | full | P1-04, P4-10 |
 | `praxis/core/domain/trade_outcome.py` | partial | P1-04, P2-18, P2-40, P2-42, P2-43 |
-| `praxis/infrastructure/binance_adapter.py` | partial | N3-01, N3-12, N5-03, N5-06, N7-11, P1-02, P1-04, P1-07, P1-09, P1-10, P108-01, P108-02, P108-03, P109-01, P109-02, P110-01, P110-02, P111-01, P111-02, P112-01, P112-02, P113-01, P113-02, P114-01, P114-02, P115-01, P115-02, P16-01, P2-11, P2-12, P2-13, P2-14, P2-17, P2-21, P2-22, P2-25, P2-27, P2-28, P2-45, P2-46, P3-14, P3-15, P3-17, P3-18, P3-19, P3-21, P3-26, P4-13, P4-45, P4-53, S-01 |
+| `praxis/infrastructure/binance_adapter.py` | full | N3-01, N3-12, N5-03, N5-06, N7-11, P1-02, P1-04, P1-07, P1-09, P1-10, P108-01, P108-02, P108-03, P109-01, P109-02, P110-01, P110-02, P111-01, P111-02, P112-01, P112-02, P113-01, P113-02, P114-01, P114-02, P115-01, P115-02, P116-01, P116-02, P116-03, P16-01, P2-11, P2-12, P2-13, P2-14, P2-17, P2-21, P2-22, P2-25, P2-27, P2-28, P2-45, P2-46, P3-14, P3-15, P3-17, P3-18, P3-19, P3-21, P3-26, P4-13, P4-45, P4-53, S-01 |
 | `praxis/trading.py` | full | N7-02, N7-11, N7-12, P1-01, P1-04, P1-07, P1-11, P1-12, P1-13, P100-01, P100-02, P101-01, P101-02, P102-01, P102-02, P102-03, P103-01, P103-02, P104-01, P104-02, P105-01, P105-02, P106-01, P106-02, P107-01, P107-02, P2-11, P2-12, P2-24, P2-25, P2-27, P2-32, P2-46, P3-16, P3-17, P3-18, P3-22, P3-26, P4-06, P4-10, P4-20, P4-22, P4-23, P4-31, P4-32, P4-42, P4-43, P4-44, P4-50, P4-51, P4-55, P4-58, P4-60, P98-01, P98-02, P98-03, P99-01, P99-02, P99-03, S-01, S-03, S-04, S-05 |
 | `praxis/trading_inbound.py` | full | P2-12, P29-01, P3-19, S-01, S-03, S-04 |
 | `praxis/core/validate_trade_command.py` | full | P2-14, P2-22, P2-24, P2-27, P2-28, P4-04, P4-08, P4-33, P70-01, P70-02, P70-03, P70-04, P70-05, P70-06 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here: 83 are `full` and 5 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here: 84 are `full` and 4 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:30 UTC

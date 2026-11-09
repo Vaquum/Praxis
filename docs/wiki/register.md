@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 570 not.**
+**6 of them reviewed, 573 not.**
 
 ## Package 1
 
@@ -856,6 +856,62 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 116 — how a venue answer becomes a record, which health figures are read under the lock, and which askings make their own request
+
+Scope: the readings that turn a venue answer into a record Praxis keeps, the lock
+over the health figures, and the two askings that build their own request — the last
+of a module the ledger marks `partial`. After the package before this one, thirty-nine
+of its five hundred and thirty-four statements were uncited. None of the three
+subjects is in an article. Nothing is left for a later package, and the cell moves to
+`full`.
+
+### Merge and promote, package 116
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1123 | A venue trade, a submitted order's answer and an order list are each built from fields read by name. | Promote. None of the four readings is in an article, and a field the venue leaves out stopping the reading is what reading by name means |
+| Row H-1124 | Fills and legs are each read with an empty list standing in for one absent, where a list with no legs is refused outright and a submit with no fills is built all the same. | Merge with H-1123. The same leniency ending in a refusal on one side and a record on the other is the finding |
+| Row H-1125 | Every fill read off a submitted order is marked a taker, where a venue trade reads its own maker flag. | Merge with H-1123 |
+| Row H-1126 | An execution report's kind is looked up in a fixed mapping and one the mapping does not hold stops the reading, its order type worked out from two fields where every other is read from one. | Merge with H-1123 |
+| Row H-1127 | The lock over the health figures is held for the tracker lookup and the drift together, where the allowance in use is reckoned after it is let go. | Promote. The lock's reach is in no article, and two figures of one answer being read at two moments is what the reach costs |
+| Row H-1128 | An account the adapter holds no tracker for is answered with a snapshot carrying the allowance and the drift alone. | Merge with H-1127 |
+| Row H-1129 | Each of the three addresses the adapter is built with has a trailing slash taken off. | Merge with H-1130. The join onto the stored address is what the stripping is for |
+| Row H-1130 | Two askings make their own request on the session instead of handing one to the retrying to build. | Promote. Which askings stand outside the retrying is in no article, and one attempt being all either gets is what it means |
+| Row H-1131 | Each of the two carries two tries, the making of the request under one and the reading of the answer under another. | Merge with H-1130 |
+
+Three subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P116-01 | How a venue answer becomes a record | written | [how-a-venue-answer-becomes-a-record.md](atoms/how-a-venue-answer-becomes-a-record.md) |
+| P116-02 | Which health figures are read under the lock | written | [which-health-figures-are-read-under-the-lock.md](atoms/which-health-figures-are-read-under-the-lock.md) |
+| P116-03 | Which askings make their own request | written | [which-askings-make-their-own-request.md](atoms/which-askings-make-their-own-request.md) |
+
+### Re-seed, after writing package 116
+
+The package that closes a module, so the findings are what the leftovers held rather
+than what a subject was scoped for.
+
+| What it found | What came of it |
+|---|---|
+| Fills and legs are read with the same leniency, and the one is built with none where the other is refused for having none. | Stated as the pair it is. Neither reading says anything about the other, and the difference is in what each is building |
+| A fill read off a submitted order is marked a taker, where a venue trade reads its own maker flag. | Stated as the one field the two readings part on |
+| Two askings make their own request on the session, where the signed road hands one to the retrying to build. | Promoted to an article of its own. One attempt being all either gets does not appear in either routine — it is what making the request there instead of handing it over amounts to |
+| The lock over the health figures is let go before the allowance in use is reckoned. | Stated, with what it costs: the drift and the allowance in one answer are read at two moments |
+| Six small statements were left over: a rate-limited attempt's wait, the send inside the order wrap, the ordering of fund history, the asking after what a key may do, and the two lines the headroom warning is weighed under. | Each widened into the claim of an existing article that already covered the routine around it |
+
+Worth recording about closing a module rather than about the module: a closing
+package has no subject handed to it. The three it ended with came from reading the
+leftovers as a list of statements and asking what each belonged with, and two of the
+three — the lock's reach, and which askings stand outside the retrying — are subjects
+no earlier package would have scoped, because each is a fact about two routines that
+neither routine states.
+
+Three statements of the module are left uncited and are an exclusion rather than work
+outstanding: two are log calls, and one is the signature line of a routine declared
+inside another to be handed over as something to call. The gate refuses all three
+kinds as evidence for a claim.
 
 ## Package 115 — what the allowance headers are trusted for, and which stated limits are adopted
 
@@ -8809,7 +8865,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-962 | The check against the smallest worth is made on the amount filled, and an account the ledger has no entry for is refused as an order turned away. | `server.py` 474 then 489, and 491 into 492-495, then 496 into 501-502 | package ninety-two | folds into P92-02 |
 | H-963 | The money the order came to is summed from the same levels, price times amount at each. | `server.py` 520, answered at 522-524 | package ninety-two | folds into P92-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
+| H-1123 | A venue trade, a submitted order's answer and an order list are each built from fields read by name. | `binance_adapter.py` 1090-1104, and 948-951, and 1070-1075 | package one hundred and sixteen | is P116-01 |
+| H-1124 | Fills and legs are each read with an empty list standing in for one absent, where a list with no legs is refused outright and a submit with no fills is built all the same. | `binance_adapter.py` 937-947, and 1054-1061, then 1063 into 1064-1068, against 948-951 | package one hundred and sixteen | folds into P116-01 |
+| H-1125 | Every fill read off a submitted order is marked a taker, where a venue trade reads its own maker flag. | `binance_adapter.py` 937-947, against 1090-1104 | package one hundred and sixteen | folds into P116-01 |
+| H-1126 | An execution report's kind is looked up in a fixed mapping and one the mapping does not hold stops the reading, its order type worked out from two fields. | `binance_adapter.py` 2514, then 2515 into 2516, or 2518-2519, with 2521 | package one hundred and sixteen | folds into P116-01 |
+| H-1127 | The lock over the health figures is held for the tracker lookup and the drift together, where the allowance in use is reckoned after it is let go. | `binance_adapter.py` 312, then 2390, then 2391, then 2392, then 2394 | package one hundred and sixteen | is P116-02 |
+| H-1128 | An account the adapter holds no tracker for is answered with a snapshot carrying the allowance and the drift alone. | `binance_adapter.py` 2395 into 2396-2399 | package one hundred and sixteen | folds into P116-02 |
+| H-1129 | Each of the three addresses the adapter is built with has a trailing slash taken off. | `binance_adapter.py` 294, then 295, then 296 | package one hundred and sixteen | folds into P116-03 |
+| H-1130 | Two askings make their own request on the session instead of handing one to the retrying to build. | `binance_adapter.py` 2174-2178, and 2264-2267, against 732-734 | package one hundred and sixteen | is P116-03 |
+| H-1131 | Each of the two carries two tries, the making of the request under one and the reading of the answer under another. | `binance_adapter.py` 2172, and 2262, then 2219, and 2281 | package one hundred and sixteen | folds into P116-03 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 02:30 UTC
