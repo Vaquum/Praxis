@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 687 not.**
+**6 of them reviewed, 689 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 175 — what a scheme's settings are rebuilt from, and the entry report a restart makes good
+
+Scope: the rebuilding of a schedule's settings from what its start recorded, and the
+report a restart sends for an entry that filled before a crash, part of a module the
+ledger marks `partial`. After the package before this one, three hundred and eighty-one
+of its two thousand four hundred and eighty-seven statements were uncited. Neither
+subject is in an article.
+
+### Merge and promote, package 175
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1583 | An equal-slice schedule is rebuilt from the count of parts and the gap, and a weighted one from the gap and the weights, taking no count. | Promote. The rebuilding is in no article, and the weights carrying the count is the finding |
+| Row H-1584 | Any other mode is refused as not resumable, with the mode named. | Merge with H-1583 |
+| Row H-1585 | All three figures were recorded on the start, so the command's own settings need not survive. | Merge with H-1583 |
+| Row H-1586 | The report has two statuses where a changed command's has three, this road being reached only once something has filled. | Promote. The report is in no article, and the missing third status is the finding |
+| Row H-1587 | A command already marked ended is passed over. | Merge with H-1586 |
+| Row H-1588 | The bracket is taken off the live brackets before the report is made. | Merge with H-1586 |
+| Row H-1589 | The figures are the admitted totals, with an average price only where something has filled and no reason. | Merge with H-1586 |
+| Row H-1590 | It is reached only where the entry order has ended and filled above nothing. | Merge with H-1586 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P175-01 | What a scheme's settings are rebuilt from | written | [what-a-schemes-settings-are-rebuilt-from.md](atoms/what-a-schemes-settings-are-rebuilt-from.md) |
+| P175-02 | The entry report a restart makes good | written | [the-entry-report-a-restart-makes-good.md](atoms/the-entry-report-a-restart-makes-good.md) |
+
+### Re-seed, after writing package 175
+
+The second subject is a status that cannot occur. Three reports in this module work a
+status out from the same figures, and this one has two arms where another has three
+because its caller has already settled the third.
+
+| What it found | What came of it |
+|---|---|
+| The report has no nothing-filled arm, its caller having established a fill. | Stated, with the link to the report that does have one |
+| The weighted rebuild takes no count of parts. | Stated. The weights are one per part, so the count is in them |
+| All three figures live on the start rather than the command. | Stated. The command can be gone and the schedule still comes back as it was |
+| The bracket comes off the live list before the report is made. | Stated. A second pass finds nothing to make good |
+
+Worth recording: a missing branch is worth a sentence only when the reader can see
+where it would have gone. Beside the report that has three arms, two arms is a fact;
+alone, it is a shrug.
 
 ## Package 174 — what calling off a scheme's children leaves behind, and what a boot's rejection of an orphan says
 
@@ -12059,7 +12104,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1580 | The record says refused with the boot's own reason, and the command is marked ended as it goes down. | `execution_manager.py` 2297-2304, the reason set at 2303, then 2305, then 2306, then 2307 | package one hundred and seventy-four | folds into P174-02 |
 | H-1581 | The report is handed out with retries. | `execution_manager.py` 2330 | package one hundred and seventy-four | folds into P174-02 |
 | H-1582 | A name the venue does not know, and a name whose cancel failed any other way, both stay on the live list. | `execution_manager.py` 6459, then 6460, or 6461, then 6468 | package one hundred and seventy-four | folds into P174-01 |
+| H-1583 | An equal-slice schedule is rebuilt from the count of parts and the gap, and a weighted one from the gap and the weights, taking no count. | `execution_manager.py` 539, then 540-542, or 544, then 545-547, against 540-542 | package one hundred and seventy-five | is P175-01 |
+| H-1584 | Any other mode is refused as not resumable, with the mode named. | `execution_manager.py` 549, then 550 | package one hundred and seventy-five | folds into P175-01 |
+| H-1585 | All three figures were recorded on the start, so the command's own settings need not survive. | `execution_manager.py` 5758-5775, the three set at 5767, and 5768, and 5770-5774 | package one hundred and seventy-five | folds into P175-01 |
+| H-1586 | The status is filled where the target is reached and part-filled otherwise, with no third arm. | `execution_manager.py` 4793, then 4794-4795 | package one hundred and seventy-five | is P175-02 |
+| H-1587 | A command already marked ended is passed over. | `execution_manager.py` 4786, then 4787 | package one hundred and seventy-five | folds into P175-02 |
+| H-1588 | The bracket is taken off the live brackets before the report is made. | `execution_manager.py` 4746, then 4752 | package one hundred and seventy-five | folds into P175-02 |
+| H-1589 | The figures are the admitted totals, with an average price only where something has filled and no reason. | `execution_manager.py` 4790-4792, then 4797-4808, the reason left empty at 4807 | package one hundred and seventy-five | folds into P175-02 |
+| H-1590 | It is reached only where the entry order has ended and filled above nothing. | `execution_manager.py` 4743, then 4748, then 4752 | package one hundred and seventy-five | folds into P175-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 07:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 08:00 UTC

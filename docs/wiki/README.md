@@ -689,6 +689,8 @@ the others where it appears.
 - [Which ladders a restart passes over](atoms/which-ladders-a-restart-passes-over.md) — a restart walks every ladder the replay found started, and a run of readings decides which are brought back.
 - [What a resumed ladder's grid is taken from](atoms/what-a-resumed-ladders-grid-is-taken-from.md) — the live grid comes from the last change that completed rather than from the start, which is what makes the names of the resting rungs findable.
 - [What stops a scheme being resumed](atoms/what-stops-a-scheme-being-resumed.md) — a fed-out order whose plan can no longer be worked out is passed over silently and not ended either, so it waits for the pass that closes orphaned work, and a scheme that recorded only its start is treated as still going.
+- [What a scheme's settings are rebuilt from](atoms/what-a-schemes-settings-are-rebuilt-from.md) — a schedule comes back from the figures its own start recorded, so the instruction that asked for it need not survive.
+- [The entry report a restart makes good](atoms/the-entry-report-a-restart-makes-good.md) — a fill that reached the record but never reached Nexus is reported after a restart, and only where something actually filled.
 - [What a resumed scheme comes back holding](atoms/what-a-resumed-scheme-comes-back-holding.md) — a replan replaces the plan the start recorded outright, a child that finished while the host was down is not counted as live, and a scheme with nothing left to wake it is handed the present moment.
 - [What a restart puts back](atoms/what-a-restart-puts-back.md) — the live work rebuilt from the record, each kind at the point it had reached, with nothing already at the venue sent again.
 - [What stops a bracket being resumed](atoms/what-stops-a-bracket-being-resumed.md) — six tests pass a protected entry over, and a protection that failed and was then restored comes back active because the later record clears the mark the earlier one set.
@@ -785,7 +787,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 688
+Both sides are the subject, and Praxis is the side that has been written. 690
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -796,4 +798,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 07:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 08:00 UTC
