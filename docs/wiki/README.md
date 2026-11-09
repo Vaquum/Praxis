@@ -82,6 +82,8 @@ the others where it appears.
 - [Order placement](atoms/how-an-order-is-placed.md) — placing happens in two stages: recording the work and returning, then reaching the venue on a later pass.
 - [What a queue reservation is for](atoms/what-a-queue-reservation-is-for.md) — a place in the queue is held before the command is put there, so that two commands admitted at the same moment cannot both be told there is room.
 - [What a caller-supplied command name must be](atoms/what-a-caller-supplied-command-name-must-be.md) — a name the caller chooses is held to three demands a made-up name never has to meet, being trusted instead by the way it is made.
+- [Which failed protections a boot re-flattens](atoms/which-failed-protections-a-boot-re-flattens.md) — the recovery runs only for accounts whose settings ask for a flatten at all, and it tells a flatten that went out from one that never did by asking the venue rather than reading the record.
+- [How a single order's amend is named](atoms/how-a-single-orders-amend-is-named.md) — the replacement order's name is worked out from a count of how many times that instruction has been changed before, which is what makes two changes of one order differ.
 - [How an order is named](atoms/how-an-order-is-named.md) — Praxis works an order's name out rather than drawing it at random, so the same inputs always give the same name.
 - [The likely-price check](atoms/how-the-likely-price-is-checked.md) — refusing an order that would trade too far from the market price.
 - [Estimating the likely price](atoms/how-the-likely-price-is-worked-out.md) — the average price Praxis expects an order to get, worked out by walking the offers standing at the venue.
@@ -743,7 +745,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 646
+Both sides are the subject, and Praxis is the side that has been written. 648
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -754,4 +756,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 21:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 21:30 UTC

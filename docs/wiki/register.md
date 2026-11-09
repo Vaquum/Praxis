@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 645 not.**
+**6 of them reviewed, 647 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 154 — which failed protections a boot re-flattens, and how a single order's amend is named
+
+Scope: the boot pass that re-sends a flatten a failed protection should have placed,
+and the naming of the order that replaces an amended one, part of a module the ledger
+marks `partial`. After the package before this one, seven hundred and seventy-nine of
+its two thousand four hundred and eighty-seven statements were uncited. Neither
+subject is in an article. The rest of the module is left for the packages after this,
+and the cell stays `partial`.
+
+### Merge and promote, package 154
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1414 | The pass ends for an account the manager does not hold, and for one whose settings answer anything but flatten-then-halt. | Promote. The recovery is in no article, and running only where the settings ask for a flatten is the first thing to say about it |
+| Row H-1415 | One walk gathers the bracket starts and the protections reported failed, and each failed one has its flatten's name worked out from the mode, the command and the flatten's place. | Merge with H-1414 |
+| Row H-1416 | A flatten already ended having filled something is passed over, and so is a failed protection with no bracket start recorded. | Merge with H-1414 |
+| Row H-1417 | The venue is asked about that flatten, a name it is unaware of read as nothing and any other failure reported and left for a later reconcile. | Merge with H-1414 |
+| Row H-1418 | A flatten the venue says filled something is reconciled against that answer and the command passed over. | Merge with H-1414 |
+| Row H-1419 | A command with no order, or whose order is anything but a resting limit, is reported and the change dropped. | Promote. The naming is in no article, and the count that distinguishes two amends of one command is the finding |
+| Row H-1420 | The new price and part-shown amount are worked out from the command and the change together, and a change yielding no price is dropped. | Merge with H-1419 |
+| Row H-1421 | The new order's name is worked out from the mode, the command, and a count of that command's amends raised by one. | Merge with H-1419. The count is what makes the names of a twice-amended order differ |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P154-01 | Which failed protections a boot re-flattens | written | [which-failed-protections-a-boot-re-flattens.md](atoms/which-failed-protections-a-boot-re-flattens.md) |
+| P154-02 | How a single order's amend is named | written | [how-a-single-orders-amend-is-named.md](atoms/how-a-single-orders-amend-is-named.md) |
+
+### Re-seed, after writing package 154
+
+Both subjects rest on a name worked out rather than stored, which this module has now
+produced in four different places.
+
+| What it found | What came of it |
+|---|---|
+| The boot re-flatten runs only where the settings answer flatten-then-halt, whatever the record holds. | Stated as the first thing about it. A deployment answering otherwise never re-flattens, and the record of a failed protection does not change that |
+| An amend's replacement name is worked out from a count of that command's amends. | Stated, linking the restart that rebuilds the count by counting initiations in the record |
+| A change naming only a price keeps the part-shown amount, and one naming neither is dropped. | Stated |
+| A flatten the venue says filled something is reconciled rather than re-sent. | Stated. The pass distinguishes a flatten that went out from one that never did, by asking the venue rather than by reading the record |
+
+Worth recording: four places now work a name out rather than store it — a ladder's
+rungs, a bracket's entry and protection, a boot's flatten, and now an amend's
+replacement. Each uses the same working-out with a different sequence number or
+retry count, and in each the article's job is to say which number distinguishes
+the names. A naming scheme is a mechanism and deserves to be read as one.
 
 ## Package 153 — how a bracket's news is told apart, and what ending a scheme forgets
 
@@ -10909,7 +10956,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1411 | The command is marked terminal, dropped from the held commands, and any abort against it dropped, all before the outcome is written down. | `execution_manager.py` 8426, then 8427, then 8428, ahead of 8442-8449 | package one hundred and fifty-three | folds into P153-02 |
 | H-1412 | A scheme that filled something and closes its position has a closing record written and projected before the outcome. | `execution_manager.py` 8430-8432 into 8433-8438, then 8439, then 8440 | package one hundred and fifty-three | folds into P153-02 |
 | H-1413 | The outcome carries the command's whole amount as its target, and the average price is the money over the amount. | `execution_manager.py` 8407-8409, then 8411-8424, the target at 8416 | package one hundred and fifty-three | folds into P153-02 |
+| H-1414 | The pass ends for an account the manager does not hold, and for one whose settings answer anything but flatten-then-halt. | `execution_manager.py` 7908, then 7909 into 7910, or 7912-7915 into 7916 | package one hundred and fifty-four | is P154-01 |
+| H-1415 | One walk gathers the bracket starts and the protections reported failed, and each failed one has its flatten's name worked out. | `execution_manager.py` 7918-7919, then 7920, then 7921 into 7922, or 7923 into 7924, then 7926, then 7927-7929 | package one hundred and fifty-four | folds into P154-01 |
+| H-1416 | A flatten already ended having filled something is passed over, and so is a failed protection with no bracket start recorded. | `execution_manager.py` 7930, then 7931-7934 into 7935, or 7938, then 7939 into 7947 | package one hundred and fifty-four | folds into P154-01 |
+| H-1417 | The command is rebuilt from that start, the protective side taken as the opposite, and the venue asked about the flatten. | `execution_manager.py` 7949, then 7950, then 7951-7953, then 7955-7960, then 7961 into 7962, or 7963 into 7970 | package one hundred and fifty-four | folds into P154-01 |
+| H-1418 | A flatten the venue says filled something is reconciled against that answer and the command passed over. | `execution_manager.py` 7972 into 7973-7980, then 7982 | package one hundred and fifty-four | folds into P154-01 |
+| H-1419 | A command with no order, or whose order is anything but a resting limit, is reported and the change dropped. | `execution_manager.py` 8680 into 8684, or 8686, then 8687 | package one hundred and fifty-four | is P154-02 |
+| H-1420 | The new price and part-shown amount are worked out from the command and the change together, and a change yielding no price is dropped. | `execution_manager.py` 8688, then 8689 into 8693 | package one hundred and fifty-four | folds into P154-02 |
+| H-1421 | The new order's name is worked out from the mode, the command, and a count of that command's amends raised by one, and the initiation recorded. | `execution_manager.py` 8695, then 8696-8698, then 8700-8712, then 8713 | package one hundred and fifty-four | folds into P154-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 21:30 UTC
