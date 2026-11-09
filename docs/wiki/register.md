@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 525 not.**
+**6 of them reviewed, 527 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 96 — what the spine reads, and how it closes a write
+
+Scope: the four readings the spine's migrations lean on and the pair that closes a
+write, part of a module the ledger marks `partial`. After the package before this
+one, seventy-two of its two hundred and seventy-one statements were uncited. What
+the readings insist on, and how a write is closed, are in no article. The appending
+and the reads a caller makes are left for the package after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 96
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-984 | A reading of the new deduplication rows casts each part of its triples to the kind the comparison needs, where a reading of the legacy rows casts nothing. | Promote. The readings are in no article, and two sets built under different rules being compared is the thing a reader would assume away |
+| Row H-985 | A reading of one stored fact answers it as text, or answers nothing where no row came back. | Merge with H-984 |
+| Row H-986 | The scan over the fill payloads builds its one refusal message before it reads a row, and uses it for a payload that will not parse, one missing a field, and one whose field is not text. | Merge with H-984. One message for three failures means it says what was needed rather than what was wrong |
+| Row H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | Promote. The pair is in no article, and the asymmetry is the subject |
+| Row H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | Merge with H-987 |
+| Row H-989 | The rollback a failed commit asks for is the same guarded one, so a rollback's failure cannot stand in for the commit's. | Merge with H-987 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P96-01 | What the spine's four readings insist on | written | [what-the-spines-four-readings-insist-on.md](atoms/what-the-spines-four-readings-insist-on.md) |
+| P96-02 | How the spine closes a write | written | [how-the-spine-closes-a-write.md](atoms/how-the-spine-closes-a-write.md) |
+
+### Re-seed, after writing package 96
+
+The harvest rows were written split this package rather than being split after the
+gate refused them, which is the fourth package the split has come up in.
+
+| What it found | What came of it |
+|---|---|
+| The two sets the migration compares are built under different casting rules, one casting each part and the other casting nothing. | Stated, with the condition it rests on: they agree only while the legacy rows hold what the casting would have made of them |
+| The scan's one refusal message is built before any row is read and serves three different failures. | Stated as what that costs: the message says what was needed rather than what was wrong |
+| A failed rollback is reported and goes no further, where a failed commit raises. | Stated as a deliberate asymmetry, with the reasoning from what each failure leaves the caller able to do |
+| A rollback that fails leaves the connection in a state nothing corrects and nothing above is told. | Stated. It is the cost of the asymmetry and belongs beside it |
+
+Worth recording: four packages running have had a harvest row whose sentence joined
+two mutually exclusive branches with "and" or "too". The rows here were split as
+they were written. The tell is in the sentence, not the code — a row that needs
+"and ... too" to describe one observation is describing two, and the gate has been
+right every time.
 
 ## Package 95 — what the spine's migrations add, prove and drop
 
@@ -7755,6 +7800,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-980 | A file with no old table is left alone and a table holding nothing is dropped at once, while a table holding rows demands the symbol the migration before recorded. | `event_spine.py` 670 into 671, or 673 then 675 into 676-677 then 679, or 681 then 683 into 684-688 | package ninety-five | is P95-02 |
 | H-981 | The rows are copied, read back and weighed against what was there, and any that did not arrive refuses the drop, naming how many are missing. | `event_spine.py` 690-691, then 693, then 694, then 696 into 697-701 | package ninety-five | folds into P95-02 |
 | H-983 | Only once every row is accounted for is the old table dropped. | `event_spine.py` 703-704 | package ninety-five | folds into P95-02 |
+| H-984 | A reading of the new deduplication rows casts each part of its triples to the kind the comparison needs, where a reading of the legacy rows casts nothing. | `event_spine.py` 739 into 740-743, against 797 into 798 | package ninety-six | is P96-01 |
+| H-985 | A reading of one stored fact answers it as text, or answers nothing where no row came back. | `event_spine.py` 812-813, then 815 | package ninety-six | folds into P96-01 |
+| H-986 | The scan over the fill payloads builds its one refusal message before it reads a row. | `event_spine.py` 758-762, ahead of 765 | package ninety-six | folds into P96-01 |
+| H-990 | That one message serves a payload that will not parse, one missing a field it needs, and one whose field is not text. | `event_spine.py` 767-771 into 772-773, or 775-779 into 780 | package ninety-six | folds into P96-01 |
+| H-991 | Each row's symbol and its triple are gathered, and the two sets answered together. | `event_spine.py` 782, and 783, then 785 | package ninety-six | folds into P96-01 |
+| H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
+| H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
+| H-989 | The rollback a failed commit asks for is the same guarded one. | `event_spine.py` 924, into 901-904 | package ninety-six | folds into P96-02 |
 | H-967 | A target naming several kinds takes the first that is not the none-kind, a sequence target turns every item into the first kind it names, and a record target turns only the keys its fields name. | `event_spine.py` 340-341 into 342 then 343, or 345-346 into 347-348, or 358 into 359-360 then 361 | package ninety-three | is P93-02 |
 | H-968 | Any key a record's fields do not name is dropped in silence. | `event_spine.py` 362, then 363 | package ninety-three | folds into P93-02 |
 | H-969 | An event's kind is looked up by the name stored beside it and an unknown name raises, the payload parsed before any field is looked at. | `event_spine.py` 381 into 382-384, then 385 | package ninety-three | is P93-03 |
@@ -7766,4 +7819,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 06:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 07:00 UTC

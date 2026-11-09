@@ -278,6 +278,8 @@ the others where it appears.
 - [How a value is written out and read back](atoms/how-a-value-is-written-out-and-read-back.md) — exact decimal figures go to storage as text and are rebuilt from that text, so no precision is lost, while anything the writer cannot handle throws rather than being stored in some other shape.
 - [What opening the spine does to its schema](atoms/what-opening-the-spine-does-to-its-schema.md) — a file written by a later build is refused rather than read, an up-to-date one has its version left untouched, and the whole bringing-forward is committed once with any failure rolled back.
 - [What the first migrations add and prove](atoms/what-the-first-migrations-add-and-prove.md) — the seal columns are added only when absent and no seal is filled in for older records, and the migration that follows refuses outright rather than guess when it cannot attribute a leftover row or pin the file to one coin pair.
+- [What the spine's four readings insist on](atoms/what-the-spines-four-readings-insist-on.md) — the old and new deduplication rows are read under different conversion rules and then compared, and the scan over stored fills builds one refusal message in advance for every way a row can be wrong.
+- [How the spine closes a write](atoms/how-the-spine-closes-a-write.md) — a failed save is reported and raised so the caller knows nothing was written, while a failed undo is only logged, because by then there is nothing left for the caller to do about it.
 - [What the last migration drops](atoms/what-the-last-migration-drops.md) — the leftover rows are copied, read back and counted before the old table is removed, because removing it is the step a repeat run cannot undo, so a copy that lost rows leaves both tables in place.
 - [What the spine asks of its own identity](atoms/what-the-spine-asks-of-its-own-identity.md) — it refuses a file whose recorded chain settings differ from the build's, saying something different when a setting is missing than when it disagrees, because a lost record and a foreign chain are different problems.
 - [The three shapes a coercion looks inside](atoms/the-three-shapes-a-coercion-looks-inside.md) — a field that allows several types always becomes the first of them, a list or pair turns every item into the first type it names, and a nested record keeps only the fields it still declares.
@@ -623,7 +625,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 526
+Both sides are the subject, and Praxis is the side that has been written. 528
 articles exist. Of Praxis's own source files 81 are accounted for in full and 7 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -634,4 +636,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 06:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 07:00 UTC
