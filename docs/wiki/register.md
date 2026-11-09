@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 587 not.**
+**6 of them reviewed, 589 not.**
 
 ## Package 1
 
@@ -856,6 +856,56 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 124 — how the mark samplers are started and stopped, and where the host's two sets of background work differ
+
+Scope: the samplers that write down what positions are worth, and what they share
+with the pollers that keep the book, part of a module the ledger marks `partial`.
+After the package before this one, three hundred and fifty-three of its twelve
+hundred and one statements were uncited. The samplers' own building is in no article,
+and the pattern the two sets are built from is in none. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 124
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1191 | Starting the samplers does nothing where the loop or the record is missing, and the building does nothing where samplers already stand. | Promote. The building is in no article, and starting twice building one set follows from it |
+| Row H-1192 | The cadence and the epoch are each read once before any sampler is built, so every sampler in a set shares one cadence. | Merge with H-1191 |
+| Row H-1193 | Each sampler is started as it is built, and a failure part way stops every one already started and raises past the line that would record the set. | Merge with H-1191. A later build starting from an empty set is the consequence |
+| Row H-1194 | Stopping waits ten seconds for the whole walk, keeps the list where the walk fails, and clears it only where the walk answered. | Merge with H-1191 |
+| Row H-1195 | The samplers and the book pollers are built from one pattern, sharing the handover to the loop, the ten-second wait, the stop-everything-started on failure, and the keeping of the list on a failed stop. | Promote. The pattern is in no article, and the four departures from it are what each set is for |
+| Row H-1196 | One sampler is built per account and one poller per distinct symbol across those same accounts. | Merge with H-1195 |
+| Row H-1197 | A sampler's cadence is read from the environment on every build, where a poller's is a figure standing in the module. | Merge with H-1195 |
+| Row H-1198 | A sampler writes to the host's record under the epoch, where a poller writes into a cache the host keeps. | Merge with H-1195 |
+| Row H-1199 | Starting the samplers stops where the record is missing, and starting the pollers where the venue is missing. | Merge with H-1195 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P124-01 | How the mark samplers are started and stopped | written | [how-the-mark-samplers-are-started-and-stopped.md](atoms/how-the-mark-samplers-are-started-and-stopped.md) |
+| P124-02 | Where the host's two sets of background work differ | written | [where-the-hosts-two-sets-of-background-work-differ.md](atoms/where-the-hosts-two-sets-of-background-work-differ.md) |
+
+### Re-seed, after writing package 124
+
+The pattern the two sets share was already written up for the pollers alone, one
+stage at a time, so the work here was to find what the samplers do that the pollers
+do not.
+
+| What it found | What came of it |
+|---|---|
+| The two sets are built from one pattern line for line, and depart at four points: how many of each, what settles the cadence, where each writes, and what each needs to start. | Promoted to an article of its own. Three articles already describe the pollers' stages and none says the samplers are the same code |
+| The cadence is read once before any sampler is built, so every sampler in a set shares one, whatever each account's own settings said. | Stated |
+| A failure part way raises past the line that records the set, so a later build starts from an empty set although samplers were running a moment before. | Stated. The stopping of those samplers is in the handler, so nothing is left running — the point is what the next build sees |
+| A host with a record and no venue samples and does not poll, and one with a venue and no record polls and does not sample. | Stated. The two guards test different things, which is the only reason the two sets can run apart |
+
+Worth recording: an article about a pattern two things share is a different kind of
+article, and it earns its place only where the sharing is invisible from either one.
+Here three articles already covered the pollers' building, cadence, and stopping, and
+a reader of all three would have no way to know the samplers are built by the same
+code — nor that the one figure a setting can reach is the samplers' cadence and not
+the pollers'.
 
 ## Package 123 — what the operator's two sweeps answer with, and what a sweep does to each item
 
@@ -9268,7 +9318,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1188 | Only a command whose abort raised nothing reaches the cancelling's answer, where a trade whose order raised reaches the closing's answer carrying an error. | `launcher.py` 3650, under the loop at 3640, against 3684 into 3686, or 3688 | package one hundred and twenty-three | folds into P123-02 |
 | H-1189 | Both asks then resolve the account's runtime and answer with whatever refusal that gives. | `launcher.py` 3575, then 3577 into 3578, and 3603, then 3605 into 3606 | package one hundred and twenty-three | folds into P123-01 |
 | H-1190 | The account's name is read off that runtime rather than off the request, and any failure in a sweep is answered as a named error at five hundred. | `launcher.py` 3582, and 3610, with 3586 into 3587-3588, and 3615 into 3616-3617 | package one hundred and twenty-three | folds into P123-01 |
+| H-1191 | Starting the samplers does nothing where the loop or the record is missing, and the building does nothing where samplers already stand. | `launcher.py` 3699 into 3700, with 3717 into 3718 | package one hundred and twenty-four | is P124-01 |
+| H-1192 | The cadence and the epoch are each read once before any sampler is built. | `launcher.py` 3720, then 3721, then 3722, then 3723 | package one hundred and twenty-four | folds into P124-01 |
+| H-1193 | Each sampler is started as it is built, and a failure part way stops every one already started and raises past the line that would record the set. | `launcher.py` 3731, then 3733-3734, then 3736-3743, then 3744, then 3745, with 3747 into 3748-3751, against 3753 | package one hundred and twenty-four | folds into P124-01 |
+| H-1194 | Stopping waits ten seconds for the whole walk, keeps the list where the walk fails, and clears it only where the walk answered. | `launcher.py` 3758 into 3759, or 3761, then 3763-3765, then 3767, then 3770, with 3771 into 3772, against 3775 | package one hundred and twenty-four | folds into P124-01 |
+| H-1195 | The samplers and the book pollers are built from one pattern, sharing the handover to the loop, the ten-second wait, the stop-everything-started on failure, and the keeping of the list on a failed stop. | `launcher.py` 3702, then 3705, and 3802, then 3805, with 3748-3751, and 3833-3836, with 3772, and 3857 | package one hundred and twenty-four | is P124-02 |
+| H-1196 | One sampler is built per account and one poller per distinct symbol across those same accounts. | `launcher.py` 3731, against 3819, then 3822 | package one hundred and twenty-four | folds into P124-02 |
+| H-1197 | A sampler's cadence is read from the environment on every build, where a poller's is a figure standing in the module. | `launcher.py` 3722, against 3827, the figure at 197 | package one hundred and twenty-four | folds into P124-02 |
+| H-1198 | A sampler writes to the host's record under the epoch, where a poller writes into a cache the host keeps. | `launcher.py` 3725-3726, against 3826 | package one hundred and twenty-four | folds into P124-02 |
+| H-1199 | Starting the samplers stops where the record is missing, and starting the pollers where the venue is missing. | `launcher.py` 3699, against 3799 | package one hundred and twenty-four | folds into P124-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 06:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 06:30 UTC

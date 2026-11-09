@@ -209,6 +209,8 @@ the others where it appears.
 - [The order closing the stream does things in](atoms/the-order-closing-the-stream-does-things-in.md) — the reconnecting is stopped, the connection is let go of before anything is sent, and only then is the venue told and the connection closed.
 - [What a closing can raise](atoms/what-a-closing-can-raise.md) — each step of a close ignores the kind of problem it expects and passes anything else on, so some closes stop partway and leave the connection open.
 - [The failures the reconnect loop swallows](atoms/the-failures-the-reconnect-loop-swallows.md) — the loop is built to survive the venue being unreachable for as long as it takes, and the interruption it cannot survive is exactly what stops it when the connection is closed on purpose.
+- [How the mark samplers are started and stopped](atoms/how-the-mark-samplers-are-started-and-stopped.md) — every sampler in a set shares one cadence read before any of them is built, and a build that fails part way raises past the line recording the set, so the next build begins from nothing although samplers were running a moment earlier.
+- [Where the host's two sets of background work differ](atoms/where-the-hosts-two-sets-of-background-work-differ.md) — the samplers and the book pollers are built by the same code and part on how many are made, what settles their cadence, where each writes, and what each needs before it will start at all.
 - [The kept book](atoms/the-kept-book.md) — Praxis's own copy of the latest offers for a pair, held with the time it arrived so a check need not wait on the venue.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for trades Praxis did not hear about, after the feed was away or at a start.
 - [How an order is brought back into step](atoms/how-an-order-is-brought-back-into-step.md) — the venue asked what became of each working order, fills taken in before any ending is concluded.
@@ -685,7 +687,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 588
+Both sides are the subject, and Praxis is the side that has been written. 590
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -696,4 +698,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 06:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 06:30 UTC
