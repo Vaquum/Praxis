@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 527 not.**
+**6 of them reviewed, 530 not.**
 
 ## Package 1
 
@@ -856,6 +856,58 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 97 — what an append seals, and what a caller reads back
+
+Scope: the appending of an event, the sealing of it, and the three things a caller
+can read back, the last clusters of a module the four packages before this one took
+from a hundred and seventy-two uncited statements to forty-four. What an append does
+in one transaction, what sealing takes, and what a caller can read back are in no
+article. The cell moves to `full`.
+
+### Merge and promote, package 97
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-992 | A fill inserts its deduplication row first and is marked a repeat by whether that insert changed anything, the event being appended only where it did not. | Promote. The transaction is in no article, and the repeat test being the insert's own row count is what makes the two facts impossible to disagree |
+| Row H-993 | A money movement takes a second such road on the same shape, keyed on its own identifier. | Merge with H-992 |
+| Row H-994 | Both those roads commit through guards of their own rather than through the routine written to do exactly that. | Merge with H-992. The behaviour matches and the code does not share, which a reader comparing the three roads will notice before they notice anything else |
+| Row H-995 | An event of a kind the registry does not hold cannot be appended, and its moment, its bytes and the seal it will hang from are all settled before any row exists. | Promote. The sealing is in no article, and two writes for one row is the shape of it |
+| Row H-996 | The row is written first and its number taken from the writing, the seal worked out from that number, and a second write puts the seal on the row just written. | Merge with H-995. The number being part of what is sealed is why the two writes cannot be one |
+| Row H-997 | Both an empty file and a tip carrying no seal answer the anchor rather than a row's own seal. | Merge with H-995 |
+| Row H-998 | A read of an epoch gathers its whole answer before handing any of it back, where the scan the migrations use takes its rows one at a time. | Promote. What a caller reads back is in no article, and the spine holding both shapes is worth saying where both are visible |
+| Row H-999 | Writing the reconciliation cursor takes the same lock an append takes, and commits under it. | Merge with H-998. The lock keeps a commit from landing inside another transaction, which is more than guarding the cursor's own row |
+
+Three subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P97-01 | What an append does in one transaction | written | [what-an-append-does-in-one-transaction.md](atoms/what-an-append-does-in-one-transaction.md) |
+| P97-02 | What sealing an appended event takes | written | [what-sealing-an-appended-event-takes.md](atoms/what-sealing-an-appended-event-takes.md) |
+| P97-03 | What a caller can read back from the spine | written | [what-a-caller-can-read-back-from-the-spine.md](atoms/what-a-caller-can-read-back-from-the-spine.md) |
+
+### Re-seed, after writing package 97
+
+A third road was found only by reading the gap map's leftovers after two articles
+were already written.
+
+| What it found | What came of it |
+|---|---|
+| A money movement has its own deduplicated road, on the same shape as a fill's. The two articles written covered the fill road and the ordinary road, and the third was invisible from both. | Added to the article on the transaction, with what the pair means: two kinds of event are deduplicated in the file itself, each against a different identifier |
+| Both deduplicated roads commit through guards written out in place rather than through the routine that does the same. | Stated flatly. Whether it matters is not this article's to say; that the three roads differ in their code and agree in their behaviour is |
+| The number a row is given is part of what its seal covers, which is why the row is written before the seal can be made. | Stated as the reason for the two writes, since the two writes read as an oddity without it |
+| A read of an epoch gathers everything before answering, where the migrations' scan streams. | Stated, with both cited, since the contrast is the only way to see that the shape was a choice |
+
+Worth recording: the third road is the lesson. Two articles were written from
+clusters the gap map named, and the gap map named the third too — in the same list,
+under a function whose other lines were already cited, so it read as leftovers
+rather than as a subject. The leftovers after an article are where a missed subject
+hides, and they have to be read as a list of statements rather than skimmed as a
+tail.
+
+Eleven statements of the module are left uncited and are an exclusion rather than
+work outstanding: all eleven are log calls, which the gate refuses as evidence for a
+claim.
 
 ## Package 96 — what the spine reads, and how it closes a write
 
@@ -7805,6 +7857,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-986 | The scan over the fill payloads builds its one refusal message before it reads a row. | `event_spine.py` 758-762, ahead of 765 | package ninety-six | folds into P96-01 |
 | H-990 | That one message serves a payload that will not parse, one missing a field it needs, and one whose field is not text. | `event_spine.py` 767-771 into 772-773, or 775-779 into 780 | package ninety-six | folds into P96-01 |
 | H-991 | Each row's symbol and its triple are gathered, and the two sets answered together. | `event_spine.py` 782, and 783, then 785 | package ninety-six | folds into P96-01 |
+| H-992 | A fill inserts its deduplication row first and is marked a repeat by whether that insert changed anything, the event being appended only where it did not. | `event_spine.py` 991, then 1018-1021 into 1022, then 1023 | package ninety-seven | is P97-01 |
+| H-993 | A money movement takes a second such road on the same shape, keyed on its own identifier. | `event_spine.py` 1072, into 1074-1077 into 1078, then 1079 | package ninety-seven | folds into P97-01 |
+| H-994 | Both those roads commit through guards of their own rather than through the routine written to do exactly that. | `event_spine.py` 1036-1037 into 1038 into 1039 then 1049, against 921-922 into 923 then 924 then 926 | package ninety-seven | folds into P97-01 |
+| H-995 | An event of a kind the registry does not hold cannot be appended, and its moment, its bytes and the seal it will hang from are all settled before any row exists. | `event_spine.py` 1160-1161, then 1162, then 1163, then 1164 ahead of 1165 | package ninety-seven | is P97-02 |
+| H-996 | The row is written first and its number taken from the writing, the seal worked out from that number, and a second write puts the seal on the row just written. | `event_spine.py` 1165-1166 into 1168-1170 then 1171, then 1172-1174, then 1175-1176 | package ninety-seven | folds into P97-02 |
+| H-997 | Both an empty file and a tip carrying no seal answer the anchor rather than a row's own seal. | `event_spine.py` 1193-1194, then 1196 into 1197 | package ninety-seven | folds into P97-02 |
+| H-998 | A read of an epoch gathers its whole answer before handing any of it back, where the scan the migrations use takes its rows one at a time. | `event_spine.py` 1214-1215 ahead of 1216, against 766 | package ninety-seven | is P97-03 |
+| H-999 | Writing the reconciliation cursor takes the same lock an append takes, and commits under it. | `event_spine.py` 1347, then 1348-1359, then 1360 | package ninety-seven | folds into P97-03 |
+| H-1000 | A read of the highest sequence answers that number, or nothing where the epoch holds no rows. | `event_spine.py` 1230-1231, then 1232 | package ninety-seven | folds into P97-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
 | H-989 | The rollback a failed commit asks for is the same guarded one. | `event_spine.py` 924, into 901-904 | package ninety-six | folds into P96-02 |
@@ -7819,4 +7880,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 08:00 UTC
