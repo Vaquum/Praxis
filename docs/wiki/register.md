@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 616 not.**
+**6 of them reviewed, 618 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 139 — which readings hand back a copy, and the three questions asked of an account's condition
+
+Scope: the rest of the manager's read-only roads — what each hands back, and the
+three questions about what an account can do rather than what it holds — part of a
+module the ledger marks `partial`. After the package before this one, eleven hundred
+and nineteen of its two thousand four hundred and eighty-seven statements were
+uncited. What a pass does under a gate is in an article; what these roads answer is
+in none. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 139
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1309 | The positions come back as a snapshot, and the balances, per-asset balances and per-trade results each as what the ledger's own reading gives, freshly made under its lock. | Promote. What each road hands back is in no article, and the one exception is why it matters |
+| Row H-1310 | Reading the trading state hands back the account's own object, the same one the account's work writes its orders and positions into. | Merge with H-1309. A caller holding it holds the account's state itself |
+| Row H-1311 | Asking which trade a command belongs to reads one mapping spanning every account, with no account named or checked. | Merge with H-1309 |
+| Row H-1312 | Whether an account has fail-stopped is true only where it is registered and carries that mark, and whether it can send orders is false where unregistered and otherwise only where it is neither reconciling nor fail-stopped. | Promote. The three questions are in no article, and the two agreeing for a reconciling account while the reasons differ is the finding |
+| Row H-1313 | Whether anything still awaits handling is true where an admission is in flight or an outside event is queued, and false for an unregistered account, so a drained account and an absent one answer alike. | Merge with H-1312 |
+| Row H-1314 | Asking for a protection sweep sets a flag and answers nothing, doing nothing at all where the account is unregistered. | Merge with H-1312 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P139-01 | Which readings hand back a copy | written | [which-readings-hand-back-a-copy.md](atoms/which-readings-hand-back-a-copy.md) |
+| P139-02 | The three questions asked of an account's condition | written | [the-three-questions-asked-of-an-accounts-condition.md](atoms/the-three-questions-asked-of-an-accounts-condition.md) |
+
+### Re-seed, after writing package 139
+
+Both subjects were nearly written as a second article on an axis a package six before
+this one already covered, and both turned out to be about something else.
+
+| What it found | What came of it |
+|---|---|
+| Eleven roads read an account and seven raise where four answer emptily, which is the axis a package six before this one already wrote. | Not written again. The roads found here were put on a different axis instead: what each hands back |
+| Every reading of the ledger or the positions hands back something detached, and reading the trading state hands back the account's own object. | Stated. A caller holding that object holds the account's state itself, and writing to it writes to the account |
+| An article already covers what a pass does while an account is reconciling or fail-stopped. | Linked rather than repeated. The new subject is what the two reporting questions answer, which that article does not touch |
+| The fail-stop question and the order-capability question both answer false for a reconciling account, for different reasons. | Stated. Only a caller asking both can tell a gate that will lift from one that will not |
+
+Worth recording: the first impulse was to write "the rest of the accessors" as a
+companion to the earlier article, which would have been the same finding over more
+examples. Asking what else is true of the same roads — what each hands back — found
+the one that hands back a live object, which the unknown-account axis cannot see.
+A second article on one axis is a longer list; a second axis is a second finding.
 
 ## Package 138 — what a protection of unknown fate is rebuilt as, and the one precedence written twice
 
@@ -10121,7 +10167,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1306 | The adapter's precedence is reached only where the pair reports itself all done, where the manager's has no gate. | `binance_adapter.py` 982, then 983, against 995 into 996-997, then 998 into 999-1000, with `execution_manager.py` 5690, then 5692 | package one hundred and thirty-eight | folds into P138-02 |
 | H-1307 | A leg whose asking fails answers that the whole pair is live. | `execution_manager.py` 5688, against 5690 | package one hundred and thirty-eight | folds into P138-02 |
 | H-1308 | A command the bracket resume already rebuilt is passed over, as is one with no start recorded and one that will not rebuild. | `execution_manager.py` 1787, then 1788 into 1789, or 1791, then 1792 into 1793, or 1795-1796, then 1797 into 1805 | package one hundred and thirty-eight | folds into P138-01 |
+| H-1309 | The positions come back as a snapshot, and the balances, per-asset balances and per-trade results each as what the ledger's own reading gives. | `execution_manager.py` 2794, and 2815, and 2836, and 2885, into `account_ledger.py` 154, then 155, and 187, then 188, with `execution_manager.py` 923 | package one hundred and thirty-nine | is P139-01 |
+| H-1310 | Reading the trading state hands back the account's own object. | `execution_manager.py` 2898, then 2899 | package one hundred and thirty-nine | folds into P139-01 |
+| H-1311 | Asking which trade a command belongs to reads one mapping spanning every account. | `execution_manager.py` 2912 | package one hundred and thirty-nine | folds into P139-01 |
+| H-1312 | Whether an account has fail-stopped is true only where it is registered and carries that mark, and whether it can send orders is false where unregistered and otherwise only where it is neither reconciling nor fail-stopped. | `execution_manager.py` 3324, then 3326, against 3344, then 3345 into 3346, or 3348 | package one hundred and thirty-nine | is P139-02 |
+| H-1313 | Whether anything still awaits handling is true where an admission is in flight or an outside event is queued, and false for an unregistered account. | `execution_manager.py` 2857, then 2858 into 2859, or 2861-2864 | package one hundred and thirty-nine | folds into P139-02 |
+| H-1314 | Asking for a protection sweep sets a flag and answers nothing. | `execution_manager.py` 3301, then 3302 into 3303, or 3305 | package one hundred and thirty-nine | folds into P139-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 13:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 14:00 UTC
