@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 663 not.**
+**6 of them reviewed, 665 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 163 — how a ladder's change moves from one phase to the next, and what finishing it adopts
+
+Scope: the two phases a ladder's grid change runs in and the mark that lets a second
+pass resume, and the adoption that ends it, part of a module the ledger marks `partial`.
+After the package before this one, five hundred and forty-seven of its two thousand
+four hundred and eighty-seven statements were uncited. The phases are named by the
+article on changing a ladder's prices and worked through in none; the adoption is in no
+article. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 163
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1487 | The placing phase is tested after the retiring phase rather than instead of it, so one pass can run both. | Promote. The phase mark is named elsewhere and what it does across passes is in no article |
+| Row H-1488 | A change with no context left on the scheme does nothing, and a scheme held for draining is handed to the draining. | Merge with H-1487 |
+| Row H-1489 | A retiring that answers nothing ends the pass with the phase as it was, and a plan with no rungs finishes the change there. | Merge with H-1487 |
+| Row H-1490 | A scheme held for protection places nothing and leaves the phase at placing. | Merge with H-1487 |
+| Row H-1491 | A fresh command carrying the new grid is installed under the name the old one had. | Promote. The adoption is in no article, and replacing rather than editing the command is the finding |
+| Row H-1492 | The completion is recorded before anything is adopted. | Merge with H-1491 |
+| Row H-1493 | The phase and the context are both forgotten, which is what takes the change off the road a later pass drives. | Merge with H-1491 |
+| Row H-1494 | The scheme is then given its chance to finish, which a change that planned no rungs relies on. | Merge with H-1491 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P163-01 | How a ladder's change moves from one phase to the next | written | [how-a-ladders-change-moves-from-one-phase-to-the-next.md](atoms/how-a-ladders-change-moves-from-one-phase-to-the-next.md) |
+| P163-02 | What finishing a ladder's change adopts | written | [what-finishing-a-ladders-change-adopts.md](atoms/what-finishing-a-ladders-change-adopts.md) |
+
+### Re-seed, after writing package 163
+
+The pair of subjects met in one line. The context is cleared by the finishing, and the
+driving does nothing where the context is gone — so the clearing is the stopping, and
+neither routine says so alone.
+
+| What it found | What came of it |
+|---|---|
+| The two phases are tested one after the other rather than as alternatives. | Stated. A pass that has just retired goes straight on to place, and the phase mark is for the pass after that |
+| Forgetting the context is what takes a finished change off the driving road. | Stated in both articles, from each end |
+| The command is replaced rather than edited, under the same name. | Stated. Anything still holding the command as it was keeps the old grid |
+| A change that planned no rungs reaches the finishing straight from the planning. | Stated. The chance to finish is what sees such a ladder through on the cursor it already had |
+
+Worth recording: the phase mark looks like a state machine and behaves like a resume
+point. Nothing reads it twice in a pass, and the pass that writes it goes on to the next
+phase without re-reading it. Written as a machine the article would have implied a step
+that does not exist.
 
 ## Package 162 — which record an event is booked into, and what a partial report of a scheme leaves standing
 
@@ -11402,7 +11450,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1484 | The count of slices reported is the scheme's own place in its plan. | `execution_manager.py` 8332, then 8333 | package one hundred and sixty-two | folds into P162-02 |
 | H-1485 | One moment is taken and carried into both the report and the record of it. | `execution_manager.py` 8315, then 8335, then 8341 | package one hundred and sixty-two | folds into P162-02 |
 | H-1486 | The record goes down and is applied, and the report is then handed out with retries. | `execution_manager.py` 8350, then 8351, then 8353 | package one hundred and sixty-two | folds into P162-02 |
+| H-1487 | The placing phase is tested after the retiring phase rather than instead of it, so one pass can run both. | `execution_manager.py` 9014, then 9016, then 9025, then 9026 | package one hundred and sixty-three | is P163-01 |
+| H-1488 | A change with no context left on the scheme does nothing, and a scheme held for draining is handed to the draining. | `execution_manager.py` 8970, then 8971 into 8972, or 8974, then 8975, then 8976, against 8978 | package one hundred and sixty-three | folds into P163-01 |
+| H-1489 | A retiring that answers nothing ends the pass with the phase as it was, and a plan with no rungs finishes the change there. | `execution_manager.py` 8983, then 8984, then 8988 into 8989, or 8991, then 8993, then 8994, then 8995, then 8997 into 8998, then 9001 | package one hundred and sixty-three | folds into P163-01 |
+| H-1490 | A scheme held for protection places nothing and leaves the phase at placing, with the plan recorded and kept on the context before that. | `execution_manager.py` 9003-9011, then 9012, then 9013, or 9017, then 9023 | package one hundred and sixty-three | folds into P163-01 |
+| H-1491 | A fresh command carrying the new grid is installed under the name the old one had, and the generation promoted. | `execution_manager.py` 9345, then 9346, then 9347, then 9348 | package one hundred and sixty-three | is P163-02 |
+| H-1492 | The completion is recorded before anything is adopted. | `execution_manager.py` 9337-9342, then 9343 | package one hundred and sixty-three | folds into P163-02 |
+| H-1493 | The phase and the context are both forgotten, which is what takes the change off the road a later pass drives. | `execution_manager.py` 9349, then 9350, against 8970, then 8971 into 8972 | package one hundred and sixty-three | folds into P163-02 |
+| H-1494 | The scheme is then given its chance to finish, which a change that planned no rungs relies on. | `execution_manager.py` 9358, against 8997 into 8998 | package one hundred and sixty-three | folds into P163-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 02:00 UTC

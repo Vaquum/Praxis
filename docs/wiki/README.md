@@ -180,6 +180,8 @@ the others where it appears.
 - [What a ladder amend caught mid-flight resumes as](atoms/what-a-ladder-amend-caught-mid-flight-resumes-as.md) — a price change interrupted by a restart comes back as a change still under way, holding rungs from both the old grid and the new, so the watchdog drives it on from where it stopped.
 - [How a protection in doubt is re-confirmed](atoms/how-a-protection-in-doubt-is-re-confirmed.md) — a protective pair the venue says is working is written back as live under the version it already had, and an order missing from the account's own records is a reason to wait rather than to write.
 - [What retiring a ladder's old grid counts](atoms/what-retiring-a-ladders-old-grid-counts.md) — the rungs being retired are found by working their names out again, and the change is marked as committed on the strength of what is about to be attempted rather than what the venue confirms.
+- [How a ladder's change moves from one phase to the next](atoms/how-a-ladders-change-moves-from-one-phase-to-the-next.md) — the old rungs come down and the new ones go up in two steps, and a mark on the work says which step a later attempt should start at.
+- [What finishing a ladder's change adopts](atoms/what-finishing-a-ladders-change-adopts.md) — the new grid becomes the live one by putting a fresh instruction behind the old name, and by forgetting what the change was.
 - [How a ladder's prices are changed](atoms/how-a-ladders-prices-are-changed.md) — the whole grid replaced: every old rung cancelled and seen to be over before one new rung goes out.
 - [What stops a ladder's new rungs](atoms/what-stops-a-ladders-new-rungs.md) — a grid can be left short: nothing worth placing, a freeze, or a rung that halts the run each time it is tried.
 - [When a price change leaves no new order](atoms/when-a-price-change-places-nothing.md) — a price change can end with nothing resting in place of the order it replaced: the cancel never settles, the order is still working, too little is left to trade, or the send goes out and comes back unconfirmed.
@@ -761,7 +763,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 664
+Both sides are the subject, and Praxis is the side that has been written. 666
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -772,4 +774,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 01:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 02:00 UTC
