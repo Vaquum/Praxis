@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 665 not.**
+**6 of them reviewed, 667 not.**
 
 ## Package 1
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 164 — which way a ladder's change is given up, and what figures a changed order's replacement is given
+
+Scope: the choice between abandoning a ladder's grid change and holding it for the
+watch, and the reading that settles the figures a replacement order carries, part of a
+module the ledger marks `partial`. After the package before this one, five hundred and
+thirty-three of its two thousand four hundred and eighty-seven statements were uncited.
+The mark the choice turns on is written down in one article and the choice itself in
+none; the figures are in no article. The rest of the module is left for the packages
+after this, and the cell stays `partial`.
+
+### Merge and promote, package 164
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1495 | One reading decides which way the change is given up: whether a cancel has ever been committed to the venue. | Promote. The mark is written down elsewhere and what it decides is in no article |
+| Row H-1496 | Where none has, the abandonment is recorded and the phase and context both forgotten. | Merge with H-1495 |
+| Row H-1497 | Where one has, a state-unknown is recorded, the phase written back, and the context left standing. | Merge with H-1495 |
+| Row H-1498 | A resumed change comes back carrying the commitment already made. | Merge with H-1495 |
+| Row H-1499 | A change to an order showing part of itself takes each of its two figures from the change where given and from the command otherwise. | Promote. The reading is in no article, and a change being to one figure rather than a fresh pair is the finding |
+| Row H-1500 | A change to a plain resting order takes its price the same way and answers with no shown size at all. | Merge with H-1499 |
+| Row H-1501 | Each road insists the command's own settings are of the kind the change is. | Merge with H-1499 |
+| Row H-1502 | The commitment behind the first subject is marked the moment a resting rung is found, before any cancel is sent. | Merge with H-1495 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P164-01 | Which way a ladder's change is given up | written | [which-way-a-ladders-change-is-given-up.md](atoms/which-way-a-ladders-change-is-given-up.md) |
+| P164-02 | What figures a changed order's replacement is given | written | [what-figures-a-changed-orders-replacement-is-given.md](atoms/what-figures-a-changed-orders-replacement-is-given.md) |
+
+### Re-seed, after writing package 164
+
+The first subject is the other end of the finding written down twelve packages ago. That
+one said the commitment is marked on the strength of what is about to be attempted; this
+one says what the mark buys, which is the difference between a ladder carrying on whole
+and a ladder waiting for the watch.
+
+| What it found | What came of it |
+|---|---|
+| The held road leaves the context standing and the clean road takes it away. | Stated. The clearing is what ends the driving, said from this end as well as the last |
+| A resumed change comes back with the commitment already made. | Stated. A change that survives a restart can never be abandoned clean |
+| What a change leaves out is taken from the command as it stands. | Stated. A change naming one figure leaves the other as it was |
+| A plain order's replacement is told there is no shown size rather than left to work it out. | Stated |
+
+Worth recording: both subjects are a single reading apiece, and both readings were
+already cited — one in an article about what the retiring counts, the other nowhere. A
+line can be cited for what it contributes to a walk and still have its own consequence
+unwritten.
 
 ## Package 163 — how a ladder's change moves from one phase to the next, and what finishing it adopts
 
@@ -11458,7 +11507,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1492 | The completion is recorded before anything is adopted. | `execution_manager.py` 9337-9342, then 9343 | package one hundred and sixty-three | folds into P163-02 |
 | H-1493 | The phase and the context are both forgotten, which is what takes the change off the road a later pass drives. | `execution_manager.py` 9349, then 9350, against 8970, then 8971 into 8972 | package one hundred and sixty-three | folds into P163-02 |
 | H-1494 | The scheme is then given its chance to finish, which a change that planned no rungs relies on. | `execution_manager.py` 9358, against 8997 into 8998 | package one hundred and sixty-three | folds into P163-02 |
+| H-1495 | One reading decides which way the change is given up: whether a cancel has ever been committed to the venue. | `execution_manager.py` 9225, then 9226 | package one hundred and sixty-four | is P164-01 |
+| H-1496 | Where none has, the abandonment is recorded and the phase and context both forgotten. | `execution_manager.py` 9227-9233, then 9234, then 9235, then 9236, then 9242 | package one hundred and sixty-four | folds into P164-01 |
+| H-1497 | Where one has, a state-unknown is recorded, the phase written back, and the context left standing. | `execution_manager.py` 9244-9251, then 9252, then 9253, against 9236, read at 8970, then 8971 into 8972 | package one hundred and sixty-four | folds into P164-01 |
+| H-1498 | A resumed change comes back carrying the commitment already made. | `execution_manager.py` 1433-1441, set at 1440 | package one hundred and sixty-four | folds into P164-01 |
+| H-1499 | A change to an order showing part of itself takes each of its two figures from the change where given and from the command otherwise. | `execution_manager.py` 10213, then 10215-10219, then 10220-10224, then 10225 | package one hundred and sixty-four | is P164-02 |
+| H-1500 | A change to a plain resting order takes its price the same way and answers with no shown size at all. | `execution_manager.py` 10228-10230, then 10231 | package one hundred and sixty-four | folds into P164-02 |
+| H-1501 | Each road insists the command's own settings are of the kind the change is. | `execution_manager.py` 10214, or 10227 | package one hundred and sixty-four | folds into P164-02 |
+| H-1502 | The commitment the first subject turns on is marked the moment a resting rung is found, before any cancel is sent. | `execution_manager.py` 9143 into 9144 | package one hundred and sixty-four | folds into P164-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 02:30 UTC
