@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 560 not.**
+**6 of them reviewed, 562 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 111 — the two roads a submitted order can take
+
+Scope: the submitting of an order sized in money against one sized in coin, part of
+a module the ledger marks `partial`. After the package before this one, a hundred
+and ninety-eight of its five hundred and thirty-four statements were uncited. What a
+money-sized order is refused for, and what an amount-sized one goes through, are in
+no article. The parsing, the streams and the health tracking are left for packages
+of their own, and the cell stays `partial`.
+
+### Merge and promote, package 111
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1092 | A money-sized order takes a road chosen by that figure being given at all, and refuses an amount alongside it, any kind but a market order, any side but a buy, a stop figure of either kind, a price and a time in force. | Promote. The road is in no article, and the choice being made on presence before anything is refused is the shape of it |
+| Row H-1093 | The money figure must be a finite decimal standing above nought, and an order with neither figure is refused on the other road. | Merge with H-1092. The two roads between them insisting on exactly one is the pair |
+| Row H-1094 | An amount is snapped onto the symbol's step before anything is weighed against it, and the snapped amount is what the checks are made against. | Promote. The order is in no article, and a caller's amount never being checked as given is what it means |
+| Row H-1095 | A paired order answers through its own parsing, and one carrying a stop limit price without being paired is refused. | Merge with H-1094 |
+| Row H-1096 | Both roads read what comes back through the same parsing. | Merge with H-1094 |
+
+Two subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P111-01 | What a money-sized order is refused for | written | [what-a-money-sized-order-is-refused-for.md](atoms/what-a-money-sized-order-is-refused-for.md) |
+| P111-02 | What an amount-sized order goes through | written | [what-an-amount-sized-order-goes-through.md](atoms/what-an-amount-sized-order-goes-through.md) |
+
+### Re-seed, after writing package 111
+
+Two findings about order, and one about a parameter that means nothing alone.
+
+| What it found | What came of it |
+|---|---|
+| The snapping happens before the checks, so a caller's amount is never checked as given. | Stated with both directions: an amount that would fail before snapping may pass after, and one that passes may fail. The figure the venue will see is the figure that was judged |
+| The money road is chosen on the figure's presence, so everything it refuses is refused after the choice is made. | Stated. A caller sending a money figure with a limit order is told about the money road's limits rather than about limit orders |
+| The stop limit price means nothing outside a paired order and its presence there is an error. | Stated as the one parameter whose presence alone decides nothing |
+| The two roads differ in everything they check and agree on how they read the answer. | Stated |
+
+Worth recording: the snapping-before-checking order is the kind of finding that
+needs both directions stated or it reads as reassurance. "The amount is snapped
+first" sounds like care; "an amount that would have failed may now pass" is the same
+fact and says what it costs. The article states both, and the second is why the
+first is worth a sentence.
 
 ## Package 110 — how a venue failure is sorted, and which one counts as healthy
 
@@ -8535,6 +8578,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1088 | A rate limiting is retried only where attempts remain and the status was the one meaning too many, and otherwise recorded unhealthy and raised. | `binance_adapter.py` 605 into 606, then 607, then 608 | package one hundred and ten | folds into P110-02 |
 | H-1089 | The wait before a retry is the venue's own where it gave one, and otherwise drawn at random from a span that doubles with each attempt. | `binance_adapter.py` 609 | package one hundred and ten | folds into P110-02 |
 | H-1091 | A transport failure, a timing out or an unreadable answer is turned into a passing failure and kept rather than raised. | `binance_adapter.py` 660 into 661-662 | package one hundred and ten | folds into P110-02 |
+| H-1092 | A money-sized order takes a road chosen by that figure being given at all, and refuses an amount alongside it, any kind but a market order, any side but a buy, a stop figure, a price and a time in force. | `binance_adapter.py` 1468, then 1481 into 1482-1483, or 1485 into 1486-1487, or 1489 into 1490-1491, or 1493 into 1494-1495, or 1497 into 1498-1499, or 1501 into 1502-1503 | package one hundred and eleven | is P111-01 |
+| H-1093 | The money figure must be a finite decimal standing above nought, and an order with neither figure is refused on the other road. | `binance_adapter.py` 1470-1474 into 1475-1479, and 1514 into 1515-1516 | package one hundred and eleven | folds into P111-01 |
+| H-1097 | What the money road builds carries the caller's own name for the order only where one was given. | `binance_adapter.py` 1578 into 1579, answered at 1581 | package one hundred and eleven | folds into P111-01 |
+| H-1094 | An amount is snapped onto the symbol's step before anything is weighed against it, and the snapped amount is what the checks are made against. | `binance_adapter.py` 1518 ahead of 1520, then 1520 | package one hundred and eleven | is P111-02 |
+| H-1095 | A paired order answers through its own parsing, and one carrying a stop limit price without being paired is refused. | `binance_adapter.py` 1536, against 1538 into 1539-1540 | package one hundred and eleven | folds into P111-02 |
+| H-1096 | Both roads read what comes back through the same parsing. | `binance_adapter.py` 1542-1548, then 1549-1551, then 1552, and 1512 | package one hundred and eleven | folds into P111-02 |
 | H-1075 | Registering keeps credentials and makes a health tracker only where none stood, where unregistering removes the credentials outright and drops the tracker tolerantly. | `binance_adapter.py` 444, then 445 into 446, against 460, then 461 into 462 | package one hundred and eight | folds into P108-03 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
@@ -8557,4 +8606,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 22:00 UTC

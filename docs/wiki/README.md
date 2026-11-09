@@ -23,6 +23,8 @@ the others where it appears.
 - [How a venue failure is sorted](atoms/how-a-venue-failure-is-sorted.md) — the status code alone decides most kinds of failure without the reply body being read at all, so a helpful message returned with a server error is discarded.
 - [Which failures a retry counts as healthy](atoms/which-failures-a-retry-counts-as-healthy.md) — a not-found is recorded as a healthy exchange because the venue answered correctly, and of the statuses that mean rate limiting only one is ever retried.
 - [What an order type decides about its parameters](atoms/what-an-order-type-decides-about-its-parameters.md) — each kind of order carries a record of what it must and must not include, so supplying a price to a kind that needs none is an error rather than ignored.
+- [What a money-sized order is refused for](atoms/what-a-money-sized-order-is-refused-for.md) — supplying a cash amount picks a road that then accepts only a market buy and rejects a coin amount, a price, a stop figure or a time limit alongside it.
+- [What an amount-sized order goes through](atoms/what-an-amount-sized-order-goes-through.md) — the amount is rounded to the venue's step before any check runs, so an amount that would have been rejected as sent can pass, and what is judged is always the figure the venue will see.
 - [What the adapter refuses to be told](atoms/what-the-adapter-refuses-to-be-told.md) — a permission it cannot read counts as denied, a timestamp without a zone throws while one left out passes, and a blank simulator address leaves the real venue in place.
 - [What closing the adapter does first](atoms/what-closing-the-adapter-does-first.md) — it marks itself closed and empties the connection field before closing the connection, so a task racing to ensure one refuses rather than building a connection nothing would track.
 - [What an execution report is held to](atoms/what-an-execution-report-is-held-to.md) — a report that claims a trade must carry the numbers proving it, and a report of anything else has those numbers taken away.
@@ -658,7 +660,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 561
+Both sides are the subject, and Praxis is the side that has been written. 563
 articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -669,4 +671,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 21:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 22:00 UTC
