@@ -126,6 +126,8 @@ the others where it appears.
 
 ## Changing, cancelling and giving up
 
+- [What the manager tells you about an unknown account](atoms/what-the-manager-tells-you-about-an-unknown-account.md) — asking about an account that has gone raises on some roads and answers emptily on others, with nothing in either answer saying the account went.
+- [Which commands count as amendable](atoms/which-commands-count-as-amendable.md) — the set a change may be aimed at is built by gathering three kinds and taking five things out, and the last step adds bracket entries back without asking what the removals concluded.
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
 - [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — every request to alter work must name the command, the account and a reason, and a change to how work is spread over time is refused outright.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — which fields each way of working lets a change touch, and what it checks before touching them.
@@ -702,7 +704,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 605
+Both sides are the subject, and Praxis is the side that has been written. 607
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -713,4 +715,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 10:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 11:00 UTC

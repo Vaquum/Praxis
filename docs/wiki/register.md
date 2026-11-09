@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 604 not.**
+**6 of them reviewed, 606 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 133 — what the manager tells you about an unknown account, and which commands count as amendable
+
+Scope: the seven ways of asking the manager about one account, and the building of
+the set a change may be aimed at, part of a module the ledger marks `partial` by the
+widest margin — twelve hundred and fifty-five of its two thousand four hundred and
+eighty-seven statements are uncited. Neither subject is in an article. The rest of
+the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 133
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1254 | Three of the seven ways of asking about an account refuse where it is not registered, and four answer with nothing. | Promote. None of the seven is in an article, and a caller having to be ready for both answers is what the division costs |
+| Row H-1255 | The fragments asking tests for the account rather than reading it, so it raises without ever holding what it would have read. | Merge with H-1254 |
+| Row H-1256 | The symbols are gathered from the open orders and a copy of the positions, where the open orders are handed back as a copy of each order. | Merge with H-1254 |
+| Row H-1257 | The amendable set gathers the running schemes, the commands whose order is live, and the brackets, less the derived names of the brackets' protective exits. | Promote. The building is in no article, and what it takes out again is most of it |
+| Row H-1258 | A command counts as having a live order where the order its name points at is there and its status is not terminal. | Merge with H-1257 |
+| Row H-1259 | The terminal commands, the commands already waiting on an amend, and any scheme held for protection, mid-amend or draining are taken out. | Merge with H-1257 |
+| Row H-1260 | A scheme held in any other way is taken out only where it is a ladder. | Merge with H-1257. The same hold leaves another mode amendable and makes a ladder un-amendable |
+| Row H-1261 | Each bracket entry is settled last, added where its protection is placed, named and active, and discarded otherwise, the adding asking nothing about the removals above it. | Merge with H-1257 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P133-01 | What the manager tells you about an unknown account | written | [what-the-manager-tells-you-about-an-unknown-account.md](atoms/what-the-manager-tells-you-about-an-unknown-account.md) |
+| P133-02 | Which commands count as amendable | written | [which-commands-count-as-amendable.md](atoms/which-commands-count-as-amendable.md) |
+
+### Re-seed, after writing package 133
+
+The first subject is the same shape this module keeps producing: routines written
+alike that part on one choice.
+
+| What it found | What came of it |
+|---|---|
+| Seven ways of asking about one account divide three to four on whether an unregistered account is a refusal or an empty answer. | Stated as the division, with what it costs a caller who asks more than one |
+| One of the three tests for the account rather than reading it, so it raises without ever holding what it would have read. | Stated. It is the only one of the seven written that way |
+| A scheme held in a way other than protection, amending or draining is taken out only where it is a ladder. | Stated. Why the ladder differs is not in these lines, so the article gives the condition and stops |
+| The bracket loop runs after every removal and adds an entry back without asking what the removals concluded. | Stated as the order it runs in. Whether a removed entry can also have active protection is a question about the bracket's own records, which this routine does not settle |
+
+Worth recording: the amendable set is built by subtraction — three kinds gathered and
+five things removed — and the last step is an addition that can undo any of the
+removals. Reading it forwards gives the wrong answer for a bracket entry; the set is
+only settled after the loop at the end. That is the third time in this corpus a
+routine's answer turned on a step placed after the step a reader would stop at.
 
 ## Package 132 — the host swept, and what a host keeps as it is built
 
@@ -9785,7 +9831,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1251 | Each background set takes what it needs off the host and does nothing where it is missing or where a set already stands. | `launcher.py` 3715, then 3717 into 3718, and 3813, then 3815 into 3816 | package one hundred and thirty-two | folds into P124-02 |
 | H-1253 | Each records its set only once every one of them is built, and reads its set back before stopping. | `launcher.py` 3753, and 3838, then 3843 into 3844, or 3846, then 3852 | package one hundred and thirty-two | folds into P124-02 |
 | H-1252 | The synchronous accounting reads the registration under the registry's lock and takes the context off it, and returns on a reported failure with the figures where they stood. | `launcher.py` 2896, then 2897, with 2927 into 2936 | package one hundred and thirty-two | folds into P5-05 |
+| H-1254 | Three of the seven ways of asking about an account refuse where it is not registered, and four answer with nothing. | `execution_manager.py` 866, then 867 into 868-869, and 918, then 919 into 920-921, against 898, then 899 into 900, and 979, then 980 into 981, and 1024, then 1025 into 1026, and 1087 | package one hundred and thirty-three | is P133-01 |
+| H-1255 | The fragments asking tests for the account rather than reading it, so it raises without ever holding what it would have read. | `execution_manager.py` 947 into 948-949 | package one hundred and thirty-three | folds into P133-01 |
+| H-1256 | The symbols are gathered from the open orders and a copy of the positions, where the open orders are handed back as a copy of each order. | `execution_manager.py` 871, then 872-873, then 874-875, then 876, against 923 | package one hundred and thirty-three | folds into P133-01 |
+| H-1257 | The amendable set gathers the running schemes, the commands whose order is live, and the brackets, less the derived names of the brackets' protective exits. | `execution_manager.py` 1028-1030, then 1037-1041 | package one hundred and thirty-three | is P133-02 |
+| H-1258 | A command counts as having a live order where the order its name points at is there and its status is not terminal. | `execution_manager.py` 1031, then 1032, then 1033, then 1034 into 1035 | package one hundred and thirty-three | folds into P133-02 |
+| H-1259 | The terminal commands, the commands already waiting on an amend, and any scheme held for protection, mid-amend or draining are taken out. | `execution_manager.py` 1042, then 1043, then 1044-1049 | package one hundred and thirty-three | folds into P133-02 |
+| H-1260 | A scheme held in any other way is taken out only where it is a ladder. | `execution_manager.py` 1050-1053 | package one hundred and thirty-three | folds into P133-02 |
+| H-1261 | Each bracket entry is settled last, added where its protection is placed, named and active, and discarded otherwise. | `execution_manager.py` 1056, then 1057-1061, then 1062 into 1063, or 1064 into 1065, then 1067 | package one hundred and thirty-three | folds into P133-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 11:00 UTC
