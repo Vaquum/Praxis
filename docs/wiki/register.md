@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 628 not.**
+**6 of them reviewed, 630 not.**
 
 ## Package 1
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 145 — how a change is routed to its handler, and what placing a bracket's protection writes first
+
+Scope: the routing of a change to one of four handlers, and the placing of a
+bracket's first protection, part of a module the ledger marks `partial`. After the
+package before this one, nine hundred and ninety-two of its two thousand four hundred
+and eighty-seven statements were uncited. Neither subject is in an article. The rest
+of the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 145
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1348 | A change whose parameters are a bracket's goes straight to the bracket handler and returns, before the tests the other roads make. | Promote. The routing is in no article, and a bracket change bypassing those tests is the finding |
+| Row H-1349 | Past that road, a terminal command, a command the manager does not hold, and a command with an amend already pending are each reported and dropped. | Merge with H-1348 |
+| Row H-1350 | A scheme is routed by the shape of the change's parameters, and a shape neither handler takes is reported as unsupported for the command's mode. | Merge with H-1348. The mode named is the command's while the thing that failed to match was the parameters' shape |
+| Row H-1351 | Anything but a single-order or part-shown change is unsupported, and a single-order change carrying either stop field is unsupported too. | Merge with H-1348 |
+| Row H-1352 | The bracket handler makes its own tests — no live bracket, protection unplaced or unnamed, protection not active — which are different tests. | Merge with H-1348 |
+| Row H-1353 | An entry holding nothing has its bracket registered all the same, with no protection placed and the skip reported. | Promote. The placing is in no article, and a bracket existing with no protection owing is worth stating |
+| Row H-1354 | The bracket is marked as having its protection placed before the pair is built, let alone sent. | Merge with H-1353. A failure after that leaves a bracket claiming a protection that may never have reached the venue |
+| Row H-1355 | What the exit may fill is recorded by amount alone, with no money figure. | Merge with H-1353 |
+| Row H-1356 | Legs on the wrong side of the entry's fill are refused as an adapter failure before the venue is reached. | Merge with H-1353 |
+| Row H-1357 | The exit command is installed, given the entry's trade name and mapped to its order only after the send has answered. | Merge with H-1353 |
+
+Two subjects promote and eight rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P145-01 | How a change is routed to its handler | written | [how-a-change-is-routed-to-its-handler.md](atoms/how-a-change-is-routed-to-its-handler.md) |
+| P145-02 | What placing a bracket's protection writes first | written | [what-placing-a-brackets-protection-writes-first.md](atoms/what-placing-a-brackets-protection-writes-first.md) |
+
+### Re-seed, after writing package 145
+
+The first article is a path finding, and verifying it needed the handler it routes to
+rather than the routing alone.
+
+| What it found | What came of it |
+|---|---|
+| The bracket road is taken before the terminal, unheld and pending-amend tests. | Stated — but only after reading the bracket handler to confirm it does not repeat them. It makes three different tests of its own, so the bypass is real rather than apparent |
+| The mode named in the unsupported report is the command's, while what failed to match was the parameters' shape. | Stated. A reader of the message would take it for a statement about the mode |
+| A bracket is marked as having its protection placed before the pair is built or sent. | Stated, with what a failure after that leaves: a bracket claiming a protection that may never have reached the venue |
+| The exit command is installed and mapped to its order only after the send has answered. | Stated as the window between the mark and the answer |
+
+Worth recording: the routing finding would have been wrong without reading the
+handler. A road taken early is only a bypass if what it reaches does not make the
+same tests — and here it makes three, none of them the same. The rule is already in
+the project's instructions as checking the path rather than the function; this is the
+first time in this corpus it changed an article from a defect claim to a plain
+description of two different test sets.
 
 ## Package 144 — what the venue is asked when no protection is working, and the remainder subtraction written twice
 
@@ -10433,7 +10482,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1345 | How much of a bracket stands unprotected is one subtraction, written in two places. | `execution_manager.py` 7463, against 9614 | package one hundred and forty-four | is P144-02 |
 | H-1346 | In the one the figures are gathered over both candidate lists, and in the other they are the old list's alone. | `execution_manager.py` 7429, then 7460, then 7461, against 9535, then 9544-9546 | package one hundred and forty-four | folds into P144-02 |
 | H-1347 | Both read the entry's delivered amount and the exit's projection from the same two helpers, and both drop the bracket on a remainder at or below nothing. | `execution_manager.py` 7413, and 9531, both into 2648, with 7414, and 9533, then 7464 into 7480, and 9616 into 9617 | package one hundred and forty-four | folds into P144-02 |
+| H-1348 | A change whose parameters are a bracket's goes straight to the bracket handler and returns. | `execution_manager.py` 8616 into 8617-8619, then 8620 | package one hundred and forty-five | is P145-01 |
+| H-1349 | Past that road, a terminal command, an unheld command, and a command with an amend already pending are each reported and dropped. | `execution_manager.py` 8622 into 8624, or 8626, then 8627 into 8629, or 8631 into 8636 | package one hundred and forty-five | folds into P145-01 |
+| H-1350 | A scheme is routed by the shape of the change's parameters, and a shape neither handler takes is reported as unsupported for the command's mode. | `execution_manager.py` 8638, then 8639, then 8640-8643 into 8644, or 8645 into 8646, or 8647, then 8653 | package one hundred and forty-five | folds into P145-01 |
+| H-1351 | Anything but a single-order or part-shown change is unsupported, and a single-order change carrying either stop field is unsupported too, the order being looked up only past both. | `execution_manager.py` 8655 into 8661, or 8663-8666 into 8672, or 8674, then 8675-8679 | package one hundred and forty-five | folds into P145-01 |
+| H-1352 | The bracket handler makes its own three tests instead. | `execution_manager.py` 9387, then 9388 into 9393, or 9395 into 9400, or 9402 | package one hundred and forty-five | folds into P145-01 |
+| H-1353 | An entry holding nothing has its bracket registered all the same, with no protection placed. | `execution_manager.py` 4887 into 4898, then 4904 | package one hundred and forty-five | is P145-02 |
+| H-1354 | The bracket is marked as having its protection placed before the pair is built or sent, with the side, the three prices and the two names worked out after. | `execution_manager.py` 4906, then 4909-4911, then 4912-4914, then 4915, then 4916-4920 | package one hundred and forty-five | folds into P145-02 |
+| H-1355 | What the exit may fill is recorded by amount alone, with no money figure. | `execution_manager.py` 4927 | package one hundred and forty-five | folds into P145-02 |
+| H-1356 | Legs on the wrong side of the entry's fill are refused as an adapter failure before the venue is reached. | `execution_manager.py` 4960-4962, then 4965, or 4967-4975 | package one hundred and forty-five | folds into P145-02 |
+| H-1357 | The exit command is installed, given the entry's trade name and mapped to its order only after the send has answered. | `execution_manager.py` 5017, then 5018, then 5019, past 5015 | package one hundred and forty-five | folds into P145-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 16:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 17:00 UTC
