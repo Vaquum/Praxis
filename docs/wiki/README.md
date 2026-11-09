@@ -618,6 +618,8 @@ the others where it appears.
 - [What stops a scheme being resumed](atoms/what-stops-a-scheme-being-resumed.md) — a fed-out order whose plan can no longer be worked out is passed over silently and not ended either, so it waits for the pass that closes orphaned work, and a scheme that recorded only its start is treated as still going.
 - [What a resumed scheme comes back holding](atoms/what-a-resumed-scheme-comes-back-holding.md) — a replan replaces the plan the start recorded outright, a child that finished while the host was down is not counted as live, and a scheme with nothing left to wake it is handed the present moment.
 - [What a restart puts back](atoms/what-a-restart-puts-back.md) — the live work rebuilt from the record, each kind at the point it had reached, with nothing already at the venue sent again.
+- [What stops a bracket being resumed](atoms/what-stops-a-bracket-being-resumed.md) — six tests pass a protected entry over, and a protection that failed and was then restored comes back active because the later record clears the mark the earlier one set.
+- [What a resumed bracket's protection is taken from](atoms/what-a-resumed-brackets-protection-is-taken-from.md) — the legs restored are the ones belonging to the list the venue is actually resting, so a price change whose call-off never landed restores the legs that are really there.
 - [What a restart puts back of a bracket](atoms/what-a-restart-puts-back-of-a-bracket.md) — a resting pair left alone, one that never got out sent, one mid-change left for the watch, and a stale one passed over.
 - [What stopping leaves undone](atoms/what-stopping-leaves-undone.md) — stopping carries on past a refused cancel, a drain out of time and a failed close, logging each, while being called off stops it where it stands.
 
@@ -710,7 +712,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 613
+Both sides are the subject, and Praxis is the side that has been written. 615
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -721,4 +723,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 12:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 13:00 UTC

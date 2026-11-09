@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 612 not.**
+**6 of them reviewed, 614 not.**
 
 ## Package 1
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 137 — what stops a bracket being resumed, and what a resumed bracket's protection is taken from
+
+Scope: the third of the four resumes, part of a module the ledger marks `partial`.
+After the package before this one, eleven hundred and sixty-three of its two thousand
+four hundred and eighty-seven statements were uncited. What a restart puts back of a
+bracket is in an article; the tests that stop one being put back, and where its
+protection's legs come from, are in none. The rest of the module is left for the
+packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 137
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1293 | A pass gathers the starts, the latest active protection, the amends under their versions, and two marks — amend unresolved, and put right already — with an active record clearing both and a failed one setting the second. | Promote. Six tests stop a bracket being resumed and the first two are answered by this pass |
+| Row H-1294 | A protection that failed and was then restored resumes as active, the later record clearing what the earlier set. | Merge with H-1293 |
+| Row H-1295 | A command that will not rebuild, or an entry name the account holds no order for, passes the bracket over. | Merge with H-1293 |
+| Row H-1296 | A resting protection whose entry filled nothing is passed over and left to reconciliation rather than resumed with legs that cannot be worked out. | Merge with H-1293 |
+| Row H-1297 | A command with an active protection recorded whose protection is no longer resting is passed over rather than falling to the road that would place protection afresh. | Merge with H-1293 |
+| Row H-1298 | The protection's name and version come from the latest active record, or are worked out at version nought where there is none. | Promote. Where a resumed bracket's legs come from is in no article |
+| Row H-1299 | The amend whose legs are restored is found by matching the name of the list actually resting, rather than by taking the newest version. | Merge with H-1298. An amend whose cancel never landed leaves the earlier list resting while the version has moved on |
+| Row H-1300 | Where no recorded amend matches, the three protective prices are worked out from the command and the average entry price instead of read. | Merge with H-1298 |
+| Row H-1301 | A bracket comes back either with its protection placed and active, or carrying only its command and its entry name. | Merge with H-1298 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P137-01 | What stops a bracket being resumed | written | [what-stops-a-bracket-being-resumed.md](atoms/what-stops-a-bracket-being-resumed.md) |
+| P137-02 | What a resumed bracket's protection is taken from | written | [what-a-resumed-brackets-protection-is-taken-from.md](atoms/what-a-resumed-brackets-protection-is-taken-from.md) |
+
+### Re-seed, after writing package 137
+
+The second article's finding is the same shape as the ladder's from the package
+before: what the venue is actually holding decides what is rebuilt, not what the
+record's latest line says.
+
+| What it found | What came of it |
+|---|---|
+| The amend whose legs are restored is matched by the name of the resting list rather than by version. | Stated, with why it matters: an amend whose cancel never landed leaves the earlier list resting at a version that has already moved on, and matching by version would restore legs for a list the venue never kept |
+| A protection that failed and was then restored resumes as active, because the later record clears the mark the earlier set. | Stated. The two marks are set and cleared by four different records and no one of them says the order matters |
+| A resting protection whose entry filled nothing is passed over rather than resumed. | Stated as failing closed. The legs cannot be worked out without an average entry price, and there is none |
+| An active protection no longer resting is passed over rather than falling through. | Stated. The road it would otherwise reach places protection afresh, which would re-place a list that has moved on |
+
+Worth recording: this is the second resume in two packages where the recovered state
+is decided by asking the venue's own records what is there, rather than by replaying
+to the latest recorded intent. The ladder re-derives rung names and asks; the bracket
+matches an amend by the name of the list that is resting. Both exist because the
+record's last line can describe something the venue never kept.
 
 ## Package 136 — how a ladder's rungs are found again, and what a ladder amend caught mid-flight resumes as
 
@@ -10011,7 +10060,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1290 | The baseline parameters are the last completed amend's. | `execution_manager.py` 1341-1343, then 1347 | package one hundred and thirty-six | folds into P136-02 |
 | H-1291 | Both generations' rungs still working are gathered by name, the new one's over a grid sized from the highest place the plan names and only where a plan was recorded. | `execution_manager.py` 1443-1445, then 1446, then 1447 into 1448, then 1449-1450, then 1459, with 1458 | package one hundred and thirty-six | folds into P136-02 |
 | H-1292 | The context is rebuilt from the initiation and marked as having committed its cancel, with the fixed plan rebuilt from three recorded lists walked together under a demand that they be of one length. | `execution_manager.py` 1420-1432, then 1433-1441, then 1465 | package one hundred and thirty-six | folds into P136-02 |
+| H-1293 | A pass gathers the starts, the latest active protection, the amends under their versions, and two marks, with an active record clearing both and a failed one setting the second. | `execution_manager.py` 1604-1608, then 1609, then 1610 into 1611, or 1613 into 1614-1617, or 1619 into 1620, or 1622 into 1623-1625, or 1627 into 1628-1629 | package one hundred and thirty-seven | is P137-01 |
+| H-1294 | A start whose command carries either mark is passed over. | `execution_manager.py` 1631, then 1632 into 1633 | package one hundred and thirty-seven | folds into P137-01 |
+| H-1295 | A command that will not rebuild, or an entry name the account holds no order for, passes the bracket over. | `execution_manager.py` 1635-1636, then 1637 into 1645, or 1647-1648, the place at 180, then 1650, then 1651 into 1652 | package one hundred and thirty-seven | folds into P137-01 |
+| H-1296 | A resting protection whose entry filled nothing is passed over. | `execution_manager.py` 1693 into 1697 | package one hundred and thirty-seven | folds into P137-01 |
+| H-1297 | A command with an active protection recorded whose protection is no longer resting is passed over, and so is one whose protection order exists and is doing anything but submitting. | `execution_manager.py` 1733 into 1738, or 1740 into 1741 | package one hundred and thirty-seven | folds into P137-01 |
+| H-1298 | The protection's name and version come from the latest active record, or are worked out at version nought where there is none, and the name is then asked of the account. | `execution_manager.py` 1654, then 1655 into 1656-1657, or 1659-1663, the place at 181, then 1665, then 1667 | package one hundred and thirty-seven | is P137-02 |
+| H-1299 | The amend whose legs are restored is found by matching the name of the list actually resting. | `execution_manager.py` 1673, then 1674 into 1683-1691 | package one hundred and thirty-seven | folds into P137-02 |
+| H-1300 | The average entry price is the entry's money over the amount it filled, and the three protective prices are the matched amend's or else worked out from the command and that price. | `execution_manager.py` 1668-1672, then 1702 into 1703-1705, or 1706 into 1707-1708 | package one hundred and thirty-seven | folds into P137-02 |
+| H-1301 | A bracket comes back either with its protection placed and active, or carrying only its command and its entry name. | `execution_manager.py` 1711-1722, against 1743-1746 | package one hundred and thirty-seven | folds into P137-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 12:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 13:00 UTC
