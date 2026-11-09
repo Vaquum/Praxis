@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 549 not.**
+**6 of them reviewed, 551 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 106 — what the stray-order sweep looks for, and what an account's startup does
+
+Scope: the sweep for venue orders the host does not know about and the ordered
+startup of one account, part of a module the ledger marks `partial`. After the
+package before this one, sixty of its five hundred and twenty-five statements were
+uncited. What the sweep looks for, and what an account's startup does in order, are
+in no article. A handful of answers and delegations are left, and the cell stays
+`partial`.
+
+### Merge and promote, package 106
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1055 | What counts as known is every live order together with every closed one, and the host's own command fragments are taken before the asking begins. | Promote. The sweep is in no article, and closed orders counting as known is what keeps it from mistaking its own finished work for a stray |
+| Row H-1056 | A venue that refuses one symbol marks the whole sweep unsafe and the walk goes on to the next. | Merge with H-1055 |
+| Row H-1057 | A venue order whose name the host knows is passed over, and one carrying no fragment of this host's or one it does not own is noted rather than acted on. | Merge with H-1055 |
+| Row H-1058 | The account's stored events are replayed into the manager before anything else, and the account then recorded on the spine with its orphaned commands reconciled against those same events. | Promote. The order is in no article, and everything after working against a manager that already knows the history is what the order buys |
+| Row H-1059 | The symbols whose rules are loaded are the active ones, the bootstrap's, and every one a bracket in the stored events names. | Merge with H-1058. The third source is what finishes a bracket in a symbol the account has left |
+| Row H-1060 | Readiness is what the sweep answered, settled after external events are drained and incomplete flattens recovered, and withheld from a poisoned account however the sweep answered. | Merge with H-1058 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P106-01 | What the sweep for stray venue orders looks for | written | [what-the-sweep-for-stray-venue-orders-looks-for.md](atoms/what-the-sweep-for-stray-venue-orders-looks-for.md) |
+| P106-02 | What an account's startup does in order | written | [what-an-accounts-startup-does-in-order.md](atoms/what-an-accounts-startup-does-in-order.md) |
+
+### Re-seed, after writing package 106
+
+Two findings about where a value comes from, and one about an order of operations.
+
+| What it found | What came of it |
+|---|---|
+| Closed orders count as known to the sweep, so it cannot mistake the host's own finished work for a stray. | Stated. Without it the sweep reads as comparing against live orders alone, which would make every completed order a stray |
+| The symbols whose rules are loaded include every one a bracket in the stored events names, beyond the active and bootstrap sets. | Stated, with why: a bracket from a previous run names a symbol the account may have left, and its rules are needed to finish that bracket |
+| Readiness needs the sweep's answer and the absence of poisoning, and is settled only after draining and flatten recovery. | Stated as the pair it is |
+| The host's own command fragments are taken before the venue is asked. | Stated as what it buys: ownership is judged against a snapshot from before the reply |
+
+Worth recording: the third symbol source is the kind of thing that reads as
+redundancy. Two sets are unioned and then a third is built by walking the stored
+events for one event kind — which looks like belt and braces until you ask what
+event names a symbol the other two sets would miss. The answer is in the event's own
+name, and checking it is what turned a redundant-looking union into the article's
+sharpest sentence.
 
 ## Package 105 — what a failed start undoes, and what a stop will not leave running
 
@@ -8270,6 +8315,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1049 | Every account's stored events are read in one go and sorted into lists per account, and each configured account is registered as booting and started with its own. | `praxis/trading.py` 515, then 517 into 518-519, then 521, then 522, then 523, then 524 | package one hundred and five | folds into P105-01 |
 | H-1050 | A failure anywhere lets the loop go, undoes what was built, and raises on, the undoing clearing each collection whether the closing or unregistering worked or not. | `praxis/trading.py` 525 into 526 then 527 then 528, and 806 into 807-810 then 811, and 813 into 814-817 then 818 and 819 and 820 | package one hundred and five | folds into P105-01 |
 | H-1054 | The reconciling loop is set going and the started flag raised only once all of that has passed. | `praxis/trading.py` 530, then 531 | package one hundred and five | folds into P105-01 |
+| H-1055 | What counts as known is every live order together with every closed one, and the host's own command fragments are taken before the asking begins. | `praxis/trading.py` 932, then 933, against 928 into 929-930 | package one hundred and six | is P106-01 |
+| H-1056 | A venue that refuses one symbol marks the whole sweep unsafe and the walk goes on to the next. | `praxis/trading.py` 941-942 into 943, then 950, then 951 | package one hundred and six | folds into P106-01 |
+| H-1057 | A venue order whose name the host knows is passed over, and one carrying no fragment of this host's or one it does not own is noted rather than acted on. | `praxis/trading.py` 953 into 954-955, against 957 into 958-959 | package one hundred and six | folds into P106-01 |
+| H-1061 | The symbols the sweep asks about are the account's active ones together with the bootstrap's, walked in sorted order. | `praxis/trading.py` 934-937, then 940 | package one hundred and six | folds into P106-01 |
+| H-1058 | The account's stored events are replayed into the manager before anything else, and the account then recorded on the spine with its orphaned commands reconciled. | `praxis/trading.py` 548 ahead of 549, then 549, then 550-552 | package one hundred and six | is P106-02 |
+| H-1059 | The symbols whose rules are loaded are the active ones, the bootstrap's, and every one a bracket in the stored events names, loaded only where something was found. | `praxis/trading.py` 554, then 555, then 556-560, then 561 into 562 | package one hundred and six | folds into P106-02 |
+| H-1060 | Readiness is what the sweep answered, settled after external events are drained and incomplete flattens recovered, and withheld from a poisoned account. | `praxis/trading.py` 546 set at 567, and 598, then 600-602, ahead of 606, the poisoning read at 604 | package one hundred and six | folds into P106-02 |
+| H-1062 | Protection remediations and the fund cursor are seeded from the stored events. | `praxis/trading.py` 564, then 565 | package one hundred and six | folds into P106-02 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
 | H-1053 | A closing of one account's stream reports its own failure and goes no further, and an account the manager has lost is skipped. | `praxis/trading.py` 640 into 641-642, against 644-645 into 646-647, and 689 then 690-691 into 692-693 | package one hundred and five | folds into P105-02 |
@@ -8291,4 +8344,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 17:00 UTC
