@@ -2,7 +2,7 @@
 row: P153-02
 baseline: 49aa659
 created: 2026-11-15 21:00 UTC
-modified: 2026-11-15 21:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "One moment is taken and carried by the outcome, any closing record, and the outcome written down"
     source: "`execution_manager.py` 8405, used at 8422, and 8435, and 8444"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A scheme that filled something and closes its position has a closing record written and projected"
     source: "`execution_manager.py` 8430-8432 into 8433-8438, then 8439, then 8440"
   - claim: "The outcome is then written down under that same moment"
-    source: "`execution_manager.py` 8442-8449"
+    source: "`execution_manager.py` 8442-8449, then 8453, then 8454, the report handed out at 8456 and answered with at 8458"
 ---
 # What ending a scheme forgets
 

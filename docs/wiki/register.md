@@ -857,6 +857,75 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 186 — the manager written out, and what holds its cell open
+
+Scope: the whole of `praxis/core/execution_manager.py`, the largest module on either
+side, which the ledger has marked `partial` since the ledger existed. The sweep's last
+package. Every statement a claim may name is now cited; the cell stays `partial`, and
+what holds it is a question rather than an article.
+
+### What the module is accounted for by
+
+Of its two thousand five hundred and four statements, two thousand four hundred and
+twenty-two are cited by a claim in an article. Thirty-one packages, from the hundred and
+fiftieth to this one, took it from one thousand two hundred and fifty-five uncited
+statements to none that may be cited at all.
+
+### What the exclusion is
+
+Eighty-two statements, in three kinds the gate itself refuses to let a claim name:
+
+| Kind | Count | Why no claim may name it |
+|---|---|---|
+| A log call | 67 | A log message is a claim about what happens, not the happening. The check that refuses it was written because a message saying "placing the replacement" was once cited as the placing |
+| An insistence | 13 | An `assert` states what the writer believed, and a reader cannot tell a believed invariant from an enforced one. Where one does refuse something a reader would meet, the article cites the reading above it instead |
+| A bare re-raise | 2 | Two routines let a stopped task through by re-raising it. Each is already accounted for by the claim covering the guard it sits in, which names the arm that catches and the arm that swallows |
+
+None of the three is behaviour a reader of the wiki would go looking for, and none can
+be cited without breaking a check that exists because citing its kind went wrong before.
+
+### What the last four packages found that was not bookkeeping
+
+| Package | The subject the sweep turned up |
+|---|---|
+| 181 | What the manager and an account's runtime are each built holding, a constructor seven articles cited in fragments and none had as a subject |
+| 182 | Draining an account's outside events, three queues named by four articles and emptied by none of them |
+| 184 | What target the closing command is given, a choice legible only from a rule in the outcome's own type |
+| 185 | How a remediation reaches Nexus, and what a slice that cannot be sent does to the work |
+
+### Why the cell stays `partial`
+
+This package moved the cell to `full` and the gate refused it: row H-042 leaves question
+U-03 on this module, and the check that reads the harvest rows will not let a file with
+a question on it stand as `full`. The move was wrong and the refusal was right.
+
+So the cell goes back to `partial`, and the ledger now says which kind of `partial` it
+is. All three Praxis modules left are the same kind: a question hangs over each, and
+none is waiting on an article.
+
+| Module | What holds it | What would move it |
+|---|---|---|
+| `execution_manager.py` | Row H-042, raised as U-03: a ladder cancelled before its first rung has its report deferred to the next boot and labelled a refusal rather than a cancellation | An answer to U-03 from Praxis about whether the deferred, mislabelled report is intended |
+| `trade_outcome.py` | The same H-042, from the other end: the type refuses the zero-part outcome the emitter builds | The same answer |
+| `trading_state.py` | Row H-045, raised as U-04: a buy's commission netted out of holdings only where the fee asset matches one hardcoded symbol | An answer to U-04 about whether a second symbol is ever added |
+
+### Re-seed, after writing package 186
+
+What this package settles is not the cell but the reading of it: every line a claim may
+name is named, the remainder is written down as the three kinds it is, and what is left
+is three decisions for Praxis.
+
+| What it found | What came of it |
+|---|---|
+| The exclusion is three kinds, not a list of lines. | Recorded as kinds with counts, so a later reader can test the claim by counting rather than by trusting |
+| Each kind is refused by a check that exists because citing it went wrong. | Recorded beside the kind. The exclusion is the gate's own rule, not a convenience |
+| A `full` cell is refused while a harvest row leaves a question on the file. | Recorded as the refusal it was. The three remaining cells are held by U-03 and U-04, and the ledger says so in its own summary now |
+| The sweep turned up a promotable subject in four of its six packages. | Recorded. Asking what an uncited line is for is a way of finding subjects, not only of closing gaps |
+
+Worth recording: thirty-one packages on one module, and the last six of them found as
+much worth writing as the first six. The cell's state is now the honest one — written
+out, and waiting on an answer rather than on prose.
+
 ## Package 185 — how a remediation reaches Nexus, what a slice that cannot be sent does, and the sweep to eight thousand
 
 Scope: the handing-on of a remediation and the retry that keeps it waiting, the freezing
@@ -12670,4 +12739,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 13:30 UTC

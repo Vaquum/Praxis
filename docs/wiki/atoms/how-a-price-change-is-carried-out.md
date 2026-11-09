@@ -2,14 +2,14 @@
 row: P3-25
 baseline: 49aa659
 created: 2026-10-12 00:45 UTC
-modified: 2026-10-14 08:50 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A price change on a single order cancels the resting order and places a fresh one"
-    source: "`execution_manager.py` 8716 and 8746 into 8786-8795, the fresh one sent from 8810-8813"
+    source: "`execution_manager.py` 8716 and 8740-8745, and 8746 into 8786-8795, the fresh one sent from 8810-8813 and the change answered as carried through at 8814"
   - claim: "The change is written down before the cancel goes out, and read back on a restart, so the next name follows rather than repeating one"
     source: "`execution_manager.py` 8695-8697 into 8700-8713, ahead of the cancel at 8716, read back at 1140-1143"
   - claim: "What the cancelled order really filled is settled before anything is placed, the venue being asked only where its figure stands above the record"
-    source: "`execution_manager.py` 8779-8782 into 8168-8169, reached before 8786"
+    source: "`execution_manager.py` 8776, then 8777, then 8778, then 8779-8782 into 8168-8169, reached before 8786"
   - claim: "A fill that cannot be accounted for parks the change and leaves the original unfinished"
     source: "`execution_manager.py` 8783-8784 with 8747-8748"
   - claim: "The fresh order is sized from the command's whole amount less everything recorded filled across its orders"

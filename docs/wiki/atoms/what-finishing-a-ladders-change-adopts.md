@@ -2,10 +2,10 @@
 row: P163-02
 baseline: 49aa659
 created: 2026-11-16 02:00 UTC
-modified: 2026-11-16 02:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The completion is recorded before anything is adopted"
-    source: "`execution_manager.py` 9337-9342, then 9343"
+    source: "`execution_manager.py` 9318 reaching 9337-9342, then 9343"
   - claim: "A fresh command is made carrying the new grid and installed under the name the old one had"
     source: "`execution_manager.py` 9345, then 9346, then 9347"
   - claim: "The scheme's generation is promoted to the one just placed"

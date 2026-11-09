@@ -2,14 +2,14 @@
 row: P155-02
 baseline: 49aa659
 created: 2026-11-15 22:00 UTC
-modified: 2026-11-15 22:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The parameters are insisted upon as a ladder's and the amount as present"
     source: "`execution_manager.py` 6085, then 6086"
   - claim: "The venue's remembered rules give the lot step, and nothing where none are held"
     source: "`execution_manager.py` 6088, then 6089, then 6090"
   - claim: "The levels are planned from the parameters, the whole amount and that step"
-    source: "`execution_manager.py` 6092-6093"
+    source: "`execution_manager.py` 6092-6093, the report made and the start abandoned at 6096-6102, then 6103"
   - claim: "A planning that refuses is reported and the command ended as rejected, its slice total named as the count of prices the parameters held"
     source: "`execution_manager.py` 6094 into 6096-6101, the total at 6100"
   - claim: "Otherwise a start is recorded naming the planned count as its slice total and nought as its interval"

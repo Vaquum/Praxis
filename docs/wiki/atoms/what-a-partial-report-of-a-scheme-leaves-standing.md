@@ -2,14 +2,14 @@
 row: P162-02
 baseline: 49aa659
 created: 2026-11-16 01:30 UTC
-modified: 2026-11-16 01:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The figures reported are the admitted totals kept for the command"
-    source: "`execution_manager.py` 8316-8318"
+    source: "`execution_manager.py` 8314, then 8316-8318"
   - claim: "An average price is worked out only where something has filled, and left absent otherwise"
     source: "`execution_manager.py` 8320 into 8321-8322"
   - claim: "The count of slices reported is the scheme's own place in its plan"
-    source: "`execution_manager.py` 8332, then 8333"
+    source: "`execution_manager.py` 8324-8337, the count named at 8332, and 8333"
   - claim: "One moment is taken and carried into both the report and the record of it"
     source: "`execution_manager.py` 8315, then 8335, then 8341"
   - claim: "The record goes down and is applied, and the report is then handed out with retries"

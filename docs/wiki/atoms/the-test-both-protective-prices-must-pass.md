@@ -2,7 +2,7 @@
 row: P183-01
 baseline: 49aa659
 created: 2026-11-16 12:00 UTC
-modified: 2026-11-16 12:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A long's take-profit must sit above the entry's average price and its stop below it"
     source: "`execution_manager.py` 5124, then 5125"
@@ -13,7 +13,7 @@ evidence:
   - claim: "A pair failing it at first placement has the entry closed out as unprotected"
     source: "`execution_manager.py` 4947, then 4958-4961"
   - claim: "A pair failing it on a change answers nothing, which refuses the change"
-    source: "`execution_manager.py` 9902, then 9905"
+    source: "`execution_manager.py` 9863, then 9865, then 9866, then 9902, then 9905"
 ---
 # The test both protective prices must pass
 

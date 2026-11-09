@@ -2,7 +2,7 @@
 row: P4-42
 baseline: 49aa659
 created: 2026-10-13 06:50 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "Every live scheme is frozen, each freeze written down before it takes hold in memory"
     source: "`execution_manager.py` 6626, then 6630-6638, then 6639, then 6640, the names answered at 6642"
@@ -25,7 +25,7 @@ evidence:
   - claim: "A deadline passed with nothing left on the books leaves the pair unknown instead"
     source: "`execution_manager.py` 7519-7521"
   - claim: "A pair that never goes up enters the same answer directly"
-    source: "`execution_manager.py` 7181-7185, then 7186-7190, reached from 4958-4963"
+    source: "`execution_manager.py` 7181-7185, then 7186-7190, reached from 4958-4963, the failure recorded at 10025-10032, then 10033"
   - claim: "An account named in no policy setting gets the flattening one"
     source: "`trading_config.py` 220-221 against 26-28, wired at `trading.py` 232"
   - claim: "The word to Nexus is kept under the command's name and offered at once"

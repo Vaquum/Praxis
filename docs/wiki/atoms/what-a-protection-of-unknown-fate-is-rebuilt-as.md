@@ -2,14 +2,14 @@
 row: P138-01
 baseline: 49aa659
 created: 2026-11-15 13:30 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "One pass gathers the bracket starts, the latest unresolved phase, and the latest amend request kept apart from it"
     source: "`execution_manager.py` 1772-1774, then 1775, then 1776 into 1777, or 1779 into 1780, then 1781 into 1782"
   - claim: "A protection reported active or failed clears the unresolved phase, so only a command whose latest protection record is neither reaches this road"
     source: "`execution_manager.py` 1784 into 1785"
   - claim: "A command the bracket resume already rebuilt is passed over, and so is one with no start recorded"
-    source: "`execution_manager.py` 1787, then 1788 into 1789, or 1791, then 1792 into 1793"
+    source: "`execution_manager.py` 1787, then 1788 into 1789, or 1791, then 1792 into 1793, or the bracket rebuilt whole at 1710-1722 before 1731"
   - claim: "A command that will not rebuild from its start is reported and passed over"
     source: "`execution_manager.py` 1795-1796, then 1797 into 1805, the rebuilding it attempts at 1862, reaching 1530"
   - claim: "The average entry price is taken where the entry's order is there and filled something, and is simply nothing otherwise"

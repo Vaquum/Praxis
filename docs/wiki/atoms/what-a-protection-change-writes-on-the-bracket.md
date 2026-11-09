@@ -2,7 +2,7 @@
 row: P159-02
 baseline: 49aa659
 created: 2026-11-16 00:00 UTC
-modified: 2026-11-16 00:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The version the change carries is one past the version standing, and the new pair's name is worked out from it as a retry number"
     source: "`execution_manager.py` 9430, then 9431-9436"
@@ -17,7 +17,7 @@ evidence:
   - claim: "The driving reads those four back off the bracket rather than being handed them"
     source: "`execution_manager.py` 9488, read at 9522-9525"
   - claim: "They are cleared on one road only, once the replacement's send has been recorded"
-    source: "`execution_manager.py` 9741, then 9744, then 9745, then 9746, then 9747"
+    source: "`execution_manager.py` 9740, then 9741, then 9742, then 9744, then 9745, then 9746, then 9747"
 ---
 # What a protection change writes on the bracket
 

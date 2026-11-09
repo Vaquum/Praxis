@@ -2,7 +2,7 @@
 row: P1-13
 baseline: 49aa659
 created: 2026-10-12 14:30 UTC
-modified: 2026-10-12 16:08 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A change is deferred for as long as the hold lasts, going back on the line each pass"
     source: "`execution_manager.py` 3913-3920 and 3953-3954"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A change the hold let through does nothing where its order went terminal while it waited"
     source: "`execution_manager.py` 8622-8624, the cancellations still run at 3941 marking one terminal at 10582"
   - claim: "A change to protection is carried out ahead of that test, so a finished request can still have its protection cancelled and replaced"
-    source: "`execution_manager.py` 8616-8620 before 8622, the bracket read instead at 9386-9393"
+    source: "`execution_manager.py` 8614, then 8616-8620 before 8622, the bracket read instead at 9386-9393"
   - claim: "A worker still starting empties no line, so a change queued then is not reached at all"
     source: "`execution_manager.py` 3903-3905 ahead of 3910, still queued from 3074"
 ---

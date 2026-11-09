@@ -2,14 +2,14 @@
 row: P151-01
 baseline: 49aa659
 created: 2026-11-15 20:00 UTC
-modified: 2026-11-15 20:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A part-shown amount is carried only where it was given and stands below the remainder, and is otherwise nothing"
     source: "`execution_manager.py` 10321"
   - claim: "One moment is taken for the intent, which is recorded before the send"
     source: "`execution_manager.py` 10322, then 10324-10330"
   - claim: "A timeout or a name the venue already knows sends the order to be rescued by that name"
-    source: "`execution_manager.py` 10355 into 10356-10358"
+    source: "`execution_manager.py` 10354, or 10355 into 10356-10358"
   - claim: "A rescue that finds nothing records the send as failed and then reports the amend as failed, ending the pass"
     source: "`execution_manager.py` 10359 into 10360-10365"
   - claim: "A rescue that finds the order uses it and stamps the moment afresh"

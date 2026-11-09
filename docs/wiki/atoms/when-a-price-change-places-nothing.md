@@ -2,14 +2,14 @@
 row: P3-26
 baseline: 49aa659
 created: 2026-10-12 01:40 UTC
-modified: 2026-10-12 10:12 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A cancel the venue does not confirm leaves the order live and places nothing, and parks no change for a later pass"
     source: "`execution_manager.py` 8717-8723, returning before the parking at 8747-8748"
   - claim: "An order the venue still calls live places nothing either, and is left alone"
     source: "`execution_manager.py` 8725-8732"
   - claim: "What is left is weighed against the smallest size loaded for that symbol, and falling short the request is reported filled on what it already has"
-    source: "`execution_manager.py` 8799-8808, reported at 10471-10479"
+    source: "`execution_manager.py` 8799-8808, the figures read at 10464-10466, and 10498-10500, an average worked out only on something filled at 10467 into 10468-10469, and 10501 into 10502-10503, reported at 10471-10479"
   - claim: "Where no size was loaded for the symbol the weighing is against zero, so any remainder at all is placed"
     source: "`execution_manager.py` 8800-8801 reading the cache at `binance_adapter.py` 2153, filled only from `trading.py` 562"
   - claim: "A replacement that times out, is refused, or cannot be found afterwards ends the request cancelled on what it had filled"

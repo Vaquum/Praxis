@@ -2,7 +2,7 @@
 row: P2-38
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-10-11 20:13 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "On the ordinary path an ending marks the command finished and drops it from the live and aborted sets"
     source: "`execution_manager.py` 10800-10804"
@@ -11,7 +11,7 @@ evidence:
   - claim: "Then the outcome's own row is written and projected"
     source: "`execution_manager.py` 10817-10832"
   - claim: "Only then is the caller told"
-    source: "`execution_manager.py` 10834"
+    source: "`execution_manager.py` 10834, the outcome answered with at 10836"
   - claim: "A scheme ended at boot writes its row before marking the command finished, and writes no close"
     source: "`execution_manager.py` 2721-2773"
   - claim: "A caller that takes it on the first try is not tried again"

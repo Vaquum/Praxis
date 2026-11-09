@@ -2,14 +2,14 @@
 row: P4-48
 baseline: 49aa659
 created: 2026-10-14 07:25 UTC
-modified: 2026-10-14 07:25 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "No live bracket, no resting pair, a pair not active, no entry price and prices that will not resolve are each logged and returned rather than raised"
     source: "`execution_manager.py` 9388-9393, 9395-9400, 9402-9409 and 9411-9426"
   - claim: "The change is written down before the venue is touched"
     source: "`execution_manager.py` 9463 and 9464"
   - claim: "A cancel the venue refuses, and a query of what it filled that fails, both leave the pair unknown"
-    source: "`execution_manager.py` 9459-9472 and 9567-9583"
+    source: "`execution_manager.py` 9457, then 9458, then 9459-9472 and 9567-9583"
   - claim: "Fills that will not reconcile park the change until a deadline, and the replacement is then sized from the venue's own figure"
     source: "`execution_manager.py` 9590-9604 against 9606-9608"
   - claim: "Nothing left to protect ends it with no replacement"
@@ -19,7 +19,7 @@ evidence:
   - claim: "A replacement whose send fails and whose query cannot be answered, the venue not having it included, leaves the pair unknown"
     source: "`execution_manager.py` 9689-9706"
   - claim: "One the venue returns marked rejected is taken as protection lost"
-    source: "`execution_manager.py` 9980-9981 read at 9708-9712"
+    source: "`execution_manager.py` 9976-9979, then 9980-9981, then 9983, read at 9708-9712"
   - claim: "One already ended when it comes back is left unknown rather than marked resting"
     source: "`execution_manager.py` 9749-9767"
 ---

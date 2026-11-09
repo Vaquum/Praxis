@@ -2,7 +2,7 @@
 row: P157-02
 baseline: 49aa659
 created: 2026-11-15 23:00 UTC
-modified: 2026-11-15 23:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The venue's remembered rules give the lot step, the least amount and the least sum, with nothing standing in for the step and nought for both minimums where no rules are held"
     source: "`execution_manager.py` 9080, then 9081, then 9082, then 9083"
@@ -13,7 +13,7 @@ evidence:
   - claim: "A level below the least amount, or worth less than the least sum at its own price, is passed over"
     source: "`execution_manager.py` 9090, then 9091 into 9092"
   - claim: "Each level that survives is numbered by how many have survived before it"
-    source: "`execution_manager.py` 9089, then 9094"
+    source: "`execution_manager.py` 9089, then 9094, the levels answered with at 9096"
 ---
 # How a new ladder grid is renumbered
 

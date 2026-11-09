@@ -2,12 +2,12 @@
 row: P4-47
 baseline: 49aa659
 created: 2026-10-14 07:10 UTC
-modified: 2026-10-16 08:20 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "Another change already under way, a ladder under any hold, and settings that are not a ladder's each turn it away first"
     source: "`execution_manager.py` 8882-8889, 8891-8897 and 8899-8904"
   - claim: "The change is written down and the stage set to cancelling before the venue is touched"
-    source: "`execution_manager.py` 8941-8942 before 8951"
+    source: "`execution_manager.py` 8941-8942, then 8943-8950, before 8951"
   - claim: "A rung the record already has as ended is accepted, one it has no order for is passed over, and the rest are cancelled and asked after before any new rung is placed"
     source: "`execution_manager.py` 9131-9141 and 9143-9174, before 9026"
   - claim: "A cancel that fails, a query that fails, a rung not ended, and fills that will not reconcile each stop the change"

@@ -2,7 +2,7 @@
 row: P4-56
 baseline: 49aa659
 created: 2026-10-14 10:55 UTC
-modified: 2026-10-14 10:55 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A plan that comes to nothing finishes the change with no new rungs at all"
     source: "`execution_manager.py` 8997-9001"
@@ -11,7 +11,7 @@ evidence:
   - claim: "A ladder being wound up retires both grids and places none"
     source: "`execution_manager.py` 8974-8976 into 9050-9054"
   - claim: "A rung already resting is skipped, and so is one already filled"
-    source: "`execution_manager.py` 9286-9289 and 9291-9292"
+    source: "`execution_manager.py` 9280, then 9281-9284, then 9285, then 9286-9289 and 9291-9292"
   - claim: "A rung the record has ended any other way stops the change again"
     source: "`execution_manager.py` 9294-9299"
   - claim: "A send that comes back with no name stops it too"

@@ -2,14 +2,14 @@
 row: P135-01
 baseline: 49aa659
 created: 2026-11-15 12:00 UTC
-modified: 2026-11-15 12:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "Every scheme start gathered from the history is walked, and one whose command has a terminal outcome is passed over"
     source: "`execution_manager.py` 1895, then 1896 into 1897"
   - claim: "The latest state it reached decides the next test, with an absent state read as running"
     source: "`execution_manager.py` 1899, then 1900"
   - claim: "A state that is anything but running passes it over"
-    source: "`execution_manager.py` 1901 into 1902"
+    source: "`execution_manager.py` 1901 into 1902, or 1904-1908 into 1909"
   - claim: "A mode that is not a scheme mode, a slice count below the minimum, or an interval at or below nought each pass it over"
     source: "`execution_manager.py` 1904-1908"
   - claim: "A volume-weighted scheme whose stored weights number fewer than that minimum is passed over and reported"

@@ -2,16 +2,16 @@
 row: P143-01
 baseline: 49aa659
 created: 2026-11-15 16:00 UTC
-modified: 2026-11-15 16:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The amend's own figures are taken off the bracket, and four of them are insisted upon"
-    source: "`execution_manager.py` 9519-9525, then 9526, and 9527, and 9528, and 9529"
+    source: "`execution_manager.py` 9519-9525, then 9526, and 9527, and 9528, and 9529, the closing command named at 9532 and the old pair read at 9534"
   - claim: "What the entry delivered is read as the filled amount net of its base-asset fees"
     source: "`execution_manager.py` 9531, into 2648"
   - claim: "The venue is asked what the cancelled pair actually filled"
-    source: "`execution_manager.py` 9543-9546"
+    source: "`execution_manager.py` 9536, then 9539-9541, then 9543-9546"
   - claim: "A venue failure there records the protection's state as unknown, marks the bracket so, stamps the moment and abandons the amend"
-    source: "`execution_manager.py` 9547 into 9549-9552, then 9553, then 9554, then 9555, then 9564"
+    source: "`execution_manager.py` 9547, then 9548 into 9549-9552, then 9553, then 9554, then 9555, then 9564"
   - claim: "Otherwise the protective fills are reconciled against what the venue said"
     source: "`execution_manager.py` 9566-9570"
   - claim: "Fills that will not reconcile park the amend as cancel-confirmed for the scan to retry, the first such pass stamping when the waiting began"

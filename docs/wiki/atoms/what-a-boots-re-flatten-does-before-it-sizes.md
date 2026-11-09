@@ -2,10 +2,10 @@
 row: P172-02
 baseline: 49aa659
 created: 2026-11-16 06:30 UTC
-modified: 2026-11-16 06:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The bracket is rebuilt in memory with the entry's name worked out from the command"
-    source: "`execution_manager.py` 8228-8230, then 8231-8233"
+    source: "`execution_manager.py` 8228-8230, then 8231-8233, then 8234"
   - claim: "The account's waiting news is drained to empty before anything is sized"
     source: "`execution_manager.py` 8235"
   - claim: "An account poisoned by that draining abandons the recovery"

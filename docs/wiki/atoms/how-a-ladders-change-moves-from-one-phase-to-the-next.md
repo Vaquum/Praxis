@@ -2,10 +2,10 @@
 row: P163-01
 baseline: 49aa659
 created: 2026-11-16 02:00 UTC
-modified: 2026-11-16 02:00 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A change with no context left on the scheme does nothing"
-    source: "`execution_manager.py` 8970, then 8971 into 8972"
+    source: "`execution_manager.py` 8969, then 8970, then 8971 into 8972"
   - claim: "A scheme held for draining is handed to the draining instead"
     source: "`execution_manager.py` 8974, then 8975, then 8976"
   - claim: "The new grid's settings are rebuilt from the context on every pass"

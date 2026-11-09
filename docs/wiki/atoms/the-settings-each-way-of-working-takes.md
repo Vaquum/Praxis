@@ -2,7 +2,7 @@
 row: P4-08
 baseline: 49aa659
 created: 2026-10-03 14:12 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "Seven ways of working share six kinds of settings between them"
     source: "`execution_params.py` 30-38"
@@ -35,7 +35,7 @@ evidence:
   - claim: "Rounding while they are added can let a total slightly off one pass"
     source: "`scheduled_vwap_params.py` 62"
   - claim: "The count of parts for the weighted kind is taken as the count of weights"
-    source: "`execution_manager.py` 467-471, then 473, the parts planned at `plan_weighted_slices.py` 58-62 by the road taken at `execution_manager.py` 489, then 490, against 492, and counted at 5767"
+    source: "`execution_manager.py` 467-471, then 473-474, the parts planned at `plan_weighted_slices.py` 58-62 by the road taken at `execution_manager.py` 489, then 490, against 492, and counted at 5767"
   - claim: "Each leg of a protective pair takes exactly one of an outright price or a distance, every figure being a finite decimal above nought"
     source: "`praxis/core/domain/bracket_params.py` 51-57, all five figures weighed at 59-71"
 ---

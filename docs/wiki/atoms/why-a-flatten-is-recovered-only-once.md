@@ -2,7 +2,7 @@
 row: P146-02
 baseline: 49aa659
 created: 2026-11-15 17:30 UTC
-modified: 2026-11-15 17:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "A flatten order already carrying fills is reported and left alone"
     source: "`execution_manager.py` 8018, then 8019 into 8026"
@@ -11,11 +11,11 @@ evidence:
   - claim: "Where no local order stands at all, an intent and a submission are both recorded and applied"
     source: "`execution_manager.py` 8035 into 8036-8045, then 8049, then 8051-8058, then 8059"
   - claim: "The venue's trades for the symbol are then asked for, and every one naming another order is passed over"
-    source: "`execution_manager.py` 8061, then 8062, then 8063"
+    source: "`execution_manager.py` 8061, then 8062, then 8063 into 8064"
   - claim: "Each remaining trade becomes a fill written to the record, and is applied only where the write answered with a place"
     source: "`execution_manager.py` 8066, then 8082, then 8083 into 8084"
   - claim: "The order is read back afterwards, and an outcome built only where it now carries fills"
-    source: "`execution_manager.py` 8086, then 8087 into 8092"
+    source: "`execution_manager.py` 8086, then 8087 into 8088-8090, then 8092"
 ---
 # Why a flatten is recovered only once
 

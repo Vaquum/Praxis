@@ -2,12 +2,12 @@
 row: P176-02
 baseline: 49aa659
 created: 2026-11-16 08:30 UTC
-modified: 2026-11-16 08:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "The version used is the standing one or the first, whichever is greater"
     source: "`execution_manager.py` 6837-6839"
   - claim: "A state-unknown is recorded, naming the pair's current name as both the old one and the new"
-    source: "`execution_manager.py` 6845-6857, the two names set at 6855, and 6856"
+    source: "`execution_manager.py` 6845-6857, the two names set at 6855, and 6856, the record built at 10000-10008, then 10009"
   - claim: "Only after that record goes down is the standing moved to unknown and the moment stamped"
     source: "`execution_manager.py` 6845, then 6861, then 6862"
   - claim: "A scan over protection is then asked for"

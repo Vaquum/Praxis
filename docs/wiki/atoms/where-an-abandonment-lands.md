@@ -2,7 +2,7 @@
 row: P4-24
 baseline: 49aa659
 created: 2026-10-01 18:14 UTC
-modified: 2026-11-16 12:30 UTC
+modified: 2026-11-16 13:30 UTC
 evidence:
   - claim: "An abandonment for a command already ended does nothing"
     source: "`execution_manager.py` 8482-8487"
@@ -11,13 +11,13 @@ evidence:
   - claim: "A child the venue refuses or cannot find is left active, the rest still attempted"
     source: "`execution_manager.py` 6447-6468"
   - claim: "A ladder caught mid-change takes another path, which gives up on the first child it fails to cancel"
-    source: "`execution_manager.py` 6553-6555 into 9049-9057 and 9152-9174"
+    source: "`execution_manager.py` 6553-6555 into 9049-9057, then 9060, then 9061-9065, and 9152-9174"
   - claim: "One whose order is at the venue has a cancel sent for it, a pair through the call meant for pairs"
     source: "`execution_manager.py` 8519-8531"
   - claim: "A cancel the venue refuses leaves the order where it is, with no cancellation written down"
     source: "`execution_manager.py` 8534-8536, skipping the record written at 8538-8547"
   - claim: "The command is reported cancelled all the same, and treated as ended"
-    source: "`execution_manager.py` 8568-8576 into 10567-10614"
+    source: "`execution_manager.py` 8568-8576 into 10567-10614, answered with at 10616"
   - claim: "One whose command was accepted but has no order yet is marked, and the marked command is dropped at each point an order would go out"
     source: "`execution_manager.py` 8500-8506, read at 4154-4168, 4482-4497, 5275-5290, 5713-5730 and 6074-6083"
   - claim: "One for a command never accepted is logged as a warning and nothing more"
