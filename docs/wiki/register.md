@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 591 not.**
+**6 of them reviewed, 593 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 126 — what a host refuses to be built as, and the two mappings an account lives in
+
+Scope: the refusals a host makes before it does anything, and the two mappings an
+account is written into at two different moments, part of a module the ledger marks
+`partial`. After the package before this one, three hundred and forty-two of its
+twelve hundred and one statements were uncited. Neither subject is in an article. The
+rest of the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 126
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1206 | A host is refused unless exactly one of a record and a path to one is given, both and neither failing the same test. | Promote. The refusals are in no article, and one line turning away both mistakes is worth stating |
+| Row H-1207 | Where the key's permissions are to be enforced, every cap must be set and the unset ones are named together in order. | Merge with H-1206 |
+| Row H-1208 | The caps are chosen from the caller or built from the environment twice over, so a host given none reads the six settings twice. | Merge with H-1206 |
+| Row H-1209 | The same cap demand is written again where that set is built for a live host, with a failure of another kind and the names unsorted. | Merge with H-1206. The same deployment short of the same cap is refused by one of two lines depending on how it was built |
+| Row H-1210 | An account's accounting wiring is written from inside its build, where its runtime is written only once the build has answered. | Promote. The two edges are in no article, and which question each mapping answers is what they are for |
+| Row H-1211 | The runtime is taken out again on both ways out, where nothing in the host takes an account out of the wiring. | Merge with H-1210 |
+| Row H-1212 | An arriving report reads the wiring by the account it names, where reaching an account reads the runtime and refuses where none stands. | Merge with H-1210 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P126-01 | What a host refuses to be built as | written | [what-a-host-refuses-to-be-built-as.md](atoms/what-a-host-refuses-to-be-built-as.md) |
+| P126-02 | The two mappings an account lives in | written | [the-two-mappings-an-account-lives-in.md](atoms/the-two-mappings-an-account-lives-in.md) |
+
+### Re-seed, after writing package 126
+
+A third duplicated test in this module, and a pair of mappings whose difference is
+only visible from the edges they are written on.
+
+| What it found | What came of it |
+|---|---|
+| The cap demand is made twice — once where the set is built for a live host and once where the host is told to enforce permissions — with different failure kinds and different orderings of the names. | Stated. This is the third test in this module written twice over, after the environment readers and the whole-number tests |
+| A host given no caps reads the six settings twice, because the choosing of a default is written out at the test and again at the keeping. | Stated plainly as a consequence of the two writings |
+| Nothing in the host takes an account out of the wiring mapping, where the runtime mapping is emptied on both ways out. | Stated, with the span that difference opens |
+| One mapping would have to pick an edge, and whichever it picked the other question would be answered wrongly between the two. | Stated as why they are two. The module carries a note saying as much, so the finding is that the note is right and the edges are where it shows |
+
+Worth recording: three duplicated tests now stand recorded in this module, found in
+packages a hundred and seventeen, a hundred and twenty-one, and this one. The pattern
+is not that any of them is wrong — each pair agrees on what it refuses — but that
+each pair disagrees on the kind of failure raised or the order of the names. A reader
+sorting failures by kind sees one deployment mistake under two kinds, and no routine
+mentions the other.
 
 ## Package 125 — what the one listener serves, and when an account can be delivered to
 
@@ -9380,7 +9426,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1203 | One thread is made per account, each a daemon named after its account, and starting them refuses where the trading stack or the loop is missing, where a thread finding the same thing answers at once instead. | `launcher.py` 3892, then 3895-3900, then 3901, then 3902, with 3888 into 3889-3890, against 3988 into 3989 | package one hundred and twenty-five | is P125-02 |
 | H-1204 | The account's runtime is published under a lock once its build has answered, and delivering reads it back under that lock and refuses where none stands. | `launcher.py` 3993 into 3994, then 3969, then 3972 into 3973-3977, or 3979 | package one hundred and twenty-five | folds into P125-02 |
 | H-1205 | An ordinary stop unpublishes the runtime before any of the account's loops is stopped, where a failure unpublishes it after the failure is reported and then sets the host's own stop. | `launcher.py` 4001 into 4002, ahead of 4004-4007, against 4037-4038, then 4040 | package one hundred and twenty-five | folds into P125-02 |
+| H-1206 | A host is refused unless exactly one of a record and a path to one is given, both and neither failing the same test. | `launcher.py` 2750 into 2751-2752 | package one hundred and twenty-six | is P126-01 |
+| H-1207 | Where the key's permissions are to be enforced, every cap must be set and the unset ones are named together in order. | `launcher.py` 2754, then 2755-2761, then 2762 into 2763-2768 | package one hundred and twenty-six | folds into P126-01 |
+| H-1208 | The caps are chosen from the caller or built from the environment twice over, so a host given none reads the six settings twice. | `launcher.py` 2756-2758, then 2771, the six read at 760-767 | package one hundred and twenty-six | folds into P126-01 |
+| H-1209 | The same cap demand is written again where that set is built for a live host, with a failure of another kind and the names unsorted. | `launcher.py` 780, then 781 into 782-786, against 2762 into 2763-2768 | package one hundred and twenty-six | folds into P126-01 |
+| H-1210 | An account's accounting wiring is written from inside its build, where its runtime is written only once the build has answered. | `launcher.py` 4355, against 3993 into 3994, past 3992 | package one hundred and twenty-six | is P126-02 |
+| H-1211 | The runtime is taken out again on both ways out, where nothing in the host takes an account out of the wiring. | `launcher.py` 4001 into 4002, or 4037-4038 | package one hundred and twenty-six | folds into P126-02 |
+| H-1212 | An arriving report reads the wiring by the account it names, where reaching an account reads the runtime and refuses where none stands. | `launcher.py` 2986, against 3969, then 3972 into 3973-3977 | package one hundred and twenty-six | folds into P126-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 07:30 UTC

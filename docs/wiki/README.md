@@ -587,6 +587,8 @@ the others where it appears.
 
 - [What the one listener serves](atoms/what-the-one-listener-serves.md) — the road a container polls for health and the asks that halt an account or close what it holds all arrive on the same listener, bound to every address the host has, and a port it cannot bind stops the host outright.
 - [When an account can be delivered to](atoms/when-an-account-can-be-delivered-to.md) — an account is reachable only while its runtime is published, which happens once its own thread has built it, and an ordinary stop unpublishes it before the account's loops are stopped.
+- [What a host refuses to be built as](atoms/what-a-host-refuses-to-be-built-as.md) — being handed both a record and a path to one fails the same line as being handed neither, and the demand that every deployment cap be set is written in two places that raise different kinds of failure.
+- [The two mappings an account lives in](atoms/the-two-mappings-an-account-lives-in.md) — an account is written down for accounting from inside its own build and written down as reachable only once that build has answered, so a report can be accounted for against an account nothing can yet ask anything of.
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
 - [What a strategy's startup answer does](atoms/what-a-strategys-startup-answer-does.md) — each strategy is asked what it wants to do before trading begins, and the same kind of failure stops the whole boot from one side of a few lines and is merely logged from the other.
 - [What the buffer of startup answers is for](atoms/what-the-buffer-of-startup-answers-is-for.md) — where there is no way to send a strategy's opening request yet, it is held for later, and the holding place is emptied before anything is sent.
@@ -689,7 +691,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 592
+Both sides are the subject, and Praxis is the side that has been written. 594
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -700,4 +702,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 07:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 07:30 UTC
