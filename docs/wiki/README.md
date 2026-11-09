@@ -811,9 +811,9 @@ part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 63 are accounted for in full and 1 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, all 64 are accounted for in full. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 13:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 14:00 UTC

@@ -857,6 +857,46 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 187 — the last cell the wiki can close
+
+Scope: one word in one harvest row, and the cell it held open. No article is written.
+
+### What was wrong
+
+Row H-071 — the order the checks run in is a configured list rather than a fixed
+sequence — carried `candidate` as its disposition. Nexus package one's own merge table
+records it promoted into N1-03, and N1-03's article cites the lines H-071 named, line
+for line. The row's disposition had been stale since that package.
+
+The cost of the stale word was a cell: `nexus/core/validator/pipeline_models.py` has
+every one of its seventy statements cited, and stood `partial` because a check reads the
+harvest rows and will not let a file with a candidate on it stand as `full`. The check
+was right about the row and the row was wrong about itself.
+
+### What the ledger says now
+
+| Side | State |
+|---|---|
+| Nexus | All 64 modules that carry a row are accounted for in full. The 6 with no row are the shapes recorded as an exclusion |
+| Praxis | 85 of 88 in full. The 3 left — `execution_manager.py`, `trade_outcome.py`, `trading_state.py` — are held by two questions, U-03 and U-04, and none waits on an article |
+
+### Re-seed, after writing package 187
+
+The register is the wiki's own record, and it was wrong in the one place nothing checks:
+a disposition is prose, and no check compares it against the merge table that supersedes
+it. The gate caught the consequence rather than the cause.
+
+| What it found | What came of it |
+|---|---|
+| A harvest row's disposition can go stale when a later table promotes it. | Corrected here. The pattern is worth a check: a row whose disposition reads `candidate` while a merge table names it promoted |
+| The cell it held open needed no writing at all. | Moved. Seventy statements, all cited, since Nexus package one |
+| Two questions, U-03 and U-04, hold the three Praxis cells that are left. | Recorded in the ledger's own summary, so the state of each is readable without the register |
+| Nothing in either repository is now uncovered or part-written for want of an article. | Stated. What remains on the wiki's side is depth and review, not coverage |
+
+Worth recording: the last cell closed by the wiki's own work was closed by reading its
+own record against itself. Every other cell needed a trace; this one needed a diff
+between two tables that had disagreed for a hundred and eighty-six packages.
+
 ## Package 186 — the manager written out, and what holds its cell open
 
 Scope: the whole of `praxis/core/execution_manager.py`, the largest module on either
@@ -11152,7 +11192,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-068 | Neither the amount filled nor the running money total is tested for being finite, at the record's making or on assignment, so an endless amount can be assigned and leaves what remains at minus endless. A moment assigned after the making is not tested for carrying a zone either, where one given at the making must. Live reachability was not established. | `order.py` 119-125 and 189-195 against 215-218; the moments at 93-97 against 141-197 | P4-36 | recorded; P4-36 states both |
 | H-069 | A host-supplied outcome receiver is called as one with Praxis's own routing, and the pair is retried together, so a receiver that acts before raising is handed the same outcome again and the routing before it runs again with it. Delivery is reported exhausted only after the last attempt. | the pair at `launcher.py` 3001-3003, set at 3005, retried at `execution_manager.py` 760-794 | P2-44 | recorded; P2-44 states it |
 | H-070 | The adapter's lot-step test can never refuse an order. The amount is floored to the step immediately before the test runs, on every path that reaches it, so the remainder it looks for is always zero. A symbol with no figures kept is neither floored nor tested. Flooring can still take an amount under the smallest size, which the next test does refuse. | floored at `binance_adapter.py` 1518 into 1314-1317, tested at 1194-1198, both passed over for an uncached symbol at 1315-1316 and 1188-1192 | P2-46 | recorded; P2-46 states that the step test cannot turn an order away |
-| H-071 | The order the checks run in is a configured list, not a fixed sequence. The default runs intake, risk, price, capital, health, then platform limits. | `nexus/core/validator/pipeline_models.py` 50-57, walked at `nexus/core/validator/pipeline_executor.py` 47 | Nexus package one | candidate |
+| H-071 | The order the checks run in is a configured list, not a fixed sequence. The default runs intake, risk, price, capital, health, then platform limits. | `nexus/core/validator/pipeline_models.py` 50-57, walked at `nexus/core/validator/pipeline_executor.py` 47 | Nexus package one | is N1-03 |
 | H-072 | Five of the six stages are skipped outright for an exit, an abort, a cancel and a change: capital, health, platform limits, risk and price. Only intake runs for those, so a closing action is weighed on ownership alone. | `nexus/core/validator/pipeline_executor.py` 162-176, reached at 48 | Nexus package one | candidate |
 | H-073 | A stage returning something other than a decision raises rather than being read as a pass, and so does a denial naming a stage other than the one that produced it. | `nexus/core/validator/pipeline_executor.py` 52-56 and 59-63 | Nexus package one | candidate |
 | H-074 | A reservation granted by an earlier stage is carried on the decision a later stage denies, where that denial carries none of its own — so the denial hands back what was already held rather than losing it. | `nexus/core/validator/pipeline_executor.py` 65-72, the carry at 75-76 and 78 | Nexus package one | candidate |
@@ -12739,4 +12779,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 13:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 14:00 UTC
