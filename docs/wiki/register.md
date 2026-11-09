@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 653 not.**
+**6 of them reviewed, 655 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 158 — how a cancelled protection pair is judged still working, and what picks a held change up again
+
+Scope: the question asked of the venue before a position is closed by hand, and the
+scan that drives a halfway protection change on, part of a module the ledger marks
+`partial`. After the package before this one, six hundred and ten of its two thousand
+four hundred and eighty-seven statements were uncited. The judging is named in one
+article and its insides are in none; the scan is in no article. The rest of the module
+is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 158
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1447 | The pair is asked after by its list name and each leg that list names asked after in turn, the first leg at an unended standing ending the asking. | Promote. The close's article names the question and not one of its answers |
+| Row H-1448 | A list the venue has no record of answers that nothing of the pair is working. | Merge with H-1447 |
+| Row H-1449 | A venue failure anywhere in the asking answers that the pair is still working. | Merge with H-1447 |
+| Row H-1450 | The asking is done before the position's remainder is counted. | Merge with H-1447 |
+| Row H-1451 | A bracket carrying no stamped moment is passed over, so the stamp alone decides which brackets the scan picks up. | Promote. The scan is in no article, and the stamp rather than the standing being the selector is the finding |
+| Row H-1452 | The pass ends for an account the manager does not hold, and otherwise walks a copy of that account's brackets. | Merge with H-1451 |
+| Row H-1453 | Each bracket the stamp names is driven again with nothing given for the cancelled pair's venue name, the name recorded against the old pair standing in for it. | Merge with H-1451 |
+| Row H-1454 | The stamp goes on the first time the old pair's fills will not reconcile and comes off once they do, while the road where the asking fails clears it and leaves the standing unknown. | Merge with H-1451 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P158-01 | How a cancelled protection pair is judged still working | written | [how-a-cancelled-protection-pair-is-judged-still-working.md](atoms/how-a-cancelled-protection-pair-is-judged-still-working.md) |
+| P158-02 | What picks a held protection change up again | written | [what-picks-a-held-protection-change-up-again.md](atoms/what-picks-a-held-protection-change-up-again.md) |
+
+### Re-seed, after writing package 158
+
+Both subjects sat behind articles that named them. The close's article says a leg still
+live stops it; what that article does not say is how the question is answered when the
+venue will not answer at all.
+
+| What it found | What came of it |
+|---|---|
+| A venue failure in the asking answers that the pair is still working. | Stated. A question the venue will not answer stops the close exactly as a leg found resting does |
+| A list the venue has no record of answers that nothing is working. | Stated beside it, so the two failure answers are read together |
+| The scan picks brackets by the stamped moment and never reads the standing of the change. | Stated. The road that stamps a bracket parks the standing beside it, so the two normally agree |
+| The road where the asking fails clears the stamp and leaves the standing unknown. | Stated as the one place they part: that bracket leaves this scan's list for the watch's |
+
+Worth recording: a routine's docstring here names the standing first and the stamp
+second, and the loop reads only the stamp. Written from the docstring the article would
+have had the selector wrong while every word of it stayed plausible.
 
 ## Package 157 — which order the watchdog asks about first, and how a new ladder grid is renumbered
 
@@ -11129,7 +11175,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1444 | A level below the least amount, or worth less than the least sum at its own price, is passed over. | `execution_manager.py` 9088, then 9090, then 9091 into 9092, then 9096 | package one hundred and fifty-seven | folds into P157-02 |
 | H-1445 | Where no venue rules are held, nothing stands in for the step and nought for both minimums. | `execution_manager.py` 9080, then 9081, then 9082, then 9083 | package one hundred and fifty-seven | folds into P157-02 |
 | H-1446 | A remainder at or below nothing plans no levels at all. | `execution_manager.py` 9085 into 9086 | package one hundred and fifty-seven | folds into P157-02 |
+| H-1447 | The pair is asked after by its list name and each leg that list names asked after in turn, the first leg at an unended standing ending the asking. | `execution_manager.py` 7543, then 7544, then 7547, then 7548, then 7551 into 7552 | package one hundred and fifty-eight | is P158-01 |
+| H-1448 | A list the venue has no record of answers that nothing of the pair is working, and every leg at an ended standing answers the same. | `execution_manager.py` 7553, then 7554, or 7563 | package one hundred and fifty-eight | folds into P158-01 |
+| H-1449 | A venue failure anywhere in the asking answers that the pair is still working. | `execution_manager.py` 7555, then 7561 | package one hundred and fifty-eight | folds into P158-01 |
+| H-1450 | The asking is done before the position's remainder is counted, and a candidate answered as still working stops the close before anything is placed. | `execution_manager.py` 7627, then 7628, then 7636, against 7638 | package one hundred and fifty-eight | folds into P158-01 |
+| H-1451 | A bracket carrying no stamped moment is passed over, so the stamp alone decides which brackets the scan picks up. | `execution_manager.py` 9834 into 9835 | package one hundred and fifty-eight | is P158-02 |
+| H-1452 | The pass ends for an account the manager does not hold, or walks a copy of that account's brackets. | `execution_manager.py` 9829, then 9830 into 9831, or 9833 | package one hundred and fifty-eight | folds into P158-02 |
+| H-1453 | Each bracket the stamp names is driven again with nothing given for the cancelled pair's venue name, the name recorded against the old pair standing in for it. | `execution_manager.py` 9837, against 9599-9602 | package one hundred and fifty-eight | folds into P158-02 |
+| H-1454 | The stamp goes on the first time the old pair's fills will not reconcile and comes off once they do, while the road where the asking fails clears it and leaves the standing unknown. | `execution_manager.py` 9572 into 9573, then 9577, or 9596, or 9553, then 9555 | package one hundred and fifty-eight | folds into P158-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 23:30 UTC

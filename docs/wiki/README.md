@@ -146,6 +146,8 @@ the others where it appears.
 - [The three kinds of orphan a boot finds](atoms/the-three-kinds-of-orphan-a-boot-finds.md) — a command the record shows starting and never finishing is sorted by what the record holds, and a send that failed counts as finishing one just as a send that succeeded does.
 - [Why a flatten is recovered only once](atoms/why-a-flatten-is-recovered-only-once.md) — a closing order that already carries fills is left alone, because fills are recorded by adding amounts rather than by matching the trade they came from, so writing them again would count them twice.
 - [How an unfinished close is recovered](atoms/how-an-unfinished-close-is-recovered.md) — a start picks up a close that never settled from the failures written down, and weighs what is open again before sending.
+- [How a cancelled protection pair is judged still working](atoms/how-a-cancelled-protection-pair-is-judged-still-working.md) — the venue is asked after each half of the pair that was just taken down, and a venue that will not answer is treated the same as a half found still resting.
+- [What picks a held protection change up again](atoms/what-picks-a-held-protection-change-up-again.md) — a change that stopped halfway is driven on by a scan that chooses trades by a stamped moment and never reads how far the change got.
 - [When a flatten places nothing](atoms/when-a-flatten-places-nothing.md) — the order that closes an unprotected position is only an attempt: an unknown venue, a pair that may still be resting, or too little left to close stop it before anything goes out.
 - [How big a flatten goes out](atoms/how-big-a-flatten-goes-out.md) — the remainder cut down to what the account can pay with and rounded to the venue's step, against a price worked out for that purpose alone.
 
@@ -751,7 +753,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 654
+Both sides are the subject, and Praxis is the side that has been written. 656
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -762,4 +764,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 23:30 UTC
