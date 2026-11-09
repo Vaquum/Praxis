@@ -2,7 +2,7 @@
 row: N53-02
 baseline: 49aa659
 created: 2026-11-12 10:30 UTC
-modified: 2026-11-12 11:00 UTC
+modified: 2026-11-13 15:30 UTC
 evidence:
   - claim: "Turning a submission into a tracked order is skipped where its status is anything but submitted"
     source: "`nexus/strategy/action_submit.py` 552-557"
@@ -12,6 +12,8 @@ evidence:
     source: "`nexus/strategy/action_submit.py` 566-571"
   - claim: "An abort is answered as submitted with no decision at all, having bypassed the checks"
     source: "`nexus/strategy/action_submit.py` 201-203 into 613-616"
+  - claim: "A registration offers three marks — confirming the sending, marking it unknown, and rolling it back — each declared with a placeholder where a body would be"
+    source: "`nexus/strategy/action_submit.py` 114, and 123, and 127"
   - claim: "Money is set aside before the command is sent, not after it is answered"
     source: "`nexus/strategy/action_submit.py` 313-315 ahead of 337"
   - claim: "A send that times out is answered as unknown, carrying its command name and its decision, with the setting aside already done"
@@ -34,6 +36,10 @@ No decision at all, or a decision that set no money aside.
 An abort is answered as submitted and carries no decision, having bypassed [the checks](the-checks-a-decision-passes.md) entirely. An exit and a change do pass the checks and carry a decision, and neither sets money aside.
 
 So for three kinds of action out of four the third skip is simply how they end.
+
+## The three marks a registration carries
+
+Confirming the sending, marking it unknown, and rolling it back. Each is declared with a placeholder where a body would be, so what any of them does to the registration is settled by whoever builds one, not here.
 
 ## Why a skip is not an untouched account
 

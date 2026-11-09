@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 484 not.**
+**6 of them reviewed, 486 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 81 — the two actions that go out without a command
+
+Scope: the submitting of a strategy's actions, which the ledger marks `partial`
+with forty of its hundred and eighteen statements uncited. Articles have when a
+submission does not reach capital, what Nexus does when a command does not get
+across, which name a command is kept under and what becomes of money set aside.
+What an abort and a modify answer with, and how the walk over a strategy's actions
+ends each one, are in no article.
+
+### Merge and promote, package 81
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-898 | An abort is refused for carrying no command name and nothing else, while a modify is refused for any of three missing things weighed in turn. | Promote. What these two are refused for is in no article, and one refusal against three is the shape of the difference |
+| Row H-899 | Both send inside a guard whose catch names any exception and answer with the failure's own text, and both answer a success carrying the command name they were given. | Merge with H-898. The three answers are one subject and splitting them would leave neither whole |
+| Row H-900 | Every answer a modify gives carries the decision behind it, the field standing empty unless something passes it. | Merge with H-898. It is the half of the decision contrast the existing row on the abort does not have |
+| Row H-901 | Every road through an action appends its answer to a list made before the walk and moves straight to the next, and the whole list is answered only once the walk is done. | Promote. The walk's shape is in no article, and there being no shared ending the roads return to is what makes each answer self-contained |
+| Row H-902 | Building the command stands inside a guard, and a build that raises ends that action as a failed sending while the walk goes on. | Merge with H-901 |
+| Row H-903 | A registration offers three marks — confirming the sending, marking it unknown, and rolling it back — each declared with a placeholder where a body would be. | Merge into the article on when a submission does not reach capital, which has the registration's fate already |
+
+Two subjects promote, three rows merge into them and one merges into an article
+already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N81-01 | What an abort and a modify answer with | written | [what-an-abort-and-a-modify-answer-with.md](atoms/what-an-abort-and-a-modify-answer-with.md) |
+| N81-02 | How the walk over a strategy's actions ends each one | written | [how-the-walk-over-a-strategys-actions-ends-each-one.md](atoms/how-the-walk-over-a-strategys-actions-ends-each-one.md) |
+
+### Re-seed, after writing Nexus package 81
+
+One defect, found by the same question as last package's: whether a claim already
+stood somewhere in the corpus.
+
+| What it found | What came of it |
+|---|---|
+| "No answer an abort gives carries a decision" is already a row, under when a submission does not reach capital, cited from the abort's own road. | The claim keeps the half that was new — that every modify answer carries one, the field standing empty unless passed — and links the half that was already there |
+| Eight statements of the module are log calls and can carry no claim. | Recorded as an exclusion, as in the four packages before this one |
+
+Worth recording: the check that caught this was not about the code at all. Before
+writing a claim, the question is whether some article already says it — and the
+answer is found by searching the corpus for the lines, not for the words. Four of
+the last five packages have had a claim narrowed or cut by that search, and in
+every case the overlap was invisible from the module.
+
+Eight statements of the module are left uncited and are an exclusion rather than
+work outstanding: all eight are log calls, which the gate refuses as evidence for a
+claim.
 
 ## Nexus package 80 — the road out to Praxis, swept
 
@@ -6988,8 +7036,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-895 | Whether the loop is running is read without the lock every write of it takes, and one pass can be asked for outright, marking without consulting the flag at all. | `mtm_loop.py` 121 against 126, or 136, or 162, and 151 | package seventy-nine | is N79-03 |
 | H-896 | The whole of a pass stands inside a guard whose catch names any exception, and a pass that raises is reported while the tick that follows is scheduled all the same. | `mtm_loop.py` 217, the catch at 310, the scheduling standing after at 168-169 | package seventy-nine | folds into N79-03 |
 | H-897 | The message the lock refusal carries is built where the refusal is made. | `mtm_loop.py` 91-92 into 107 | package seventy-nine | recorded; the-lock-the-marking-insists-on states it |
+| H-898 | An abort is refused for carrying no command name and nothing else, while a modify is refused for any of three missing things weighed in turn. | `action_submit.py` 586 into 587-590, against 626, or 633, or 640 | package eighty-one | is N81-01 |
+| H-899 | Both send inside a guard whose catch names any exception and answer with the failure's own text, and both answer a success carrying the command name they were given. | `action_submit.py` 592 into 599 then 604-606, or 647 into 656 then 661-664, and 613-615, or 671-674 | package eighty-one | folds into N81-01 |
+| H-900 | Every answer a modify gives carries the decision behind it, the field standing empty unless something passes it. | `action_submit.py` 629, or 636, or 643, or 663, or 674, the field standing empty unless passed at 96 | package eighty-one | folds into N81-01 |
+| H-901 | Every road through an action appends its answer to a list made before the walk and moves straight to the next, and the whole list is answered only once the walk is done. | `action_submit.py` 188 then 190, and 239, or 274 into 281, or 288, or 309, or 410 into 418, the answer at 455 | package eighty-one | is N81-02 |
+| H-902 | Building the command stands inside a guard, and a build that raises ends that action as a failed sending while the walk goes on. | `action_submit.py` 290-291 into 301-308 | package eighty-one | folds into N81-02 |
+| H-903 | A registration offers three marks — confirming the sending, marking it unknown, and rolling it back — each declared with a placeholder where a body would be. | `action_submit.py` 114, and 123, and 127 | package eighty-one | recorded; when-a-submission-does-not-reach-capital states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 16:00 UTC

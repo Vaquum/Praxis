@@ -420,6 +420,8 @@ the others where it appears.
 - [What the mark loop leaves unguarded](atoms/what-the-mark-loop-leaves-unguarded.md) — the flag saying the round is on is read without the lock every write of it takes, a round can be asked for directly on a loop that was never started, and a round that throws is written to the log while the next is scheduled as usual.
 - [What each action is submitted inside](atoms/what-each-action-is-submitted-inside.md) — every action is handled inside a bound context carrying the strategy id and action type, plus trade and command ids where present but nothing naming the action itself; an abort forks away first, and a context builder raising an ordinary failure costs that action alone.
 - [When a submission does not reach capital](atoms/when-a-submission-does-not-reach-capital.md) — converting a submission into a tracked order is skipped for a non-submitted status, a missing command id, or no reservation, which is the ordinary course for aborts, exits and amendments; but the reservation is taken before the send, so a skip never means the account was left alone.
+- [What an abort and a modify answer with](atoms/what-an-abort-and-a-modify-answer-with.md) — an instruction that goes out without a command being built for it comes back refused, failed on the way out, or sent; a request to change an order already placed is refused for any of several missing pieces, where a request to stop one is refused only for a missing name.
+- [How the walk over a strategy's actions ends each one](atoms/how-the-walk-over-a-strategys-actions-ends-each-one.md) — each instruction a strategy returns is dealt with in turn and leaves exactly one reply in a growing list, every route carrying its own reply rather than meeting at a common ending, and nothing is given back until the last one is done.
 - [What the ledger refuses to apply](atoms/what-the-ledger-refuses-to-apply.md) — an event for another account is rejected before the lock is even taken, then inside it a registration is handled first, anything arriving before one is rejected, a repeat registration is rejected, and only past those does a fill meet the symbol test; a close for an unknown trade is silently ignored.
 - [What a rebuilt ledger carries](atoms/what-a-rebuilt-ledger-carries.md) — the resumable state holds balances, per-trade realized and fee figures, and open lots, but no journal, so the posting history behind each figure is gone; lots return in the order the snapshot listed them, and under average costing there is one per trade to return.
 - [The figures a fill is assumed to carry](atoms/the-figures-a-fill-is-assumed-to-carry.md) — the fill size, price, notional and fees are checked by assertion rather than by a test that could answer, the record's own validation having already required all four; the capital call runs before any position is read, so a failing call returns a failure while a missing trade or position raises later.
@@ -582,15 +584,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 485
+Both sides are the subject, and Praxis is the side that has been written. 487
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 59 are accounted for in full and 5 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 60 are accounted for in full and 4 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 15:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 16:00 UTC
