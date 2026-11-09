@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 606 not.**
+**6 of them reviewed, 608 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 134 — how a restart reads its record back, and what one pass gathers for the schemes
+
+Scope: the walk over an account's whole history that rebuilds its live work, and the
+single pass that gathers what the scheme and ladder resumes both need, part of a
+module the ledger marks `partial`. After the package before this one, twelve hundred
+and thirty-one of its two thousand four hundred and eighty-seven statements were
+uncited. The walk is in no article, and the fold in none. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 134
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1262 | The walk bridges an older registration shape, folds the scheme history, then projects every event in order before rebuilding anything. | Promote. The walk is in no article, and the fold running before it is what lets the walk know which commands began a scheme |
+| Row H-1263 | A command is rebuilt from its submitted intent only where it stands unmarked as terminal, began no scheme, and has nothing held for it already. | Merge with H-1262 |
+| Row H-1264 | Whatever it was, a rebuilt command comes back as a single order with a replay timeout, no reference price, no maker preference and no self-trade handling. | Merge with H-1262. The modes that span several events are rebuilt by the four resumes instead |
+| Row H-1265 | Four resumes run after the walk in a fixed order: the schemes, the ladders, the brackets, and the protection whose fate is unknown. | Merge with H-1262 |
+| Row H-1266 | One pass gathers what both resumes need, keeping the scheme starts and the ladder starts apart so neither takes the other's. | Promote. The fold is in no article, and the two sets of starts being separate is the reason it exists in this shape |
+| Row H-1267 | The latest state and any replan are each kept with the place in the history they arrived at. | Merge with H-1266 |
+| Row H-1268 | A failed slice freezes the command where a protection freeze marks it twice. | Merge with H-1266 |
+| Row H-1274 | A replan that says so lifts the freeze, which lifts only the slice-failure one. | Merge with H-1266. A scheme frozen for protection stays frozen through any number of replans |
+| Row H-1269 | A ladder's amend is followed as a machine through cancelling, placing and an unknown phase taken off the event, and a completion builds the new grid from the initiation and plan kept under that generation. | Merge with H-1266. A completion whose initiation was never kept records nothing at all |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P134-01 | How a restart reads its record back | written | [how-a-restart-reads-its-record-back.md](atoms/how-a-restart-reads-its-record-back.md) |
+| P134-02 | What one pass gathers for the schemes | written | [what-one-pass-gathers-for-the-schemes.md](atoms/what-one-pass-gathers-for-the-schemes.md) |
+
+### Re-seed, after writing package 134
+
+Both articles are about order — what is known before a walk begins, and what a pass
+remembers so that a later step can tell which of two things came last.
+
+| What it found | What came of it |
+|---|---|
+| The fold runs before the walk, so the walk already knows which commands began a scheme when it decides whether to rebuild one as a single order. | Stated as the order. Neither routine says why it runs first; the test that reads the fold's answer is what shows it |
+| A rebuilt command comes back as a single order whatever it was, so the modes spanning several events are left entirely to the four resumes. | Stated |
+| A scheme frozen for protection stays frozen through any number of replans, where one frozen for a failed slice does not. | Stated as the pair of freezes. Two marks are set for protection and one for a slice, and only the slice mark is lifted |
+| A ladder amend completion builds its grid from an initiation kept under the same generation, and records nothing where that initiation was never kept. | Stated. What happens to such a ladder on resume is the resuming article's question, not this one's |
+
+Worth recording: the fold is a routine whose whole purpose is to be read by two
+others, and almost every line of it is a write into a field some later routine will
+read. Writing it as a subject of its own means the two resumes can be written without
+re-deriving what the history said — which is the same reason the code has it.
 
 ## Package 133 — what the manager tells you about an unknown account, and which commands count as amendable
 
@@ -9839,7 +9886,20 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1259 | The terminal commands, the commands already waiting on an amend, and any scheme held for protection, mid-amend or draining are taken out. | `execution_manager.py` 1042, then 1043, then 1044-1049 | package one hundred and thirty-three | folds into P133-02 |
 | H-1260 | A scheme held in any other way is taken out only where it is a ladder. | `execution_manager.py` 1050-1053 | package one hundred and thirty-three | folds into P133-02 |
 | H-1261 | Each bracket entry is settled last, added where its protection is placed, named and active, and discarded otherwise. | `execution_manager.py` 1056, then 1057-1061, then 1062 into 1063, or 1064 into 1065, then 1067 | package one hundred and thirty-three | folds into P133-02 |
+| H-1262 | The walk bridges an older registration shape, folds the scheme history, then projects every event in order before rebuilding anything. | `execution_manager.py` 1108, then 1109 into 1110-1111, or 1113, then 1115, then 1116, then 1118, then 1119 | package one hundred and thirty-four | is P134-01 |
+| H-1263 | A command is rebuilt from its submitted intent only where it stands unmarked as terminal, began no scheme, and has nothing held for it already. | `execution_manager.py` 1162-1166 into 1167-1187 | package one hundred and thirty-four | folds into P134-01 |
+| H-1264 | Whatever it was, a rebuilt command comes back as a single order with a replay timeout, no reference price, no maker preference and no self-trade handling. | `execution_manager.py` 1176, then 1182, the timeout at 178, then 1183, then 1184, then 1185 | package one hundred and thirty-four | folds into P134-01 |
+| H-1265 | Four resumes run after the walk in a fixed order. | `execution_manager.py` 1189, then 1190, then 1191, then 1192 | package one hundred and thirty-four | folds into P134-01 |
+| H-1266 | One pass gathers what both resumes need, keeping the scheme starts and the ladder starts apart. | `execution_manager.py` 1210, then 1214, then 1215 into 1216, then 1218 into 1219, read back at 1189, and 1190 | package one hundred and thirty-four | is P134-02 |
+| H-1267 | The latest state and any replan are each kept with the place in the history they arrived at. | `execution_manager.py` 1221 into 1222-1223, or 1232 into 1233-1234 | package one hundred and thirty-four | folds into P134-02 |
+| H-1268 | A failed slice freezes the command where a protection freeze marks it twice. | `execution_manager.py` 1225 into 1226, against 1228 into 1229-1230 | package one hundred and thirty-four | folds into P134-02 |
+| H-1274 | A replan that says so lifts the freeze, which lifts only the slice-failure one. | `execution_manager.py` 1236 into 1240 | package one hundred and thirty-four | folds into P134-02 |
+| H-1269 | A ladder's amend is followed as a machine, and a completion builds the new grid from the initiation and plan kept under that generation. | `execution_manager.py` 1253 into 1254-1255, or 1257 into 1258, then 1261 into 1262, or 1264, then 1267 into 1268-1270, or 1272 into 1273-1274, then 1276-1283, then 1285 into 1286-1288 | package one hundred and thirty-four | folds into P134-02 |
+| H-1270 | A draining record marks the command draining and keeps the status, state and reason it is to end with. | `execution_manager.py` 1242 into 1243-1248 | package one hundred and thirty-four | folds into P134-02 |
+| H-1271 | A completion and an abort each clear the in-flight record. | `execution_manager.py` 1290, or 1292 into 1293 | package one hundred and thirty-four | folds into P134-02 |
+| H-1272 | A scheme start and a submitted intent each record what was asked for, and an accepted command is noted against the account while a terminal outcome marks it terminal and drops it. | `execution_manager.py` 1128 into 1129-1131, and 1155, then 1156, then 1157, then 1158-1160, with 1133 into 1134, and 1136 into 1137-1138 | package one hundred and thirty-four | folds into P134-01 |
+| H-1273 | A flatten record adds its order's name to the account's own set of them. | `execution_manager.py` 1121 into 1126 | package one hundred and thirty-four | folds into P134-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 11:30 UTC
