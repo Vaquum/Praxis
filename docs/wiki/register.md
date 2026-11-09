@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 538 not.**
+**6 of them reviewed, 540 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 101 — what the venue's socket reports, and what becomes of it
+
+Scope: the handling of an execution report from the venue's socket and its turning
+into an event, part of a module the ledger marks `partial`. After the package before
+this one, a hundred and forty-nine of its five hundred and twenty-five statements
+were uncited. The reasons a report is discarded, and what one becomes, are in no
+article. The starting, the stopping and the reconciliation passes are left for
+packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 101
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1020 | A report can be discarded five ways, two without a word, two with a complaint, and one at the quietest level the log has. | Promote. The five are in no article, and how loudly each is dropped is the only thing that tells a reader which were expected |
+| Row H-1021 | A leg's name is turned into its parent's with a fallback to the name itself, and the order is sought among the live ones and then the closed, with which book it came from remembered. | Merge with H-1020. Finding the order is what the last two discards are about |
+| Row H-1022 | A trade becomes a fill only where the manager can name the trade the command belongs to, and is dropped with a warning where it cannot. | Promote. What a report becomes is in no article, and the fill being the one conversion that can fail is the shape of the four |
+| Row H-1023 | A cancelling, a refusal and an expiry each become their own event, two of them inventing a reason where the venue gave none. | Merge with H-1022 |
+| Row H-1024 | Every event built from a report carries the report's own moment, read once before the kinds are weighed. | Merge with H-1022 |
+| Row H-1025 | Any other kind of report becomes nothing, leaving no trace. | Merge with H-1022 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P101-01 | The five reasons a report is discarded | written | [the-five-reasons-a-report-is-discarded.md](atoms/the-five-reasons-a-report-is-discarded.md) |
+| P101-02 | What a report becomes | written | [what-a-report-becomes.md](atoms/what-a-report-becomes.md) |
+
+### Re-seed, after writing package 101
+
+The five discards were countable and were counted from the code rather than by eye,
+after the count error two packages ago.
+
+| What it found | What came of it |
+|---|---|
+| The five discards fall into three loudnesses, and the loudness is the only thing distinguishing an expected drop from a surprising one. | Stated as the article's spine, since the five read as a flat list otherwise |
+| The leg-to-parent lookup falls back to the name itself, so an order that is nobody's leg travels the same road. | Stated. Without it the lookup reads as applying only to legs |
+| The fill is the one conversion that can fail, because it needs a trade name the manager may no longer have. | Stated, with the consequence: a fill for a forgotten command produces no event at all |
+| Two of the three remaining conversions invent a reason where the venue gave none, and the third has no reason field to fill. | Stated |
+
+Worth recording: the five were counted by listing the returns in the routine and
+checking each against a condition, not by reading the comment that says one return
+per discard reason. The comment is right, and it is still a claim about the code —
+the same shape as the docstring findings in packages sixty-nine and seventy-one. A
+count that a comment offers has to be made again from the body before it is written.
 
 ## Package 100 — how the reconciliation loop stops, and what its phase map agrees with
 
@@ -8019,6 +8064,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1017 | An idle phase takes the account out of the map rather than being stored, and any other phase is stored against it. | `praxis/trading.py` 1400 into 1401, against 1402-1403 | package one hundred | is P100-02 |
 | H-1018 | The manager's gate is worked out from whether the phase is idle, where it is set rather than passed in. | `praxis/trading.py` 1406-1408 | package one hundred | folds into P100-02 |
 | H-1019 | Setting the gate for an account the manager does not hold takes that account out of the map too. | `praxis/trading.py` 1409 into 1410 | package one hundred | folds into P100-02 |
+| H-1020 | A report can be discarded five ways, two without a word, two with a complaint, and one at the quietest level the log has. | `praxis/trading.py` 1708 into 1709, or 1711 into 1712, or 1714-1715 into 1716 then 1725, or 1726 into 1727-1728 then 1729, or 1740 then 1744 | package one hundred and one | is P101-01 |
+| H-1021 | A leg's name is turned into its parent's with a fallback to the name itself, and the order is sought among the live ones and then the closed. | `praxis/trading.py` 1731-1733, then 1735-1736, then 1737 into 1738-1739 | package one hundred and one | folds into P101-01 |
+| H-1022 | A trade becomes a fill only where the manager can name the trade the command belongs to. | `praxis/trading.py` 1779 into 1780, then 1781, the fill built at 1787 | package one hundred and one | is P101-02 |
+| H-1023 | A cancelling, a refusal and an expiry each become their own event, two of them inventing a reason where the venue gave none. | `praxis/trading.py` 1804 into 1805-1811, or 1813 into 1814-1819, or 1822 into 1823-1828 | package one hundred and one | folds into P101-02 |
+| H-1024 | Every event built from a report carries the report's own moment, read once before the kinds are weighed. | `praxis/trading.py` 1777, used at 1789, or 1807, or 1816, or 1825 | package one hundred and one | folds into P101-02 |
+| H-1025 | Any other kind of report becomes nothing. | `praxis/trading.py` 1830 | package one hundred and one | folds into P101-02 |
 | H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
@@ -8034,4 +8085,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 12:00 UTC

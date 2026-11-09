@@ -133,6 +133,8 @@ the others where it appears.
 - [What registering an account touches](atoms/what-registering-an-account-touches.md) — adding an account fills one collection while removing it closes a connection and clears three, because most of what accumulates was not put there by the adding.
 - [How the reconciliation loop is stopped](atoms/how-the-reconciliation-loop-is-stopped.md) — the stop flag is checked before each account as well as before each round, so a stop lands within one account rather than one round, while a task that is cut short mid-account is not caught by the loop at all.
 - [What the phase map and the gate agree on](atoms/what-the-phase-map-and-the-gate-agree-on.md) — an account partway through reconciliation is in the map and an idle one is absent, and the switch that holds its orders back is computed from that same value in the same call, so neither can be moved without the other following.
+- [The five reasons a report is discarded](atoms/the-five-reasons-a-report-is-discarded.md) — a venue update can be thrown away for several reasons and how loudly it is logged is the only thing that says which were expected, from silence for a payload of another kind to a complaint for one that would not parse.
+- [What a report becomes](atoms/what-a-report-becomes.md) — a venue update turns into a fill, a cancel, a refusal or an expiry, and only the fill can fail to convert, because it needs something about the original order that this side may no longer hold.
 - [How a caller's callback is wrapped](atoms/how-a-callers-callback-is-wrapped.md) — a supplied callback is wrapped so it can always be awaited whether it is plain or not, and one setter deliberately passes an absent callback through unwrapped because its far side reads absence as nobody listening.
 - [What routing an outcome drops](atoms/what-routing-an-outcome-drops.md) — the lock covers finding the queue and not handing anything to it, so a queue removed in between still receives, and a full queue raises into the router rather than slowing it.
 - [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
@@ -636,7 +638,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 539
+Both sides are the subject, and Praxis is the side that has been written. 541
 articles exist. Of Praxis's own source files 82 are accounted for in full and 6 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -647,4 +649,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 11:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 12:00 UTC
