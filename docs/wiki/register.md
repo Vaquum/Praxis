@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 511 not.**
+**6 of them reviewed, 514 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 90 — what binsim's server holds, and what it is handed
+
+Scope: the building and running of binsim's server and the application it serves,
+part of a module the ledger marks `partial`. After the package before this one, a
+hundred and four of its two hundred and twenty-five statements were uncited. What
+the server holds and when, what the application is handed, and what an order's
+figures are put through are in no article. The submitting of an order and the socket
+surface are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 90
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-948 | A server refuses an empty host and a port out of range, builds its application as it is built, and records a runner and a site only once a start has returned. | Promote. What the server holds is in no article, and holding both or neither — where the loops written earlier keep a dead task — is the contrast worth drawing |
+| Row H-949 | The site's start stands inside a guard naming every failure there can be, which cleans the runner up and raises on, and stopping weighs the site and the runner one at a time. | Merge with H-948. It is why a failure leaves no half-started server behind |
+| Row H-950 | The application refuses a staleness span at or below nought, is handed the book, the ledger, the poller and that span under keys of their own, and shares one counter of socket subscriptions. | Promote. What it is handed is in no article, and every handler reaching its dependencies through the application rather than a closure is how the whole surface is wired |
+| Row H-951 | Eleven roads are added at once, two of them sharing a path and differing only by method, one answering about an order and one submitting one. | Merge with H-950 |
+| Row H-952 | The check against the smallest worth answers at once where the book gave no price to weigh against. | Promote. A check that does nothing under a condition is in no article, and this one is reached by every order |
+| Row H-953 | Snapping an amount floors it onto the step and multiplies back, and reading a figure from a parameter answers the figure once it has passed. | Merge with H-952 |
+
+Three subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P90-01 | What binsim's server holds and when | written | [what-binsims-server-holds-and-when.md](atoms/what-binsims-server-holds-and-when.md) |
+| P90-02 | What the application is handed and what it serves | written | [what-the-application-is-handed-and-what-it-serves.md](atoms/what-the-application-is-handed-and-what-it-serves.md) |
+| P90-03 | What an order's figures are put through | written | [what-an-orders-figures-are-put-through.md](atoms/what-an-orders-figures-are-put-through.md) |
+
+### Re-seed, after writing package 90
+
+One count was wrong in a draft and caught before the gate saw it.
+
+| What it found | What came of it |
+|---|---|
+| "Eleven roads, nine of them read-only and one taking an order" — there are ten under the asking method and one under the submitting one, and two of the eleven upgrade to a socket rather than answering. | Corrected to ten and one, with the two socket roads named separately. The error came from counting the lines that looked like plain reads rather than counting the methods |
+| The check against the smallest worth does nothing where the book gave no price. The article that owns the refusal implies a price exists. | Stated in the new article, with what it does not settle: whether such an order is stopped elsewhere is decided before this check |
+| The counter of identifiers has nothing guarding it. | Stated as what it means — the figures are unique only while one caller asks at a time |
+| A failed start leaves the server holding neither a runner nor a site, where the outcome loop and the feed both keep a dead task. | Stated. Three modules in this wiki now have a flag whose meaning turns on this, and they do not agree |
+
+The count error is the one to record. Eleven items were right there to count, and the
+draft counted a property of them instead by eye. Counting from the shape of the
+lines rather than from what the lines say is the same failure as counting from the
+gap map, which packages sixty-one and sixty-two recorded — and it survives being
+named, because the lines look countable.
 
 ## Package 89 — what binsim answers when it is only asked
 
@@ -7458,8 +7503,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-945 | A name the ledger does not hold becomes an unauthorized, and both balances are answered as text with nothing locked against either. | `server.py` 276 into 277, and 279-284 | package eighty-nine | folds into P89-02 |
 | H-946 | A refusal is a body carrying a code and a message; one status becomes a bad-request and one a service-unavailable, each handed back to raise, while any other status raises there and then. | `server.py` 738, then 740 into 741, or 743 into 744, against 746 | package eighty-nine | is P89-03 |
 | H-947 | A depth with no figure answers a default, one that will not read as a whole number is refused carrying what arrived, and one at or below nought or past the cap is refused with a message naming the cap. | `server.py` 751 into 752, or 754-755 into 756 into 757-760, or 762 into 763-766, else 768 | package eighty-nine | folds into P89-03 |
+| H-948 | A server refuses an empty host and a port out of range, builds its application as it is built, and records a runner and a site only once a start has returned. | `server.py` 947 into 948, then 950 into 951, and 955 ahead of 971, and 997, and 998 | package ninety | is P90-01 |
+| H-949 | The site's start stands inside a guard naming every failure there can be, which cleans the runner up and raises on, and stopping weighs the site and the runner one at a time. | `server.py` 985-986 into 987, then 994, then 995, against 1002 into 1003-1004, then 1006 into 1007-1008 | package ninety | folds into P90-01 |
+| H-950 | The application refuses a staleness span at or below nought, is handed the book, the ledger, the poller and that span under keys of their own, and shares one counter of socket subscriptions. | `server.py` 180 into 181-183 ahead of 185, and 186, and 187, and 188, and 189, and 190 | package ninety | is P90-02 |
+| H-951 | Eleven roads are added at once, two of them sharing a path and differing only by method. | `server.py` 192-204, and 198, against 201 | package ninety | folds into P90-02 |
+| H-952 | The check against the smallest worth answers at once where the book gave no price to weigh against. | `server.py` 683 into 684, against 686 | package ninety | is P90-03 |
+| H-953 | Snapping an amount floors it onto the step and multiplies back, and reading a figure from a parameter answers the figure once it has passed. | `server.py` 564, and 725 | package ninety | folds into P90-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 01:00 UTC
