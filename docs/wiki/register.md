@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 595 not.**
+**6 of them reviewed, 597 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 128 — what the build refuses before an account runs, and what runs before an account's loops do
+
+Scope: the refusals an account's runtime build makes, and the two things that run
+inside that build before any of the account's loops exists, part of a module the
+ledger marks `partial`. After the package before this one, three hundred and
+thirty-six of its twelve hundred and one statements were uncited. Pieces of the build
+are cited from a dozen articles and the build's own refusals are in none; the order
+of the last steps is in none. The rest of the module is left for the packages after
+this, and the cell stays `partial`.
+
+### Merge and promote, package 128
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1219 | The build refuses where the trading stack or the host's loop is missing, where the startup sequence produced no settings or no state, and where the risk record has no slot to hold a lock. | Promote. The three refusals are in no article, and the sequence answering not being proof that it produced anything is worth stating |
+| Row H-1220 | Past the third refusal the positions lock is put into that slot, so one lock stands under both names, and a separate lock is made for the registry of commands. | Merge with H-1219 |
+| Row H-1221 | The mode controller is built over the positions lock and reconciled at once, and two handlers are built over that one controller, each taking its own answer from the settings. | Merge with H-1219 |
+| Row H-1222 | The accounting wiring is published part way through the build, then the unacknowledged outcomes of a previous run are re-delivered, then the held-over startup actions are drained, and only then are the loops built. | Promote. The order is in no article, and the window it opens is what the two mappings were kept apart for |
+| Row H-1223 | The host publishes the runtime only once the build has answered, and starts the loops after that. | Merge with H-1222. During the replay and the drain an account's figures can be moved and nothing can be asked of it |
+| Row H-1224 | The replay routes its outcomes through the same working-through a live outcome takes, which reads the wiring. | Merge with H-1222. It is why the wiring is published earlier in the build than the runtime |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P128-01 | What the build refuses before an account runs | written | [what-the-build-refuses-before-an-account-runs.md](atoms/what-the-build-refuses-before-an-account-runs.md) |
+| P128-02 | What runs before an account's loops do | written | [what-runs-before-an-accounts-loops-do.md](atoms/what-runs-before-an-accounts-loops-do.md) |
+
+### Re-seed, after writing package 128
+
+The second article is the answer to a question the three packages before it raised
+without settling: what the window between the two mappings is for.
+
+| What it found | What came of it |
+|---|---|
+| The replay of unacknowledged outcomes and the drain of held-over actions both run inside the build, before any loop exists and before the runtime is published. | Stated as the order, with what it means: the account's figures can be moved and nothing can be asked of it |
+| The wiring is published earlier in the build than the runtime because the replay's own working-through reads the wiring. | Stated. Package a hundred and twenty-six said the two mappings answer two questions; this says which step needs the earlier answer |
+| The settings and the state are read off the startup sequence after it has run and the build refuses where either is absent. | Stated. The sequence answering is not proof it produced anything, and the refusal is the only place that says so |
+| One lock stands under two names, the positions lock being put into the risk record's slot past a refusal that the slot exists. | Stated. The lock's identity was already written up from the store's side; the refusal guarding it was not |
+
+Worth recording: four packages running have now turned on the same two mappings, and
+each found a different half of the story — the edges they are written on, which roads
+read which, and now the window between them and what runs inside it. None of the four
+could have been written first. The ordering was not planned: each package's leftovers
+pointed at the next, which is what reading the gap map as a list of statements does
+when the statements belong to one mechanism.
 
 ## Package 127 — which roads out wait for an account to be ready, and the order an account's loops start and stop in
 
@@ -9484,7 +9531,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1216 | Seven loops are started in a fixed order, the timer one only where the account has one. | `launcher.py` 4668, then 4670 into 4671, then 4673, then 4674, then 4675, then 4676, then 4677 | package one hundred and twenty-seven | is P127-02 |
 | H-1217 | An ordinary stop stops four of them by hand, and hands the other three to the stopping sequence. | `launcher.py` 4004, then 4005, then 4006, then 4007, with 4018, and 4019, and 4020, into 4030 | package one hundred and twenty-seven | folds into P127-02 |
 | H-1218 | The four stopped by hand are exactly the four the sequence is not given. | `launcher.py` 4004-4007, against 4009-4029 | package one hundred and twenty-seven | folds into P127-02 |
+| H-1219 | The build refuses where the trading stack or the host's loop is missing, where the startup sequence produced no settings or no state, and where the risk record has no slot to hold a lock. | `launcher.py` 4067 into 4068-4069, or 4087, and 4088, then 4090 into 4091-4095, or 4121 into 4122-4127 | package one hundred and twenty-eight | is P128-01 |
+| H-1220 | Past the third refusal the positions lock is put into that slot, so one lock stands under both names, and a separate lock is made for the registry of commands. | `launcher.py` 4102, then 4128, with 4120 | package one hundred and twenty-eight | folds into P128-01 |
+| H-1221 | The mode controller is built over the positions lock and reconciled at once, and two handlers are built over that one controller, each taking its own answer from the settings. | `launcher.py` 4129-4133, then 4134, then 4135-4137, and 4138-4140 | package one hundred and twenty-eight | folds into P128-01 |
+| H-1222 | The accounting wiring is published part way through the build, then the unacknowledged outcomes of a previous run are re-delivered, then the held-over startup actions are drained, and only then are the loops built. | `launcher.py` 4348-4353, then 4354 into 4355, then 4547, then 4549, then 4551-4559, then 4563 into 4564-4569, then 4573-4581, then 4583-4589, then 4635 | package one hundred and twenty-eight | is P128-02 |
+| H-1223 | The host publishes the runtime only once the build has answered, and starts the loops after that. | `launcher.py` 3993 into 3994, then 3995 | package one hundred and twenty-eight | folds into P128-02 |
+| H-1224 | The replay routes its outcomes through the same working-through a live outcome takes, which reads the wiring. | `launcher.py` 4535-4537, into 2985-2986 | package one hundred and twenty-eight | folds into P128-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 08:30 UTC
