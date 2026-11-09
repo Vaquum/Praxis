@@ -426,6 +426,9 @@ the others where it appears.
 - [What a rebuilt ledger carries](atoms/what-a-rebuilt-ledger-carries.md) — the resumable state holds balances, per-trade realized and fee figures, and open lots, but no journal, so the posting history behind each figure is gone; lots return in the order the snapshot listed them, and under average costing there is one per trade to return.
 - [The figures a fill is assumed to carry](atoms/the-figures-a-fill-is-assumed-to-carry.md) — the fill size, price, notional and fees are checked by assertion rather than by a test that could answer, the record's own validation having already required all four; the capital call runs before any position is read, so a failing call returns a failure while a missing trade or position raises later.
 - [The order the intake hooks stand in](atoms/the-order-the-intake-hooks-stand-in.md) — a mode check runs before any hook, then the duplicate-window hook is built first and the reference hook second, with a resolved rate cap inserted ahead of both; each rejects a non-integer or non-positive figure at build time, and each ignores anything but an entry.
+- [What the intake stage holds its hooks to](atoms/what-the-intake-stage-holds-its-hooks-to.md) — the first stage of checking throws an error rather than turning a trade away when a check it runs replies with the wrong sort of thing, and the stage's own approval is its own, not any check's.
+- [What an intake hook keeps between calls](atoms/what-an-intake-hook-keeps-between-calls.md) — the checks that count events over a period build their tally and its lock once and share them across every call, read the clock a single time per call, and can be handed a clock of their own.
+- [What the reference check asks of a change or a stop](atoms/what-the-reference-check-asks-of-a-change-or-a-stop.md) — a request to change an order is matched against a list that can be fetched fresh, while a request to stop one is matched against a list fixed when the check was built, so an order that became stoppable since then is unknown to one and known to the other.
 - [What intake asks of an exit](atoms/what-intake-asks-of-an-exit.md) — an exit must be a SELL, name a trade with an open position, own that position, give a size above zero, and keep that size within what remains after already-pending exits, each asked only once the previous one passes.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
@@ -584,15 +587,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 487
+Both sides are the subject, and Praxis is the side that has been written. 490
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 60 are accounted for in full and 4 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 61 are accounted for in full and 3 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 16:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 17:00 UTC

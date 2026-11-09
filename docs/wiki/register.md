@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 486 not.**
+**6 of them reviewed, 489 not.**
 
 ## Package 1
 
@@ -856,6 +856,57 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 82 — what the first stage holds its hooks to
+
+Scope: the validator's first stage and the hooks it runs, which the ledger marks
+`partial` with forty-three of its hundred and twenty-one statements uncited.
+Articles have the order the intake hooks stand in, what intake asks of an exit, the
+window that turns a repeated entry away and what the halted mode turns away. What
+the stage holds its hooks to, what a hook keeps between calls, and what the
+reference check asks of a change or a stop are in no article.
+
+### Merge and promote, package 82
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-904 | The stage raises on three things a hook can answer with — an answer that is not a decision, an allowing answer carrying money set aside, and a denying answer naming another stage — and answers allowed on its own account where the walk runs out. | Promote. What the stage demands of a hook is in no article, and all three raises being about the answer's shape rather than the request is what separates a broken hook from a denied trade |
+| Row H-905 | The record each counting hook keeps and the lock guarding it are made once as the hook is built, and the hook is declared inside that building, so every call shares the one record. | Promote. What a hook keeps between calls is in no article, and a record made once per hook rather than once per call is what makes the counting work at all |
+| Row H-906 | A call reads the clock once and measures everything against that one reading, prunes and weighs under the lock, and answers with nothing from outside it. | Merge with H-905 |
+| Row H-907 | The reference hook holds one answer and hands it back at the end rather than answering from inside a branch, each kind of request weighed on a branch of its own. | Promote. What the reference check asks is in no article, and one exit for every road is the shape the other two hooks do not have |
+| Row H-908 | A change asks a provider for the commands it may name where one was given and otherwise reads the captured set, while a stop has no provider and reads only the captured set. | Merge with H-907. The asymmetry is the finding and it needs both halves beside each other |
+| Row H-909 | The mode is read off the state two levels deep, and a mode that is neither halted nor reduce-only answers with nothing. | Merge into the article on what the halted mode turns away, which has both branches already |
+| Row H-910 | A repeated entry's command name is read into a name of its own before it is weighed. | Merge into the article on the window that turns a repeated entry away |
+
+Three subjects promote, two rows merge into them and two merge into articles
+already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N82-01 | What the intake stage holds its hooks to | written | [what-the-intake-stage-holds-its-hooks-to.md](atoms/what-the-intake-stage-holds-its-hooks-to.md) |
+| N82-02 | What an intake hook keeps between calls | written | [what-an-intake-hook-keeps-between-calls.md](atoms/what-an-intake-hook-keeps-between-calls.md) |
+| N82-03 | What the reference check asks of a change or a stop | written | [what-the-reference-check-asks-of-a-change-or-a-stop.md](atoms/what-the-reference-check-asks-of-a-change-or-a-stop.md) |
+
+### Re-seed, after writing Nexus package 82
+
+No defect survived into the articles. One claim had to be rewritten after the gate
+refused its evidence.
+
+| What it found | What came of it |
+|---|---|
+| The provider-versus-captured asymmetry between a change and a stop is only visible with both halves cited beside each other; either alone reads as ordinary. | Both are cited in one claim, and the consequence — a command that became stoppable after the hook was made being unknown to a stop and known to a change — is stated |
+| The stage's allowed answer is its own, not any hook's: an allowing hook only declines to stop the walk. | Stated. It is the kind of thing that reads as pedantry until a reader tries to find which hook allowed a trade |
+| Four statements were left over after the three articles: the mode read off the state, the quiet answer where no mode applies, a command name read into a name of its own, and the hook handed back. | Each went into the article that already owned its subject, by widening a citation rather than by writing prose |
+| The three hooks are each declared with a signature line, which the gate refuses as evidence, so "the hook is declared inside the building" could not be cited. | The claim says instead that the hook is handed back from inside the building, which the handing-back line does show. The three signature lines are an exclusion |
+
+Worth recording: the refused claim was true and the sentence was fine; what was
+wrong was where it pointed. A declaration is not a statement, so nothing about a
+routine existing can be cited — only what the routine does, or what is done with
+it. The gate has refused signature lines since it was written, and this is the
+second package to walk into it.
+
+Three statements of the module are left uncited and are an exclusion rather than
+work outstanding: all three are the hooks' own signature lines.
 
 ## Nexus package 81 — the two actions that go out without a command
 
@@ -7042,8 +7093,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-901 | Every road through an action appends its answer to a list made before the walk and moves straight to the next, and the whole list is answered only once the walk is done. | `action_submit.py` 188 then 190, and 239, or 274 into 281, or 288, or 309, or 410 into 418, the answer at 455 | package eighty-one | is N81-02 |
 | H-902 | Building the command stands inside a guard, and a build that raises ends that action as a failed sending while the walk goes on. | `action_submit.py` 290-291 into 301-308 | package eighty-one | folds into N81-02 |
 | H-903 | A registration offers three marks — confirming the sending, marking it unknown, and rolling it back — each declared with a placeholder where a body would be. | `action_submit.py` 114, and 123, and 127 | package eighty-one | recorded; when-a-submission-does-not-reach-capital states it |
+| H-904 | The stage raises on three things a hook can answer with, and answers allowed on its own account where the walk runs out. | `intake_stage.py` 451 into 452-453, or 455 into 456 into 457-458, or 461 into 462-463, and 467 | package eighty-two | is N82-01 |
+| H-905 | The record each counting hook keeps and the lock guarding it are made once as the hook is built, and the hook is declared inside that building. | `intake_stage.py` 98-99 ahead of 123, or 145-147 ahead of 200 | package eighty-two | is N82-02 |
+| H-906 | A call reads the clock once and measures everything against that one reading, prunes and weighs under the lock, and answers with nothing from outside it. | `intake_stage.py` 105-106 and 108 and 121, or 175-176 and 178 and 198 | package eighty-two | folds into N82-02 |
+| H-907 | The reference hook holds one answer and hands it back at the end rather than answering from inside a branch, each kind of request weighed on a branch of its own. | `intake_stage.py` 219, handed back at 330, the branches at 237, or 288, or 320 | package eighty-two | is N82-03 |
+| H-908 | A change asks a provider for the commands it may name where one was given and otherwise reads the captured set, while a stop has no provider. | `intake_stage.py` 289-293, against 321 | package eighty-two | folds into N82-03 |
+| H-909 | The mode is read off the state two levels deep, and a mode that is neither halted nor reduce-only answers with nothing. | `intake_stage.py` 356, and 387 | package eighty-two | recorded; what-the-halted-mode-turns-away states it |
+| H-910 | A repeated entry's command name is read into a name of its own before it is weighed. | `intake_stage.py` 161 into 162-168 | package eighty-two | recorded; the-window-that-turns-a-repeated-entry-away states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 17:00 UTC
