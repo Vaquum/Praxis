@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 683 not.**
+**6 of them reviewed, 687 not.**
 
 ## Package 1
 
@@ -856,6 +856,99 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 174 — what calling off a scheme's children leaves behind, and what a boot's rejection of an orphan says
+
+Scope: the attempt to call off every still-working child of a scheme, and the report a
+boot makes for a command it finds accepted and never carried out, part of a module the
+ledger marks `partial`. After the package before this one, three hundred and ninety-one
+of its two thousand four hundred and eighty-seven statements were uncited. The orphan
+walk is in an article and the report it makes is in none; the calling off is in no
+article.
+
+### Merge and promote, package 174
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1575 | Two roads drop a name from the live set — the record holding no order for it, and a cancel the venue confirmed — and the other two leave it there. | Promote. The calling off is in no article, and what stays on the list is the finding |
+| Row H-1576 | A copy of the live children is walked, so the set itself can be changed as the walk goes. | Merge with H-1575 |
+| Row H-1577 | The live set standing non-empty is what keeps the work from being settled, and a drain passes over work whose set is already empty. | Merge with H-1575 |
+| Row H-1578 | The report names a stand-in target of one, nothing filled, no average price, and nought parts done of one. | Promote. The walk that finds orphans is written and what it tells Nexus is not |
+| Row H-1579 | One moment is taken and carried into both the record and the report. | Merge with H-1578 |
+| Row H-1580 | The record says refused with the boot's own reason, and the command is marked ended as it goes down. | Merge with H-1578 |
+| Row H-1581 | The report is handed out with retries. | Merge with H-1578 |
+| Row H-1582 | A name the venue does not know, and a name whose cancel failed any other way, both stay on the live list. | Merge with H-1575 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P174-01 | What calling off a scheme's children leaves behind | written | [what-calling-off-a-schemes-children-leaves-behind.md](atoms/what-calling-off-a-schemes-children-leaves-behind.md) |
+| P174-02 | What a boot's rejection of an orphan says | written | [what-a-boots-rejection-of-an-orphan-says.md](atoms/what-a-boots-rejection-of-an-orphan-says.md) |
+
+### Re-seed, after writing package 174
+
+The first article's closing claim was wrong in draft. It said the live list is what a
+pass over due work and a drain both read; both read the work, not the list. The list is
+read by the settling that runs straight after the calling off, and by the drain's own
+test for work worth calling off at all.
+
+| What it found | What came of it |
+|---|---|
+| The live list standing non-empty is what keeps the work from being settled. | Stated from the settling's own reading, which the draft had attributed to two other routines |
+| Two of four roads drop a name and two leave it. | Stated. A child left there settles through its own fill or expiry |
+| The report for an orphan is made of stand-ins. | Stated with what is known and what is not, since the figures say nothing and the status says everything |
+| The command is marked ended as the record goes down. | Stated. That is what keeps every later report for it from being made |
+
+Worth recording: the draft's error was the one the rules name — a claim true of a
+routine and false of the subject, because the subject never reaches it. Both cited
+routines do walk something; neither walks the list the sentence was about.
+
+## Package 173 — which ladders a restart passes over, and what a resumed ladder's grid is taken from
+
+Scope: the walk that brings ladders back after a restart, split into the readings that
+pass one over and the figures the live grid is taken from, part of a module the ledger
+marks `partial`. After the package before this one, four hundred and one of its two
+thousand four hundred and eighty-seven statements were uncited. The resuming of work fed
+out on a schedule is in an article and the ladder's own walk is in none. One subject
+would have run past the word cap, so the walk is written as two.
+
+### Merge and promote, package 173
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1567 | Four readings pass a ladder over: an ending recorded, a latest state other than running, too few price levels, and a start that will not rebuild. | Promote. The scheduled work's walk is written and the ladder's is not |
+| Row H-1568 | A state the replay never saw is read as running. | Merge with H-1567 |
+| Row H-1569 | The deadline is the start's own moment plus the timeout it carried, with none where that timeout is nought or less. | Merge with H-1567 |
+| Row H-1570 | The grid's generation, settings and size come from the last change that completed, and from the start where none did. | Promote. The second half of the same walk, past the cap for one article |
+| Row H-1571 | A ladder with a change in flight is resumed through the change's own resumption instead. | Merge with H-1570 |
+| Row H-1572 | The live children are found by walking that generation's grid by name, and the place in the plan set to how many were posted. | Merge with H-1570 |
+| Row H-1573 | An ending still owing and a drain still owing its call-offs are carried onto the rebuilt work. | Merge with H-1570 |
+| Row H-1574 | The work, its command, its acceptance and its trade are then all installed. | Merge with H-1570 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P173-01 | Which ladders a restart passes over | written | [which-ladders-a-restart-passes-over.md](atoms/which-ladders-a-restart-passes-over.md) |
+| P173-02 | What a resumed ladder's grid is taken from | written | [what-a-resumed-ladders-grid-is-taken-from.md](atoms/what-a-resumed-ladders-grid-is-taken-from.md) |
+
+### Re-seed, after writing package 173
+
+Splitting the walk was the whole of the work. One article covering it ran to four
+hundred words and read as a list; as two it has a shape — which ladders come back, and
+what they come back as.
+
+| What it found | What came of it |
+|---|---|
+| The generation decides which names the walk for resting rungs uses. | Stated as why the generation has to be right: a walk of the wrong one finds none of the resting rungs |
+| Where no change ever completed, the grid comes from the start and its generation is nought. | Stated |
+| A state the replay never saw is read as running. | Stated. A ladder that only ever started is resumed |
+| The scheduled work's walk reads the same replay and refuses on its own terms. | Stated as the pairing it is: the two walks share the gathering and not the readings |
+
+Worth recording: the word cap did the editing. The split it forced is the one a reader
+wants anyway, and the register's own rule — that the subject which made an article grow
+becomes its own article — held even where the growth was a single routine.
 
 ## Package 172 — which news makes a report, and what a boot's re-flatten does before it sizes
 
@@ -11950,7 +12043,23 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1564 | An account poisoned by that draining abandons the recovery. | `execution_manager.py` 8237, then 8245 | package one hundred and seventy-two | folds into P172-02 |
 | H-1565 | The bracket is rebuilt in memory with the entry's name worked out, and what is left open is the entry's delivered figure less the closing command's own fills. | `execution_manager.py` 8228-8230, then 8231-8233, then 8247, then 8248, then 8249 | package one hundred and seventy-two | folds into P172-02 |
 | H-1566 | The close is re-attempted with the candidate names, and asks after each before placing anything. | `execution_manager.py` 8255-8257, reaching 7627, then 7628, then 7636 | package one hundred and seventy-two | folds into P172-02 |
+| H-1567 | Four readings pass a ladder over: an ending recorded, a latest state other than running, too few price levels, and a start that will not rebuild. | `execution_manager.py` 1313, then 1314 into 1315, or 1319 into 1320, or 1322 into 1323, or 1325, then 1326, then 1327, then 1331 | package one hundred and seventy-three | is P173-01 |
+| H-1568 | A state the replay never saw is read as running. | `execution_manager.py` 1317, then 1318 | package one hundred and seventy-three | folds into P173-01 |
+| H-1569 | The deadline is the start's own moment plus the timeout it carried, with none where that timeout is nought or less. | `execution_manager.py` 1333-1337 | package one hundred and seventy-three | folds into P173-01 |
+| H-1570 | The grid's generation, settings and size come from the last change that completed, and from the start where none did. | `execution_manager.py` 1355-1357, naming what stands in at 1356 | package one hundred and seventy-three | is P173-02 |
+| H-1571 | A ladder with a change in flight is resumed through the change's own resumption instead. | `execution_manager.py` 1339, then 1340, then 1345-1346 | package one hundred and seventy-three | folds into P173-02 |
+| H-1572 | The live children are found by walking that generation's grid by name, and the place in the plan set to how many were posted. | `execution_manager.py` 1359-1361, then 1362-1376, the place set at 1367 | package one hundred and seventy-three | folds into P173-02 |
+| H-1573 | An ending still owing and a drain still owing its call-offs are carried onto the rebuilt work. | `execution_manager.py` 1378, then 1379-1381 | package one hundred and seventy-three | folds into P173-02 |
+| H-1574 | The work, its command, its acceptance and its trade are then all installed. | `execution_manager.py` 1383, then 1384, then 1385, then 1386 | package one hundred and seventy-three | folds into P173-02 |
+| H-1575 | A name the record holds no order for is dropped from the live set, and so is one whose cancel the venue confirmed, once the call-off is written. | `execution_manager.py` 6448, then 6449, then 6450, then 6451, or 6470-6476, then 6477, then 6478, then 6479 | package one hundred and seventy-four | is P174-01 |
+| H-1576 | A copy of the live children is walked, so the set itself can be changed as the walk goes. | `execution_manager.py` 6447 | package one hundred and seventy-four | folds into P174-01 |
+| H-1577 | The live set standing non-empty is what keeps the work from being settled, and a drain passes over work whose set is already empty. | `execution_manager.py` 6355, then 6356, reached from 7068, then 7069, against 7052-7056, then 7057 | package one hundred and seventy-four | folds into P174-01 |
+| H-1578 | The report names a stand-in target of one, nothing filled, no average price, and nought parts done of one. | `execution_manager.py` 2309-2321, the stand-in at 2314, its value at 177, the parts at 2317, and 2318 | package one hundred and seventy-four | is P174-02 |
+| H-1579 | One moment is taken and carried into both the record and the report. | `execution_manager.py` 2296, then 2299, and 2320 | package one hundred and seventy-four | folds into P174-02 |
+| H-1580 | The record says refused with the boot's own reason, and the command is marked ended as it goes down. | `execution_manager.py` 2297-2304, the reason set at 2303, then 2305, then 2306, then 2307 | package one hundred and seventy-four | folds into P174-02 |
+| H-1581 | The report is handed out with retries. | `execution_manager.py` 2330 | package one hundred and seventy-four | folds into P174-02 |
+| H-1582 | A name the venue does not know, and a name whose cancel failed any other way, both stay on the live list. | `execution_manager.py` 6459, then 6460, or 6461, then 6468 | package one hundred and seventy-four | folds into P174-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 06:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 07:30 UTC

@@ -157,6 +157,8 @@ the others where it appears.
 - [What a failed protection replacement is looked for](atoms/what-a-failed-protection-replacement-is-looked-for.md) — a send that fails is not believed; the venue is asked whether the pair is resting after all, and the answer picks one of three endings.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
+- [What calling off a scheme's children leaves behind](atoms/what-calling-off-a-schemes-children-leaves-behind.md) — each still-working part is asked to stop, and a part that cannot be stopped stays on the list the settling reads.
+- [What a boot's rejection of an orphan says](atoms/what-a-boots-rejection-of-an-orphan-says.md) — an instruction accepted and never carried out is reported as refused, in figures that are stand-ins because nothing of it was ever read.
 - [The three kinds of orphan a boot finds](atoms/the-three-kinds-of-orphan-a-boot-finds.md) — a command the record shows starting and never finishing is sorted by what the record holds, and a send that failed counts as finishing one just as a send that succeeded does.
 - [Why a flatten is recovered only once](atoms/why-a-flatten-is-recovered-only-once.md) — a closing order that already carries fills is left alone, because fills are recorded by adding amounts rather than by matching the trade they came from, so writing them again would count them twice.
 - [Which news makes a report](atoms/which-news-makes-a-report.md) — most of what the venue says about an order never reaches Nexus, and a run of readings decides what does.
@@ -684,6 +686,8 @@ the others where it appears.
 - [What becomes of work still open](atoms/what-becomes-of-work-still-open.md) — what a stopping host does with commands part-way through and orders resting at the venue.
 - [How a restart reads its record back](atoms/how-a-restart-reads-its-record-back.md) — every event is walked once and a command rebuilt from it comes back as a single order whatever it was, so the kinds of work that span several events are left entirely to the rebuilds that follow it.
 - [What one pass gathers for the schemes](atoms/what-one-pass-gathers-for-the-schemes.md) — one reading of the history answers what both rebuilds need, and a scheme frozen because its protection failed stays frozen through any number of replans where one frozen by a failed slice does not.
+- [Which ladders a restart passes over](atoms/which-ladders-a-restart-passes-over.md) — a restart walks every ladder the replay found started, and a run of readings decides which are brought back.
+- [What a resumed ladder's grid is taken from](atoms/what-a-resumed-ladders-grid-is-taken-from.md) — the live grid comes from the last change that completed rather than from the start, which is what makes the names of the resting rungs findable.
 - [What stops a scheme being resumed](atoms/what-stops-a-scheme-being-resumed.md) — a fed-out order whose plan can no longer be worked out is passed over silently and not ended either, so it waits for the pass that closes orphaned work, and a scheme that recorded only its start is treated as still going.
 - [What a resumed scheme comes back holding](atoms/what-a-resumed-scheme-comes-back-holding.md) — a replan replaces the plan the start recorded outright, a child that finished while the host was down is not counted as live, and a scheme with nothing left to wake it is handed the present moment.
 - [What a restart puts back](atoms/what-a-restart-puts-back.md) — the live work rebuilt from the record, each kind at the point it had reached, with nothing already at the venue sent again.
@@ -781,7 +785,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 684
+Both sides are the subject, and Praxis is the side that has been written. 688
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -792,4 +796,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 06:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 07:30 UTC
