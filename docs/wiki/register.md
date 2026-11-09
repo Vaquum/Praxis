@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 641 not.**
+**6 of them reviewed, 643 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 152 — how a protection in doubt is re-confirmed, and what retiring a ladder's old grid counts
+
+Scope: the writing back of a protection the venue confirmed working, and the walk
+that retires the grid an amend replaces, part of a module the ledger marks `partial`.
+After the package before this one, eight hundred and twenty-six of its two thousand
+four hundred and eighty-seven statements were uncited. Neither subject is in an
+article. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 152
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1398 | An order the account's own state holds nothing for is reported and the re-confirming abandoned, the bracket staying in doubt for the next pass. | Promote. The re-confirming is in no article, and the absence being a reason to wait rather than to write is the finding |
+| Row H-1399 | The exit command is pointed at the confirmed list before the submission is written down, and the bracket itself only after the record says the protection is active. | Merge with H-1398 |
+| Row H-1400 | The version recorded is the one the bracket already held, so re-confirming does not advance it. | Merge with H-1398. Whichever candidate turned out to be working is recorded under the version it belonged to |
+| Row H-1401 | Each rung of the old grid is reached by working its name out again, and a name the account holds no order for is passed over. | Promote. The walk is in no article, and it is the same name-working-out a restart uses |
+| Row H-1402 | A rung already cancelled and a rung still working both mark the amend as having committed its cancel, the latter before anything is sent. | Merge with H-1401. The commitment is recorded on what is about to be attempted rather than on what the venue confirms |
+| Row H-1403 | A terminal rung has its fills added to both running totals and its name taken off the live children. | Merge with H-1401 |
+| Row H-1404 | A rung the venue has never heard of is passed over in silence, and any other venue failure halts the amend in its cancelling phase rather than aborting it. | Merge with H-1401 |
+| Row H-1405 | A cancellation is written to the record only where the account's own state holds that rung. | Merge with H-1401 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P152-01 | How a protection in doubt is re-confirmed | written | [how-a-protection-in-doubt-is-re-confirmed.md](atoms/how-a-protection-in-doubt-is-re-confirmed.md) |
+| P152-02 | What retiring a ladder's old grid counts | written | [what-retiring-a-ladders-old-grid-counts.md](atoms/what-retiring-a-ladders-old-grid-counts.md) |
+
+### Re-seed, after writing package 152
+
+Both subjects turn on a write being withheld or made early, which is the axis the last
+few packages have kept finding.
+
+| What it found | What came of it |
+|---|---|
+| A protection cannot be re-confirmed for an order the state holds nothing for, so the absence is a reason to wait. | Stated, with why: a submission for an absent order applies to nothing and leaves the legs' fills nowhere to route |
+| Re-confirming does not advance the version. | Stated. Whichever of the two candidate lists was working is recorded under the version it belonged to |
+| Both roads through a rung mark the amend as having committed its cancel, and the resting-rung road marks it before sending anything. | Stated. The commitment rests on what is about to be attempted rather than on what the venue confirms |
+| A cancellation is recorded only where the state holds the rung, so a rung absent from it is cancelled at the venue and left unrecorded. | Stated |
+
+Worth recording: three double negatives were written and caught in this package
+alone, all of the form "an order the state does not know". The fix each time was to
+name the state positively — "absent from the state" — which is shorter as well as
+allowed. A rule that keeps catching the same phrasing is worth reading as advice
+rather than as an obstacle.
 
 ## Package 151 — how an amend's replacement order goes out, and what a parked amend is retried against
 
@@ -10800,7 +10847,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1395 | The parked amends are walked over a copy, and one whose command the manager no longer holds is dropped and passed over. | `execution_manager.py` 8830, then 8831 into 8832, or 8834, then 8835, then 8836 into 8837-8838 | package one hundred and fifty-one | is P151-02 |
 | H-1396 | The old order is cancelled and asked after in one step, and an order the venue answers nothing for or whose status is not terminal leaves the amend parked. | `execution_manager.py` 8840-8842, then 8843 into 8844 | package one hundred and fifty-one | folds into P151-02 |
 | H-1397 | An amend is dropped from the parked ones only where driving it on answers that it finished. | `execution_manager.py` 8846-8848, then 8849 into 8850 | package one hundred and fifty-one | folds into P151-02 |
+| H-1398 | An order the account's own state holds nothing for is reported and the re-confirming abandoned. | `execution_manager.py` 7233-7234, then 7236 into 7243 | package one hundred and fifty-two | is P152-01 |
+| H-1399 | The exit command is pointed at the confirmed list before the submission is written down, and the bracket itself only after the record says the protection is active. | `execution_manager.py` 7245-7253, then 7254, ahead of 7255, then 7256, then 7258-7264, then 7265, then 7266, then 7267, then 7268, then 7269 | package one hundred and fifty-two | folds into P152-01 |
+| H-1401 | Each rung of the old grid is reached by working its name out again, and a name the account holds no order for is passed over. | `execution_manager.py` 9125, then 9126-9129, then 9130, then 9131 into 9132 | package one hundred and fifty-two | is P152-02 |
+| H-1402 | A rung already cancelled and a rung still working both mark the amend as having committed its cancel. | `execution_manager.py` 9135 into 9136, or 9143 into 9144 | package one hundred and fifty-two | folds into P152-02 |
+| H-1403 | A terminal rung has its fills added to both running totals and its name taken off the live children. | `execution_manager.py` 9134, then 9138, then 9139, then 9140, then 9141 | package one hundred and fifty-two | folds into P152-02 |
+| H-1404 | A rung the venue has never heard of is passed over in silence, and any other venue failure halts the amend in its cancelling phase. | `execution_manager.py` 9146-9149, then 9150 into 9151, or 9152 into 9153-9156 | package one hundred and fifty-two | folds into P152-02 |
+| H-1405 | A cancellation is written to the record only where the account's own state holds that rung. | `execution_manager.py` 9188 into 9189-9195 | package one hundred and fifty-two | folds into P152-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 20:30 UTC
