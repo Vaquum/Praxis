@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 610 not.**
+**6 of them reviewed, 612 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 136 — how a ladder's rungs are found again, and what a ladder amend caught mid-flight resumes as
+
+Scope: the second of the four resumes, and the road a ladder takes when its amend was
+in flight at the restart, part of a module the ledger marks `partial`. After the
+package before this one, eleven hundred and eighty-six of its two thousand four
+hundred and eighty-seven statements were uncited. Neither road is in an article. The
+rest of the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 136
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1285 | Each rung's name is worked out again from the mode, the command, the rung's place and the generation, and the account is asked whether it holds that order. | Promote. The resuming is in no article, and finding the rungs by name rather than by a recorded list is what it rests on |
+| Row H-1286 | A name with no order counts as never posted, one with an order counts as posted, and one whose status is not terminal counts as still working, so the cursor is a count of what was found. | Merge with H-1285 |
+| Row H-1287 | Only the ladder starts are walked, and a terminal outcome, a state that is anything but running, fewer price levels than the minimum, or a command that will not rebuild each pass one over. | Merge with H-1285 |
+| Row H-1288 | A ladder comes back with no slice plan and no interval. | Merge with H-1285. Its rungs are already out there, so the fields a fed-out scheme lives by are left empty |
+| Row H-1289 | An amend still in flight sends the ladder down a road of its own, resuming at the generation before the one initiated and carrying the phase the history last recorded. | Promote. The road is in no article, and resuming as an amend under way rather than starting one again is the whole of it |
+| Row H-1290 | The baseline parameters are the last completed amend's, so an amend caught mid-flight builds on the grid before it. | Merge with H-1289 |
+| Row H-1291 | Both generations' rungs still working are gathered by name, the new one's over a grid sized from the highest place the plan names and only where a plan was recorded. | Merge with H-1289. A ladder resumes holding rungs from two grids |
+| Row H-1292 | The context is rebuilt from the initiation and marked as having committed its cancel, with the fixed plan rebuilt from three recorded lists walked together under a demand that they be of one length. | Merge with H-1289 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P136-01 | How a ladder's rungs are found again | written | [how-a-ladders-rungs-are-found-again.md](atoms/how-a-ladders-rungs-are-found-again.md) |
+| P136-02 | What a ladder amend caught mid-flight resumes as | written | [what-a-ladder-amend-caught-mid-flight-resumes-as.md](atoms/what-a-ladder-amend-caught-mid-flight-resumes-as.md) |
+
+### Re-seed, after writing package 136
+
+The finding here is a kind this corpus has not had before: state recovered by
+re-deriving a name rather than by reading what was written down.
+
+| What it found | What came of it |
+|---|---|
+| The rungs are found by working each name out again and asking the account for that order, so the cursor counts what was found. | Stated as the mechanism, with both consequences: a rung the venue accepted but the record never saw is still found, and one the record saw but the venue lost is not |
+| A ladder comes back with no plan and no interval at all. | Stated. The two fields a fed-out scheme lives by are meaningless for a ladder, which is why the resuming of the two could not share a routine |
+| An amend caught in flight resumes at the generation before the one initiated, on the last completed amend's parameters. | Stated. It comes back as an amend under way, which is what lets the watchdog drive it on rather than start it over |
+| A ladder mid-amend resumes holding rungs from two grids at once. | Stated. Both sets are gathered by the same name-working-out, over two generations |
+
+Worth recording: the name-regeneration finding was invisible from the routine that
+does it, which reads as an ordinary loop over a range. It became visible from the
+call site, where the count it returns is handed straight to the cursor — the question
+"where does this cursor come from?" is what led to it, and the answer was not in the
+record at all.
 
 ## Package 135 — what stops a scheme being resumed, and what a resumed scheme comes back holding
 
@@ -9957,7 +10003,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1282 | The hold follows one precedence — draining, protection, a failed slice, then open. | `execution_manager.py` 1987-1990, into 282 into 283, or 285 into 286, or 288 into 289, or 291 | package one hundred and thirty-five | folds into P135-02 |
 | H-1283 | A scheme open, owing no terminal answer, with slices left, no timer and no live children is given the present moment as its timer. | `execution_manager.py` 1998-2004 into 2005 | package one hundred and thirty-five | folds into P135-02 |
 | H-1284 | The terminal answer it is to end with is carried over, a draining scheme with live children is marked as still owing its cancels, and the scheme is then registered with its command installed, its owner noted and the trade's name recorded. | `execution_manager.py` 1993, then 1994-1995, then 2007, then 2008, then 2009, then 2010 | package one hundred and thirty-five | folds into P135-02 |
+| H-1285 | Each rung's name is worked out again from the mode, the command, the rung's place and the generation, and the account is asked whether it holds that order. | `execution_manager.py` 1499, then 1500-1502, then 1503 | package one hundred and thirty-six | is P136-01 |
+| H-1286 | A name with no order counts as never posted, one with an order counts as posted, and one whose status is not terminal counts as still working, so the cursor is a count of what was found. | `execution_manager.py` 1504 into 1505, or 1507, then 1508 into 1509, then 1511, read at 1367 | package one hundred and thirty-six | folds into P136-01 |
+| H-1287 | Only the ladder starts are walked, and four tests each pass one over. | `execution_manager.py` 1313, reaching 1218 into 1219, with 1314, or 1317, then 1319 into 1320, or 1322 into 1323, or 1325-1326, then 1327 into 1331 | package one hundred and thirty-six | folds into P136-01 |
+| H-1288 | A ladder comes back with no slice plan and no interval, its generation and grid size taken from the completed amend or defaulted. | `execution_manager.py` 1355-1357, then 1364, then 1366, then 1369 | package one hundred and thirty-six | folds into P136-01 |
+| H-1289 | An amend still in flight sends the ladder down a road of its own, resuming at the generation before the one initiated and carrying the phase the history last recorded. | `execution_manager.py` 1339, then 1340 into 1341-1343, then 1345-1353, into 1417, then 1418, then 1463, then 1464 | package one hundred and thirty-six | is P136-02 |
+| H-1290 | The baseline parameters are the last completed amend's. | `execution_manager.py` 1341-1343, then 1347 | package one hundred and thirty-six | folds into P136-02 |
+| H-1291 | Both generations' rungs still working are gathered by name, the new one's over a grid sized from the highest place the plan names and only where a plan was recorded. | `execution_manager.py` 1443-1445, then 1446, then 1447 into 1448, then 1449-1450, then 1459, with 1458 | package one hundred and thirty-six | folds into P136-02 |
+| H-1292 | The context is rebuilt from the initiation and marked as having committed its cancel, with the fixed plan rebuilt from three recorded lists walked together under a demand that they be of one length. | `execution_manager.py` 1420-1432, then 1433-1441, then 1465 | package one hundred and thirty-six | folds into P136-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 12:30 UTC

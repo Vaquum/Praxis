@@ -133,6 +133,8 @@ the others where it appears.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — which fields each way of working lets a change touch, and what it checks before touching them.
 - [How a schedule change is carried out](atoms/how-a-schedule-change-is-carried-out.md) — the parts already sent kept, the rest planned again, and the next part set a full gap from now.
 - [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
+- [How a ladder's rungs are found again](atoms/how-a-ladders-rungs-are-found-again.md) — a grid of resting orders is recovered by working out what each rung was called and asking the account whether that order is there, so a rung the venue accepted but the record never saw is still found.
+- [What a ladder amend caught mid-flight resumes as](atoms/what-a-ladder-amend-caught-mid-flight-resumes-as.md) — a price change interrupted by a restart comes back as a change still under way, holding rungs from both the old grid and the new, so the watchdog drives it on from where it stopped.
 - [How a ladder's prices are changed](atoms/how-a-ladders-prices-are-changed.md) — the whole grid replaced: every old rung cancelled and seen to be over before one new rung goes out.
 - [What stops a ladder's new rungs](atoms/what-stops-a-ladders-new-rungs.md) — a grid can be left short: nothing worth placing, a freeze, or a rung that halts the run each time it is tried.
 - [When a price change leaves no new order](atoms/when-a-price-change-places-nothing.md) — a price change can end with nothing resting in place of the order it replaced: the cancel never settles, the order is still working, too little is left to trade, or the send goes out and comes back unconfirmed.
@@ -708,7 +710,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 611
+Both sides are the subject, and Praxis is the side that has been written. 613
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -719,4 +721,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 12:30 UTC
