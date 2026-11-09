@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 530 not.**
+**6 of them reviewed, 533 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 98 — what the facade refuses, wraps and drops
+
+Scope: the facade's callback setters, its wrapping of a caller's callback and its
+routing of an outcome, part of a module the ledger marks `partial` with two hundred
+and sixteen of its five hundred and twenty-five statements uncited. Articles have
+what Praxis is and how a host reaches it. What the facade refuses once a start has
+begun, how a callback is wrapped, and what routing drops are in no article. The
+building, the starting and the stopping are left for packages of their own, and the
+cell stays `partial`.
+
+### Merge and promote, package 98
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1001 | The refusal fires where the started flag is set and equally where a loop is merely held, so the window opens partway through starting. | Promote. The refusal is in no article, and a caller that waits for the facade to report itself started has already been locked out for the whole of the starting |
+| Row H-1002 | The refusal names the method that was called, and each setter asks for it before doing anything else. | Merge with H-1001 |
+| Row H-1003 | The shared wrapper answers at once for an absent callback, so what it hands back can always be awaited, and otherwise awaits the answer only where the answer can be awaited. | Promote. The wrapping is in no article, and deciding by what came back rather than what was passed is what makes both kinds of callback work |
+| Row H-1004 | One setter does not use that wrapper for an absent callback, passing the absence straight on, and writes the adapter out itself for a real one. | Merge with H-1003. The duplication is what lets the absence through on the one road whose far side reads it |
+| Row H-1005 | Routing looks the queue up under the lock and lets the lock go before anything is put, so a queue unregistered in between still receives. | Promote. The routing is in no article, and the lock making the mapping safe without making the handover atomic is the finding |
+| Row H-1006 | An account with no queue has its outcome dropped with a warning, and the putting is the kind that refuses rather than waits. | Merge with H-1005. A full queue raising into the router rather than blocking it is the other half of what routing costs |
+
+Three subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P98-01 | What the facade refuses once a start has begun | written | [what-the-facade-refuses-once-a-start-has-begun.md](atoms/what-the-facade-refuses-once-a-start-has-begun.md) |
+| P98-02 | How a caller's callback is wrapped | written | [how-a-callers-callback-is-wrapped.md](atoms/how-a-callers-callback-is-wrapped.md) |
+| P98-03 | What routing an outcome drops | written | [what-routing-an-outcome-drops.md](atoms/what-routing-an-outcome-drops.md) |
+
+### Re-seed, after writing package 98
+
+Three findings, each of them a place where two things that look alike are not.
+
+| What it found | What came of it |
+|---|---|
+| The refusal fires on the loop being held as well as on the started flag, so it begins partway through starting. | Stated. A reader of the flag alone would place the window at the end of starting, and the setters are already refused before that |
+| One setter passes an absent callback straight on where every other wraps it, because its far side reads absence as nobody listening. | Stated, with the reason, since the duplication reads as an oversight without it |
+| The routing lock covers the lookup and not the put. | Stated. A queue unregistered between the two still receives, which is the kind of thing a reader assumes the lock prevents |
+| The putting refuses rather than waits, so a full queue raises into the router. | Stated as what it costs: a slow reader becomes an error on the writing side rather than back-pressure |
+
+Worth recording: all three findings are of one kind — two things in the same file
+that look like the same thing. One wrapper and one hand-written adapter. One lock
+held for two statements that are not both inside it. One flag and one field that the
+same guard reads. Looking for the near-identical pair is what this package was, and
+it is a different reading from looking for what a routine does.
 
 ## Package 97 — what an append seals, and what a caller reads back
 
@@ -7866,6 +7912,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-998 | A read of an epoch gathers its whole answer before handing any of it back, where the scan the migrations use takes its rows one at a time. | `event_spine.py` 1214-1215 ahead of 1216, against 766 | package ninety-seven | is P97-03 |
 | H-999 | Writing the reconciliation cursor takes the same lock an append takes, and commits under it. | `event_spine.py` 1347, then 1348-1359, then 1360 | package ninety-seven | folds into P97-03 |
 | H-1000 | A read of the highest sequence answers that number, or nothing where the epoch holds no rows. | `event_spine.py` 1230-1231, then 1232 | package ninety-seven | folds into P97-03 |
+| H-1001 | The refusal fires where the started flag is set and equally where a loop is merely held. | `praxis/trading.py` 363 into 364-368 | package ninety-eight | is P98-01 |
+| H-1002 | The refusal names the method that was called, and each setter asks for it before doing anything else. | `praxis/trading.py` 365-366, and 405, or 442, or 468, or 497 | package ninety-eight | folds into P98-01 |
+| H-1003 | The shared wrapper answers at once for an absent callback, and otherwise awaits the answer only where the answer can be awaited. | `praxis/trading.py` 143-144 into 145 handed back at 152, against 147 then 149 into 150 | package ninety-eight | is P98-02 |
+| H-1004 | One setter passes an absent callback straight on, and writes the adapter out itself for a real one. | `praxis/trading.py` 407 into 408 then 409, against 411 then 413-417 handed on at 419 | package ninety-eight | folds into P98-02 |
+| H-1005 | Routing looks the queue up under the lock and lets the lock go before anything is put. | `praxis/trading.py` 335, then 336, ahead of 345 | package ninety-eight | is P98-03 |
+| H-1006 | An account with no queue has its outcome dropped with a warning naming the account and the command. | `praxis/trading.py` 338 into 339-341, then 343 | package ninety-eight | folds into P98-03 |
+| H-1007 | Registering takes a lock of its own and unregistering takes the same lock, tolerating an account that has none. | `praxis/trading.py` 312 then 313, and 322 then 323 | package ninety-eight | folds into P98-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
 | H-989 | The rollback a failed commit asks for is the same guarded one. | `event_spine.py` 924, into 901-904 | package ninety-six | folds into P96-02 |
@@ -7880,4 +7933,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 09:00 UTC
