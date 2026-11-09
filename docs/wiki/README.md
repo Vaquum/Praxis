@@ -129,6 +129,8 @@ the others where it appears.
 - [The one precedence written twice](atoms/the-one-precedence-written-twice.md) — the rule reducing a protective pair's two legs to a single status is written in two places that agree on the rule and differ on what it is applied to and on whether anything checks first that the pair has finished.
 - [Which child news a scheme acts on](atoms/which-child-news-a-scheme-acts-on.md) — news about a finished fed-out order is silenced by the lookup that finds no running one rather than by any test naming it, and a child ending mid-change is forgotten as live with nothing else done about it.
 - [What starting a bracket writes before its entry](atoms/what-starting-a-bracket-writes-before-its-entry.md) — the whole shape of a protected entry is written down before the entry is sent, so a crash in between leaves a record of one whose entry never went out.
+- [What a ladder's change is refused for](atoms/what-a-ladders-change-is-refused-for.md) — a grid that could not exist is caught by building it and throwing the result away, and a change naming only prices keeps the weights the order already had.
+- [When a bracket's protection becomes active](atoms/when-a-brackets-protection-becomes-active.md) — the protective order is written down before the holding is told which order protects it, and the word active is the last of several things set rather than the first.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening one, to close the position at a good price or at a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — the protective pair goes up once and a second attempt is turned back — except where the prices are being changed, which sends a fresh pair past that guard.
 - [How a protection amend is driven to its end](atoms/how-a-protection-amend-is-driven-to-its-end.md) — the venue is asked what the called-off pair actually filled, and the amend is parked in one of two different states depending on whether the venue could not be asked or the books have not caught up.
@@ -735,7 +737,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 638
+Both sides are the subject, and Praxis is the side that has been written. 640
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -746,4 +748,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 19:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 19:30 UTC

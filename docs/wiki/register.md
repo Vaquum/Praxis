@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 637 not.**
+**6 of them reviewed, 639 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 150 — what a ladder's change is refused for, and when a bracket's protection becomes active
+
+Scope: the refusals a ladder's grid change meets, and the order in which a bracket's
+protection is called active, part of a module the ledger marks `partial`. After the
+package before this one, eight hundred and seventy-six of its two thousand four
+hundred and eighty-seven statements were uncited. Neither subject is in an article.
+The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 150
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1385 | A ladder's change is refused for an amend already in flight, for a ladder held for any reason, and for a command whose own parameters are not a ladder's. | Promote. The refusals are in no article, and the third only arising because a change is routed by its own shape is worth stating |
+| Row H-1386 | The new prices and weights are each the change's where it gave one and the command's own where it did not, so a change naming only prices keeps the weights it had. | Merge with H-1385 |
+| Row H-1387 | The pair is then built once purely to see whether it would be refused, the object discarded and only the refusal mattering. | Merge with H-1385. A grid that cannot exist ends the change there |
+| Row H-1388 | The submission is written to the record and applied before the bracket is told anything about it. | Promote. The order is in no article, and the record holding the protective order while the bracket names none is the finding |
+| Row H-1389 | The bracket is given the order's name, the average entry price and the three protective prices, and only once all five stand is its protection called active. | Merge with H-1388. Nothing reading the bracket mid-way can see it active with its prices missing |
+| Row H-1390 | The bracket was marked as having its protection placed long before any of this, so placed and active are two marks set far apart. | Merge with H-1388 |
+| Row H-1391 | Each fill the answer already carried is written against the exit's name on the protective side, each stamped as it is built. | Merge with H-1388 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P150-01 | What a ladder's change is refused for | written | [what-a-ladders-change-is-refused-for.md](atoms/what-a-ladders-change-is-refused-for.md) |
+| P150-02 | When a bracket's protection becomes active | written | [when-a-brackets-protection-becomes-active.md](atoms/when-a-brackets-protection-becomes-active.md) |
+
+### Re-seed, after writing package 150
+
+Both subjects came from asking what order things are written in, which is the question
+the last several packages have kept rewarding.
+
+| What it found | What came of it |
+|---|---|
+| A ladder's change builds the new grid purely to see whether it would be refused, discarding the object. | Stated. It is a refusal expressed as a construction, and the only way to read it is to notice the result is unused |
+| A change naming only prices keeps the weights the command had. | Stated. Each field falls back to the command's own, which is what makes a partial change meaningful |
+| The protective order is recorded before the bracket is told which order protects it. | Stated. The record and the bracket disagree for the width of those lines |
+| Active is the last of six things set, where placed was set before the pair was even built. | Stated as two marks far apart, with the gap between them covering the whole send |
+
+Worth recording: the ladder's fourth refusal is a construction whose value is thrown
+away. Nothing names it as a test, and a reader skimming for conditions would pass it
+by — the signal is that the built object is never used again. Reading what happens to
+a result is how a check written as a construction becomes visible.
 
 ## Package 149 — what a queue reservation is for, and what a caller-supplied command name must be
 
@@ -10697,7 +10742,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1382 | A name a caller supplies must not be empty, must be something a client order id can be built from, and must be neither already accepted nor already held. | `execution_manager.py` 3445, then 3446 into 3447-3448, then 3450, then 3452-3455 into 3456-3457 | package one hundred and forty-nine | is P149-02 |
 | H-1383 | Where no name is supplied one is made instead, and the command is built from the name and everything the caller gave. | `execution_manager.py` 3458 into 3459, then 3461-3470 | package one hundred and forty-nine | folds into P149-02 |
 | H-1384 | A command is refused first where the account is unregistered, has fail-stopped, or failed its startup. | `execution_manager.py` 3429, then 3430 into 3431-3432, or 3434 into 3435-3436, or 3438 into 3443 | package one hundred and forty-nine | folds into P149-02 |
+| H-1385 | A ladder's change is refused for an amend already in flight, for a ladder held for any reason, and for a command whose own parameters are not a ladder's. | `execution_manager.py` 8877-8879, then 8880, then 8882 into 8889, or 8891 into 8897, or 8899 into 8904 | package one hundred and fifty | is P150-01 |
+| H-1386 | The new prices and weights are each the change's where it gave one and the command's own where it did not. | `execution_manager.py` 8906, then 8907-8910, then 8911-8914 | package one hundred and fifty | folds into P150-01 |
+| H-1387 | The pair is built once purely to see whether it would be refused, and past all four the generation is raised and the initiation recorded. | `execution_manager.py` 8915-8918, then 8919 into 8926, or 8928, then 8929, then 8931-8932 | package one hundred and fifty | folds into P150-01 |
+| H-1388 | The submission is written to the record and applied before the bracket is told anything about it. | `execution_manager.py` 5028, then 5029, ahead of 5031 | package one hundred and fifty | is P150-02 |
+| H-1389 | The bracket is given the order's name, the average entry price and the three protective prices, and only once all five stand is its protection called active and the bracket written back. | `execution_manager.py` 5031, then 5032, then 5033, then 5034, then 5035, then 5036, then 5037 | package one hundred and fifty | folds into P150-02 |
+| H-1390 | The bracket was marked as having its protection placed long before any of this. | `execution_manager.py` 4906, ahead of 5028-5037 | package one hundred and fifty | folds into P150-02 |
+| H-1391 | Each fill the answer already carried is written against the exit's name on the protective side. | `execution_manager.py` 5039, then 5040-5051, the exit named at 5047, the side at 5049 | package one hundred and fifty | folds into P150-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 19:30 UTC
