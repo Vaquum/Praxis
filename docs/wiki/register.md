@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 521 not.**
+**6 of them reviewed, 523 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 94 — what opening the spine's file asks of it
+
+Scope: the opening of the spine's file and the identity it demands, part of a module
+the ledger marks `partial`. After the package before this one, a hundred and
+thirty-six of its two hundred and seventy-one statements were uncited. What opening
+does to the schema, and what the spine asks of its own identity, are in no article.
+The migrations themselves, the appending and the reads are left for packages of
+their own, and the cell stays `partial`.
+
+### Merge and promote, package 94
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-972 | The version the file carries is read first and one newer than the build knows refuses to open, while the version is stamped only where it stood below the build's. | Promote. What opening does is in no article, and a newer file being refused rather than read is the behaviour an operator meets first |
+| Row H-973 | A file already carrying the chain identity has it demanded before any table is touched, and an older one is migrated first and has it demanded after. | Merge with H-972. The demand sitting on both sides of the migration is the shape of the whole routine |
+| Row H-974 | Six tables and indexes are made each in a statement of its own, two further migrations each run only where the version stands below their own, and all of it is committed at the end with any failure rolled back and raised on. | Merge with H-972 |
+| Row H-975 | A file with no table of its own facts refuses outright, and the chain's version and the anchor the first record hangs from are then weighed in turn, each able to fail by being absent or by being different. | Promote. The identity check is in no article, and two refusals saying different things because they mean different things is worth keeping distinct |
+| Row H-976 | The anchor is later read rather than assumed, and its absence refuses again. | Merge with H-975. The check at opening is not relied on to hold for the rest of the run |
+| Row H-977 | Whether a column or a table is already there is answered by asking the database about itself, and a file carrying no version reads as nought. | Merge with H-975 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P94-01 | What opening the spine does to its schema | written | [what-opening-the-spine-does-to-its-schema.md](atoms/what-opening-the-spine-does-to-its-schema.md) |
+| P94-02 | What the spine asks of its own identity | written | [what-the-spine-asks-of-its-own-identity.md](atoms/what-the-spine-asks-of-its-own-identity.md) |
+
+### Re-seed, after writing package 94
+
+Two findings, both about where a check sits rather than what it tests.
+
+| What it found | What came of it |
+|---|---|
+| The identity is demanded before the tables are made for a file that already has it, and after the first migration for one that does not. | Stated as a property of the routine rather than of either road, since neither road shows it alone |
+| The anchor is read again later, and its absence refuses again, so the opening check is not relied on to hold. | Stated. A reader who saw only the opening check would take the later read for belt and braces, and it is not: nothing stops the row being removed while the host runs |
+| The version is stamped only where it stood below the build's. | Stated. An equal version writes nothing, which is why opening an up-to-date file leaves the file's modification time alone |
+
+Worth recording: the second row is a claim about what the code does *not* rely on,
+and the evidence for it is a second check existing. That is sound here because the
+second check raises rather than assuming — if it read the value and used it blindly,
+the claim would be unfounded and the sentence would have been wrong in a way no
+line could have shown.
 
 ## Package 93 — how the spine writes a value and reads it back
 
@@ -7657,6 +7700,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-965 | A decimal figure is written as text and rebuilt through its text, while anything else the writer cannot write raises, naming the kind that arrived. | `event_spine.py` 318 into 319, against 320-321, and 352 into 353 | package ninety-three | is P93-01 |
 | H-966 | A value whose kind matches no rule is handed back exactly as it arrived. | `event_spine.py` 351, standing as the answer at 365 | package ninety-three | folds into P93-01 |
 | H-971 | Nothing stays nothing, whatever it was meant to become. | `event_spine.py` 337 into 338 | package ninety-three | folds into P93-01 |
+| H-972 | The version the file carries is read first and one newer than the build knows refuses to open, while the version is stamped only where it stood below the build's. | `event_spine.py` 493 then 494 into 495-499, and 528 into 529-530 | package ninety-four | is P94-01 |
+| H-973 | A file already carrying the chain identity has it demanded before any table is touched, and an older one is migrated first and has it demanded after. | `event_spine.py` 502 into 503 ahead of 505, against 518 into 519 then 520 | package ninety-four | folds into P94-01 |
+| H-974 | Six tables and indexes are made each in a statement of its own, and all of it is committed at the end with any failure rolled back and raised on. | `event_spine.py` 505-506, and 507-508, and 509-510, and 511-512, and 513-514, and 515-516, then 501 into 532, against 533 into 534 then 536 | package ninety-four | folds into P94-01 |
+| H-975 | A file with no table of its own facts refuses outright, and two facts are then weighed in turn, each able to fail by being absent or by being different. | `event_spine.py` 839 into 840-841, then 843-846 read at 847, against 849 into 850-854, or 856 into 857-861 | package ninety-four | is P94-02 |
+| H-976 | The anchor is later read rather than assumed, and its absence refuses again. | `event_spine.py` 876, then 878 into 879-883, then 885 | package ninety-four | folds into P94-02 |
+| H-977 | Whether a column or a table is already there is answered by asking the database about itself, and a file carrying no version reads as nought. | `event_spine.py` 567-568 then 570, and 723-724, and 549-550 then 552 | package ninety-four | folds into P94-02 |
 | H-967 | A target naming several kinds takes the first that is not the none-kind, a sequence target turns every item into the first kind it names, and a record target turns only the keys its fields name. | `event_spine.py` 340-341 into 342 then 343, or 345-346 into 347-348, or 358 into 359-360 then 361 | package ninety-three | is P93-02 |
 | H-968 | Any key a record's fields do not name is dropped in silence. | `event_spine.py` 362, then 363 | package ninety-three | folds into P93-02 |
 | H-969 | An event's kind is looked up by the name stored beside it and an unknown name raises, the payload parsed before any field is looked at. | `event_spine.py` 381 into 382-384, then 385 | package ninety-three | is P93-03 |
@@ -7668,4 +7717,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 05:00 UTC

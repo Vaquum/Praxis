@@ -276,6 +276,8 @@ the others where it appears.
 - [Which of the store's writes take which locks](atoms/which-of-the-stores-writes-take-which-locks.md) — the saves it makes differ in what they lock: a save of the whole state holds the locks over what it reads, while a save of a single event holds none itself and leans on its caller to hold part of them.
 - [What the walk that lets marks go cannot reach](atoms/what-the-walk-that-lets-marks-go-cannot-reach.md) — the notes saying an instruction's figures are unsaved are cleared from a list copied before the save begins, so a note added while that save runs is not looked at by it; that clearing is the only thing anywhere that removes a note.
 - [How a value is written out and read back](atoms/how-a-value-is-written-out-and-read-back.md) — exact decimal figures go to storage as text and are rebuilt from that text, so no precision is lost, while anything the writer cannot handle throws rather than being stored in some other shape.
+- [What opening the spine does to its schema](atoms/what-opening-the-spine-does-to-its-schema.md) — a file written by a later build is refused rather than read, an up-to-date one has its version left untouched, and the whole bringing-forward is committed once with any failure rolled back.
+- [What the spine asks of its own identity](atoms/what-the-spine-asks-of-its-own-identity.md) — it refuses a file whose recorded chain settings differ from the build's, saying something different when a setting is missing than when it disagrees, because a lost record and a foreign chain are different problems.
 - [The three shapes a coercion looks inside](atoms/the-three-shapes-a-coercion-looks-inside.md) — a field that allows several types always becomes the first of them, a list or pair turns every item into the first type it names, and a nested record keeps only the fields it still declares.
 - [How an event is rebuilt from what was stored](atoms/how-an-event-is-rebuilt-from-what-was-stored.md) — a stored event whose type the code no longer has stops the read, while a stored field the type no longer declares is dropped without a word, so stale records fail loudly and stale fields vanish quietly.
 - [What the money's lock is doing when a result is written](atoms/what-the-moneys-lock-is-doing-when-a-result-is-written.md) — the line recording what a sale came to is written with that lock held by no one, reached two ways: where the sale frees money set aside, the lock is handed back as the freeing finishes; where it frees none, nothing reaches for the lock at all.
@@ -619,7 +621,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 522
+Both sides are the subject, and Praxis is the side that has been written. 524
 articles exist. Of Praxis's own source files 81 are accounted for in full and 7 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -630,4 +632,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 04:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 05:00 UTC
