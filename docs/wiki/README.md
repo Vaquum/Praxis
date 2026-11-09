@@ -22,6 +22,8 @@ the others where it appears.
 - [What signing a request adds](atoms/what-signing-a-request-adds.md) — the query text is built once, signed over exactly that text, and the signature appended to it, so what is sent and what was signed cannot differ; a closed adapter refuses to make a connection at all.
 - [How a venue failure is sorted](atoms/how-a-venue-failure-is-sorted.md) — the status code alone decides most kinds of failure without the reply body being read at all, so a helpful message returned with a server error is discarded.
 - [What the four asking calls share](atoms/what-the-four-asking-calls-share.md) — the calls that ask after or cancel an order are built alike, and a caller-supplied name for a paired order goes out under one key when cancelling and a different one when asking.
+- [When a request is signed afresh](atoms/when-a-request-is-signed-afresh.md) — the retry is handed a way to build the request rather than a built one, so each attempt signs again with its own timestamp and a retried request is never rejected as stale.
+- [What an asking sends and what it reads back](atoms/what-an-asking-sends-and-what-it-reads-back.md) — the balance request sends nothing and filters the reply on this side, so asking about one coin costs the same as asking about twenty.
 - [How fund history is paged](atoms/how-fund-history-is-paged.md) — deposits and withdrawals are fetched separately in fixed-size pages and the walk stops only when a page comes back short, so a history that is an exact multiple of the page size costs one empty request.
 - [Which failures a retry counts as healthy](atoms/which-failures-a-retry-counts-as-healthy.md) — a not-found is recorded as a healthy exchange because the venue answered correctly, and of the statuses that mean rate limiting only one is ever retried.
 - [What an order type decides about its parameters](atoms/what-an-order-type-decides-about-its-parameters.md) — each kind of order carries a record of what it must and must not include, so supplying a price to a kind that needs none is an error rather than ignored.
@@ -662,7 +664,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 565
+Both sides are the subject, and Praxis is the side that has been written. 567
 articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -673,4 +675,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 00:00 UTC

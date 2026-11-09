@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 564 not.**
+**6 of them reviewed, 566 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 113 — when a request is signed afresh, and what an asking reads back
+
+Scope: the handing of a request's building to the retry, and what two askings about
+an account send and read, part of a module the ledger marks `partial`. After the
+package before this one, a hundred and sixteen of its five hundred and thirty-four
+statements were uncited. When a request is signed afresh, and what an asking sends
+and reads back, are in no article. The streams and the health tracking are left for
+the package after this, and the cell stays `partial`.
+
+### Merge and promote, package 113
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1104 | The building of a request is handed to the retry as something to call, and each call signs the parameters afresh and builds the address from that signing. | Promote. The arrangement is in no article, and every retry carrying a moment of its own rather than a stale one is what it buys |
+| Row H-1105 | A session and the account's credentials are taken once before any request is built, and the key travels in a header made once. | Merge with H-1104 |
+| Row H-1106 | An asking after no assets answers with nothing, and otherwise the whole account is asked for with no parameters and the asked-for assets picked out of the answer. | Promote. The filtering happening here rather than at the venue is in no article, and it means asking after one asset costs what asking after twenty does |
+| Row H-1107 | An asking after trades refuses a starting name together with either end of a window, weighs both ends for a zone, and sends only what was given beside the symbol. | Merge with H-1106 |
+| Row H-1108 | Money in and money out are read by two parsings that take the same two fields under the same two names. | Merge with H-1106 |
+
+Two subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P113-01 | When a request is signed afresh | written | [when-a-request-is-signed-afresh.md](atoms/when-a-request-is-signed-afresh.md) |
+| P113-02 | What an asking sends and what it reads back | written | [what-an-asking-sends-and-what-it-reads-back.md](atoms/what-an-asking-sends-and-what-it-reads-back.md) |
+
+### Re-seed, after writing package 113
+
+The first article is about an arrangement rather than a behaviour, and it took
+reading two routines together to see it.
+
+| What it found | What came of it |
+|---|---|
+| The building is handed over as something to call, so each retry signs afresh and carries its own moment. | Stated with what the alternative would cost: a request built once and reused would send a stale moment after a long wait |
+| The arrangement leaves the retry knowing nothing about signing. | Stated. It is why the retry article written three packages ago needed no mention of seals |
+| The balance asking filters at this side, so asking after one asset costs what asking after twenty does. | Stated |
+| An asking after trades refuses a starting name together with a window, the venue taking one or the other. | Stated |
+
+Worth recording: the signing-per-attempt arrangement is invisible from either
+routine alone. The signing routine shows a seal being made; the retry shows a thing
+being called repeatedly. Only together do they show that each attempt is sealed
+separately — and that is the fact a reader needs, because it is the one that decides
+whether a retried request can be rejected as stale.
 
 ## Package 112 — what the asking calls share, and how fund history is paged
 
@@ -8633,6 +8677,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1101 | Against the simulator the fund asking answers with nothing before any check is made. | `binance_adapter.py` 1954 into 1955 | package one hundred and twelve | is P112-02 |
 | H-1102 | Both ends of the window are weighed for carrying a zone and sent as whole milliseconds only where given, and money in and money out are asked after separately. | `binance_adapter.py` 1957, and 1958, then 1962 into 1963, and 1965 into 1966, then 1968-1970, then 1971-1973, joined at 1975 | package one hundred and twelve | folds into P112-02 |
 | H-1103 | The walk adds every page's rows to one list and ends where a page comes back shorter than the limit, the offset otherwise moving on by a whole page. | `binance_adapter.py` 2012-2013, then 2015, then 2016-2020, then 2021, then 2022, then 2024 into 2025, or 2027 | package one hundred and twelve | folds into P112-02 |
+| H-1104 | The building of a request is handed to the retry as something to call, and each call signs the parameters afresh and builds the address from that signing. | `binance_adapter.py` 732-734, then 725, then 726-730 | package one hundred and thirteen | is P113-01 |
+| H-1105 | A session and the account's credentials are taken once before any request is built, and the key travels in a header made once. | `binance_adapter.py` 720, then 721, then 722 | package one hundred and thirteen | folds into P113-01 |
+| H-1106 | An asking after no assets answers with nothing, and otherwise the whole account is asked for with no parameters and the asked-for assets picked out. | `binance_adapter.py` 1851 into 1852, against 1854, then 1856-1858 | package one hundred and thirteen | is P113-02 |
+| H-1107 | An asking after trades refuses a starting name together with either end of a window, weighs both ends for a zone, and sends only what was given beside the symbol. | `binance_adapter.py` 1896 into 1897-1898, then 1900, and 1901, then 1903, then 1905 into 1906, and 1908 into 1909, and 1911 into 1912, and 1914 into 1915, then 1917, then 1919 | package one hundred and thirteen | folds into P113-02 |
+| H-1108 | Money in and money out are read by two parsings that take the same two fields under the same two names. | `binance_adapter.py` 2033-2035, and 2053-2055 | package one hundred and thirteen | folds into P113-02 |
 | H-1094 | An amount is snapped onto the symbol's step before anything is weighed against it, and the snapped amount is what the checks are made against. | `binance_adapter.py` 1518 ahead of 1520, then 1520 | package one hundred and eleven | is P111-02 |
 | H-1095 | A paired order answers through its own parsing, and one carrying a stop limit price without being paired is refused. | `binance_adapter.py` 1536, against 1538 into 1539-1540 | package one hundred and eleven | folds into P111-02 |
 | H-1096 | Both roads read what comes back through the same parsing. | `binance_adapter.py` 1542-1548, then 1549-1551, then 1552, and 1512 | package one hundred and eleven | folds into P111-02 |
@@ -8658,4 +8707,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 00:00 UTC
