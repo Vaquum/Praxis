@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 673 not.**
+**6 of them reviewed, 677 not.**
 
 ## Package 1
 
@@ -856,6 +856,99 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 169 — when a protective pair counts as still protecting, and what a hidden-size order shows the venue
+
+Scope: the reading that decides whether a pair is still protecting, and the sizes an
+order showing part of itself goes out with, part of a module the ledger marks `partial`.
+After the package before this one, four hundred and thirty-nine of its two thousand
+four hundred and eighty-seven statements were uncited. The reading is reached by the
+watchdog's article and written through in none; the sizes are in no article. The rest
+of the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 169
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1535 | A list the venue no longer knows, one it reports as refused, and one whose legs are all done each answer that nothing is protecting. | Promote. This is the third of three ways the venue is asked about one pair, and the only one with no article |
+| Row H-1536 | A working list is answered with rather than confirmed, so its legs can be followed again. | Merge with H-1535 |
+| Row H-1537 | Only the venue's not knowing the list is caught, and any other failure reaches the caller. | Merge with H-1535 |
+| Row H-1538 | A list answered with has its legs re-tracked and the protection made active again. | Merge with H-1535 |
+| Row H-1539 | The shown size is carried only where it falls below the whole size, and left out otherwise. | Promote. The sizes are in no article, and a shown size at or above the whole one making a plain limit is the finding |
+| Row H-1540 | The order's name is worked out with a place of nought. | Merge with H-1539 |
+| Row H-1541 | The intent names the whole size and no spend, and is recorded, applied and mapped before anything is sent. | Merge with H-1539 |
+| Row H-1542 | One moment is taken and carried into the record of the intent. | Merge with H-1539 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P169-01 | When a protective pair counts as still protecting | written | [when-a-protective-pair-counts-as-still-protecting.md](atoms/when-a-protective-pair-counts-as-still-protecting.md) |
+| P169-02 | What a hidden-size order shows the venue | written | [what-a-hidden-size-order-shows-the-venue.md](atoms/what-a-hidden-size-order-shows-the-venue.md) |
+
+### Re-seed, after writing package 169
+
+With this one the set is complete: three routines ask the venue about a protective pair,
+and no two treat a failure alike.
+
+| What it found | What came of it |
+|---|---|
+| This reading catches only the venue's not knowing the list, and lets every other failure travel. | Stated, with what the caller does with it |
+| The judging of whether a leg is still working swallows a failure into an answer of yes. | Written eleven packages ago, and now readable beside this one |
+| The counting of what a cancelled pair filled lets a failure out, as this one does. | Written three packages ago. Two of the three let it out and one does not |
+| A shown size at or above the whole size is left out, and the order rests as a plain limit. | Stated. Showing all of an order is the same as showing nothing in particular |
+
+Worth recording: the three readings differ in what they are for — is it live, how much
+did it fill, is it still protecting — and the failure policy follows the use rather than
+the question. Grouping them by the venue call they make would have hidden that; the
+articles sit apart and name each other.
+
+## Package 168 — what a failure reacting to an event costs, and what status a changed command reports
+
+Scope: the drain that reacts to admitted events on the account's own task, and the
+status a command reports once its order has been replaced, part of a module the ledger
+marks `partial`. After the package before this one, four hundred and fifty-one of its
+two thousand four hundred and eighty-seven statements were uncited. Neither subject is
+in an article. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 168
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1527 | Each event drives three reactions inside one guard, so a failure in the first leaves the two after it undone for that event. | Promote. The drain is in no article, and the shared guard is the finding |
+| Row H-1528 | An account marked poisoned has every remaining event taken off and dropped without being reacted to. | Merge with H-1527 |
+| Row H-1529 | The task being stopped is let through, and every other failure is swallowed with the drain going on to the next event. | Merge with H-1527 |
+| Row H-1530 | The drain takes an event at a time for as long as any remain. | Merge with H-1527 |
+| Row H-1531 | The target reached reports filled, something filled reports partial, and nothing filled reports pending. | Promote. The report is in no article, and pending standing for a resting replacement is the finding |
+| Row H-1532 | The figures are the admitted totals kept for the command, and the replacement's placement fills are recorded under that same command. | Merge with H-1531 |
+| Row H-1533 | An average price is worked out only where something has filled. | Merge with H-1531 |
+| Row H-1534 | The report carries no reason, and is sent after the replacement's placement fills are recorded. | Merge with H-1531 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P168-01 | What a failure reacting to an event costs | written | [what-a-failure-reacting-to-an-event-costs.md](atoms/what-a-failure-reacting-to-an-event-costs.md) |
+| P168-02 | What status a changed command reports | written | [what-status-a-changed-command-reports.md](atoms/what-status-a-changed-command-reports.md) |
+
+### Re-seed, after writing package 168
+
+The first subject is three lines inside one guard, and the guard is the whole of it.
+Written as three reactions the article says nothing a reader could not guess; written as
+three reactions that fall together it says what a failed report costs.
+
+| What it found | What came of it |
+|---|---|
+| A failure in the first reaction leaves the second and third undone for that event. | Stated, with what follows: nothing retries them, and the next event's reactions are what reach that work if anything does |
+| A poisoned account still empties its queue. | Stated. Only the reacting is skipped |
+| The two orders' fills are one running figure. | Stated. The replacement's placement fills are recorded under the command the change belongs to |
+| Pending stands for a resting replacement. | Stated. The report carries no reason because there is nothing to explain |
+
+Worth recording: the word for a task being stopped and the word for a trade being called
+off are the same word in English and two unrelated things here. The article says "the
+task being stopped" so that the trade sense, which another article owns, stays where it
+belongs.
 
 ## Package 167 — what a finished protection change leaves on the bracket, and what a failed replacement is looked for
 
@@ -11679,7 +11772,23 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1524 | An answer saying the pair is nowhere has the bracket closed out as unprotected with both names handed over as candidates. | `execution_manager.py` 9708, then 9709-9712, then 9714 | package one hundred and sixty-seven | folds into P167-02 |
 | H-1525 | An answer finding the pair treats it as the send's own, under the venue's list name and the legs it reports. | `execution_manager.py` 9716-9723, then 9725, then 9728 | package one hundred and sixty-seven | folds into P167-02 |
 | H-1526 | That road reports no fills given at placement, where the road of a send that answered carries the venue's. | `execution_manager.py` 9728, against 9730, then 9737, then 9738 | package one hundred and sixty-seven | folds into P167-02 |
+| H-1527 | Each event drives three reactions inside one guard: the report, the owning scheme's advance, and the owning bracket's drive. | `execution_manager.py` 3862, then 3863, then 3864, then 3865 | package one hundred and sixty-eight | is P168-01 |
+| H-1528 | An account marked poisoned has every remaining event taken off and dropped without being reacted to. | `execution_manager.py` 3850 into 3851 | package one hundred and sixty-eight | folds into P168-01 |
+| H-1529 | The task being stopped is let through, and every other failure is swallowed with the drain going on to the next event. | `execution_manager.py` 3866, then 3867, or 3868, then 3848 | package one hundred and sixty-eight | folds into P168-01 |
+| H-1530 | The drain takes an event at a time for as long as any remain. | `execution_manager.py` 3848, then 3849 | package one hundred and sixty-eight | folds into P168-01 |
+| H-1531 | The target reached reports filled, something filled reports partial, and nothing filled reports pending. | `execution_manager.py` 10433, then 10434, or 10435, then 10436, or 10438 | package one hundred and sixty-eight | is P168-02 |
+| H-1532 | The figures are the admitted totals kept for the command, and the replacement's placement fills are recorded under that same command. | `execution_manager.py` 10426-10428, against 10390-10405, the command named at 10397 | package one hundred and sixty-eight | folds into P168-02 |
+| H-1533 | An average price is worked out only where something has filled. | `execution_manager.py` 10429 into 10430-10431 | package one hundred and sixty-eight | folds into P168-02 |
+| H-1534 | The report carries no reason, and is sent after the replacement's placement fills are recorded. | `execution_manager.py` 10440-10448, the reason left empty at 10446, reached from 10406, then 10407 into 10408, then 10410 | package one hundred and sixty-eight | folds into P168-02 |
+| H-1535 | A list the venue no longer knows, one it reports as refused, and one whose legs are all done each answer that nothing is protecting. | `execution_manager.py` 7203, then 7204, then 7207, then 7208, naming the one failure it catches, or 7210-7212, then 7213 | package one hundred and sixty-nine | is P169-01 |
+| H-1536 | A working list is answered with rather than confirmed, so its legs can be followed again. | `execution_manager.py` 7215 | package one hundred and sixty-nine | folds into P169-01 |
+| H-1537 | Only the venue's not knowing the list is caught, and any other failure reaches the caller, which remembers it and tries the next name. | `execution_manager.py` 7204, against 7380, then 7381, then 7382 | package one hundred and sixty-nine | folds into P169-01 |
+| H-1538 | A list answered with has its legs re-tracked and the protection made active again. | `execution_manager.py` 7384 into 7385-7386, then 7389-7391 | package one hundred and sixty-nine | folds into P169-01 |
+| H-1539 | The shown size is carried only where it falls below the whole size, and left out otherwise, which sends the venue a plain limit. | `execution_manager.py` 5295, then 5296, carried to 5322-5325 | package one hundred and sixty-nine | is P169-02 |
+| H-1540 | The order's name is worked out with a place of nought. | `execution_manager.py` 5297-5299 | package one hundred and sixty-nine | folds into P169-02 |
+| H-1541 | The intent names the whole size and no spend, and is recorded, applied and mapped before anything is sent. | `execution_manager.py` 5311, and 5312, then 5317, then 5318, then 5319, then 5321 | package one hundred and sixty-nine | folds into P169-02 |
+| H-1542 | One moment is taken and carried into the record of the intent. | `execution_manager.py` 5300, then 5302-5316, the moment set at 5304 | package one hundred and sixty-nine | folds into P169-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 05:00 UTC

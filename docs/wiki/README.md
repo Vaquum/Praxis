@@ -180,6 +180,8 @@ the others where it appears.
 - [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
 - [Which figures settle a bracket's entry](atoms/which-figures-settle-a-brackets-entry.md) — the order's own fills decide whether anything filled and what price the protection rests on, while the admitted totals decide what the outcome reports, so an entry can be called part filled while its protection is sized from a larger figure.
 - [What a ladder's start plans before it posts](atoms/what-a-ladders-start-plans-before-it-posts.md) — every rung's amount and price is worked out before anything is recorded, so a grid that cannot be planned is refused with no start written at all.
+- [When a protective pair counts as still protecting](atoms/when-a-protective-pair-counts-as-still-protecting.md) — a pair the venue reports as refused, forgotten or finished is protecting nothing, and a working one comes back whole so its halves can be followed again.
+- [What a hidden-size order shows the venue](atoms/what-a-hidden-size-order-shows-the-venue.md) — an order carrying a whole size and a display size sends the display one only when it is smaller, and otherwise rests as an ordinary limit.
 - [Which order the watchdog asks about first](atoms/which-order-the-watchdog-asks-about-first.md) — the replacement pair still owing is asked about before the pair the holding carries, which settles the usual case on the first question, and a venue failure on a name is remembered but does not stop the next name being tried.
 - [How a new ladder grid is renumbered](atoms/how-a-new-ladder-grid-is-renumbered.md) — rungs too small to trade are dropped and the survivors numbered without gaps, which is what lets the walk that finds them again run from nothing upwards without stopping early.
 - [How a ladder's rungs are found again](atoms/how-a-ladders-rungs-are-found-again.md) — a grid of resting orders is recovered by working out what each rung was called and asking the account whether that order is there, so a rung the venue accepted but the record never saw is still found.
@@ -204,6 +206,8 @@ the others where it appears.
 
 ## What a fill does when it arrives
 
+- [What a failure reacting to an event costs](atoms/what-a-failure-reacting-to-an-event-costs.md) — three things happen in response to each piece of news and they fall together, so one of them failing silently skips the other two.
+- [What status a changed command reports](atoms/what-status-a-changed-command-reports.md) — the status comes from how much the instruction has filled across both the order replaced and its replacement, and nothing filled at all is reported as still waiting.
 - [Which record an event is booked into](atoms/which-record-an-event-is-booked-into.md) — Praxis keeps a picture of the orders and a picture of the costs, and each event reaches one, both or neither of them.
 - [What a partial report of a scheme leaves standing](atoms/what-a-partial-report-of-a-scheme-leaves-standing.md) — a report sent while work fed out over time is still running, which says how much has filled and changes nothing about the work.
 - [What a fill changes](atoms/what-a-fill-changes.md) — a fill updates the order's record and then the money's, so a failure on the first leaves the second alone.
@@ -771,7 +775,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 674
+Both sides are the subject, and Praxis is the side that has been written. 678
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -782,4 +786,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 04:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 05:00 UTC
