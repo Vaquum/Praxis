@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 562 not.**
+**6 of them reviewed, 564 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 112 — what the asking calls share, and how fund history is paged
+
+Scope: the four calls that ask after or cancel an order, and the paging of money
+moved in and out, part of a module the ledger marks `partial`. After the package
+before this one, a hundred and seventy of its five hundred and thirty-four
+statements were uncited. What the four share, and how fund history is paged, are in
+no article. The parsing and the streams are left for packages of their own, and the
+cell stays `partial`.
+
+### Merge and promote, package 112
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1098 | All four refuse where neither identifier was given, then build parameters, send through the signed road, and read what comes back by their own parsing. | Promote. The family is in no article, and seeing the four together is the only way the divergences show |
+| Row H-1099 | Three begin their parameters with the symbol and the one asking after an order list begins with none. | Merge with H-1098 |
+| Row H-1100 | The two order-level calls agree on both identifier names, where the two list-level calls agree on the venue's and differ on the caller's. | Merge with H-1098. A caller's own name for an order list going out under one key when cancelling and another when asking is the finding |
+| Row H-1101 | Against the simulator the fund asking answers with nothing before any check is made, so no window is weighed and no request sent. | Promote. The paging is in no article, and a caller unable to tell an empty history from an unserved one is what the early answer costs |
+| Row H-1102 | Money in and money out are asked after separately with their answers joined afterwards, each getting its own paging. | Merge with H-1101 |
+| Row H-1103 | The walk adds every page's rows to one list and ends where a page comes back shorter than the limit, the offset otherwise moving on by a whole page. | Merge with H-1101. The short page being the only signal is why an exact multiple costs an extra request |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P112-01 | What the four asking calls share | written | [what-the-four-asking-calls-share.md](atoms/what-the-four-asking-calls-share.md) |
+| P112-02 | How fund history is paged | written | [how-fund-history-is-paged.md](atoms/how-fund-history-is-paged.md) |
+
+### Re-seed, after writing package 112
+
+The first article's finding is a difference between two calls that only shows when
+the four are read side by side.
+
+| What it found | What came of it |
+|---|---|
+| A caller's own name for an order list is sent under one key when cancelling and another when asking after it. | Stated, with what the wiki can and cannot say: only the venue can tell whether both keys are right, and the article says so rather than calling it a bug |
+| The call asking after an order list sends no symbol, where the other three always do. | Stated beside it, since both differences are in the same pair of calls |
+| An exact multiple of the page size costs one extra request that comes back empty. | Stated, with why: the short page is the only signal and there is no count from the venue to check against |
+| Against the simulator the fund asking answers before any check, so a caller cannot tell an empty history from an unserved one. | Stated |
+
+Worth recording: the mismatched key is the first finding in this run that is
+probably a defect and cannot be shown to be one from the code. Two calls about the
+same kind of thing use different keys for the same caller-supplied name; whether
+that is wrong depends on the venue's own interface, which is outside every module
+here. The article states both keys, says only the venue can settle it, and stops —
+which is the most a reader can be given without a guess dressed as a finding.
 
 ## Package 111 — the two roads a submitted order can take
 
@@ -8581,6 +8627,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1092 | A money-sized order takes a road chosen by that figure being given at all, and refuses an amount alongside it, any kind but a market order, any side but a buy, a stop figure, a price and a time in force. | `binance_adapter.py` 1468, then 1481 into 1482-1483, or 1485 into 1486-1487, or 1489 into 1490-1491, or 1493 into 1494-1495, or 1497 into 1498-1499, or 1501 into 1502-1503 | package one hundred and eleven | is P111-01 |
 | H-1093 | The money figure must be a finite decimal standing above nought, and an order with neither figure is refused on the other road. | `binance_adapter.py` 1470-1474 into 1475-1479, and 1514 into 1515-1516 | package one hundred and eleven | folds into P111-01 |
 | H-1097 | What the money road builds carries the caller's own name for the order only where one was given. | `binance_adapter.py` 1578 into 1579, answered at 1581 | package one hundred and eleven | folds into P111-01 |
+| H-1098 | All four refuse where neither identifier was given, then build parameters, send through the signed road, and read what comes back by their own parsing. | `binance_adapter.py` 1676 into 1677-1678, or 1719 into 1720-1721, or 1761 into 1762-1763, or 1797 into 1798-1799, then 1688 into 1689-1692, or 1773 into 1774, or 1809 into 1810, or 1731 | package one hundred and twelve | is P112-01 |
+| H-1099 | Three begin their parameters with the symbol and the one asking after an order list begins with none. | `binance_adapter.py` 1680, and 1723, and 1765, against 1801 | package one hundred and twelve | folds into P112-01 |
+| H-1100 | The two order-level calls agree on both identifier names, where the two list-level calls agree on the venue's and differ on the caller's. | `binance_adapter.py` 1682 into 1683, and 1767 into 1768, and 1685 into 1686, and 1770 into 1771, and 1725 into 1726, and 1803 into 1804, against 1728 into 1729, and 1806 into 1807 | package one hundred and twelve | folds into P112-01 |
+| H-1101 | Against the simulator the fund asking answers with nothing before any check is made. | `binance_adapter.py` 1954 into 1955 | package one hundred and twelve | is P112-02 |
+| H-1102 | Both ends of the window are weighed for carrying a zone and sent as whole milliseconds only where given, and money in and money out are asked after separately. | `binance_adapter.py` 1957, and 1958, then 1962 into 1963, and 1965 into 1966, then 1968-1970, then 1971-1973, joined at 1975 | package one hundred and twelve | folds into P112-02 |
+| H-1103 | The walk adds every page's rows to one list and ends where a page comes back shorter than the limit, the offset otherwise moving on by a whole page. | `binance_adapter.py` 2012-2013, then 2015, then 2016-2020, then 2021, then 2022, then 2024 into 2025, or 2027 | package one hundred and twelve | folds into P112-02 |
 | H-1094 | An amount is snapped onto the symbol's step before anything is weighed against it, and the snapped amount is what the checks are made against. | `binance_adapter.py` 1518 ahead of 1520, then 1520 | package one hundred and eleven | is P111-02 |
 | H-1095 | A paired order answers through its own parsing, and one carrying a stop limit price without being paired is refused. | `binance_adapter.py` 1536, against 1538 into 1539-1540 | package one hundred and eleven | folds into P111-02 |
 | H-1096 | Both roads read what comes back through the same parsing. | `binance_adapter.py` 1542-1548, then 1549-1551, then 1552, and 1512 | package one hundred and eleven | folds into P111-02 |
@@ -8606,4 +8658,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 23:00 UTC

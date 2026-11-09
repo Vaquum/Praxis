@@ -21,6 +21,8 @@ the others where it appears.
 - [How the adapter reckons its headroom](atoms/how-the-adapter-reckons-its-headroom.md) — the request allowance it believes it has used drops to zero all at once when its window closes rather than fading, and the per-account order allowance never expires here at all.
 - [What signing a request adds](atoms/what-signing-a-request-adds.md) — the query text is built once, signed over exactly that text, and the signature appended to it, so what is sent and what was signed cannot differ; a closed adapter refuses to make a connection at all.
 - [How a venue failure is sorted](atoms/how-a-venue-failure-is-sorted.md) — the status code alone decides most kinds of failure without the reply body being read at all, so a helpful message returned with a server error is discarded.
+- [What the four asking calls share](atoms/what-the-four-asking-calls-share.md) — the calls that ask after or cancel an order are built alike, and a caller-supplied name for a paired order goes out under one key when cancelling and a different one when asking.
+- [How fund history is paged](atoms/how-fund-history-is-paged.md) — deposits and withdrawals are fetched separately in fixed-size pages and the walk stops only when a page comes back short, so a history that is an exact multiple of the page size costs one empty request.
 - [Which failures a retry counts as healthy](atoms/which-failures-a-retry-counts-as-healthy.md) — a not-found is recorded as a healthy exchange because the venue answered correctly, and of the statuses that mean rate limiting only one is ever retried.
 - [What an order type decides about its parameters](atoms/what-an-order-type-decides-about-its-parameters.md) — each kind of order carries a record of what it must and must not include, so supplying a price to a kind that needs none is an error rather than ignored.
 - [What a money-sized order is refused for](atoms/what-a-money-sized-order-is-refused-for.md) — supplying a cash amount picks a road that then accepts only a market buy and rejects a coin amount, a price, a stop figure or a time limit alongside it.
@@ -660,7 +662,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 563
+Both sides are the subject, and Praxis is the side that has been written. 565
 articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -671,4 +673,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 22:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 23:00 UTC
