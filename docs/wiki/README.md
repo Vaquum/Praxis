@@ -87,6 +87,7 @@ the others where it appears.
 - [What a venue must be able to do](atoms/what-a-venue-must-be-able-to-do.md) — the jobs every venue has to offer — register an account, place, cancel, report balances — written down as one list.
 - [Holding back sends](atoms/holding-back-sends.md) — a limit on how fast Praxis may call the venue: most calls wait for a slot, and asking the time does not.
 - [When Praxis retries a venue call](atoms/when-praxis-retries-a-venue-call.md) — a repeatable call gets three attempts and a send gets one, and each attempt spends a slot of the allowance.
+- [The four roads out of a slice's send](atoms/the-four-roads-out-of-a-slices-send.md) — a send that timed out or whose name the venue already knew asks the venue again, where a refusal or a bad parameter is simply recorded as failed; the time written down is when the answer came back rather than when the send went out.
 - [When a send's outcome is unknown](atoms/when-a-send-is-unclear.md) — a call to the venue can fail without settling whether the order arrived, so Praxis asks the venue before deciding.
 - [A reply that cannot be read](atoms/a-reply-that-cannot-be-read.md) — what happens when the venue answers in a shape Praxis cannot understand.
 - [Who refused a send](atoms/who-refused-a-send.md) — a failed send is put down to the venue, to Praxis, or to neither, so a later reader need not judge the wording.
@@ -730,7 +731,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 633
+Both sides are the subject, and Praxis is the side that has been written. 634
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -741,4 +742,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 17:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 18:00 UTC

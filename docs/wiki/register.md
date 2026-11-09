@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 632 not.**
+**6 of them reviewed, 633 not.**
 
 ## Package 1
 
@@ -856,6 +856,48 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 147 — the four roads out of a slice's send
+
+Scope: the sending of one slice of a fed-out order, written twice — once placing at
+market and once resting at a price — part of a module the ledger marks `partial`.
+After the package before this one, nine hundred and fifty of its two thousand four
+hundred and eighty-seven statements were uncited. One subject promotes; the shape the
+two routines share is in no article. The rest of the module is left for the packages
+after this, and the cell stays `partial`.
+
+### Merge and promote, package 147
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1365 | A slice's send has four endings, and only a timeout or a name the venue already knows sends it to be rescued by that name. | Promote. The shape is in no article, and the two failures that might have left an order behind being handled differently from the two that could not is the finding |
+| Row H-1366 | A venue failure and a parameter the adapter will not take are both recorded as failed with no rescue attempted. | Merge with H-1365 |
+| Row H-1367 | The moment is stamped only once the venue has answered, and the submission and every immediate fill are recorded under it. | Merge with H-1365. The record's time for a send is when the answer came back rather than when it went out |
+| Row H-1368 | The two routines differ on the kind of order and the price, and on nothing else. | Merge with H-1365 |
+
+One subject promotes and three rows merge into it, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P147-01 | The four roads out of a slice's send | written | [the-four-roads-out-of-a-slices-send.md](atoms/the-four-roads-out-of-a-slices-send.md) |
+
+### Re-seed, after writing package 147
+
+The seventh duplication recorded in this corpus, and the first that is a whole
+failure-handling shape rather than a test or a sum.
+
+| What it found | What came of it |
+|---|---|
+| Two routines send a slice and are written identically through four endings, differing only on the order's kind and price. | Promoted as one subject rather than two articles. Writing them separately would have put the same four roads in two places, which is the defect the corpus keeps finding in the code |
+| Only the timeout and the duplicate-name roads attempt a rescue. | Stated as the division: the two failures that might have left an order at the venue ask again, and the two that could not have do not |
+| The moment stamped on a submission is the answer's, not the send's. | Stated. A slow venue therefore leaves no trace of the delay in the record |
+| Both routines write each fill the answer already carried, under that same moment. | Stated as part of the shared shape |
+
+Worth recording: a duplication can be written as one article about two routines, and
+that is better than two articles about one shape each. Six of the seven duplications
+found so far were pairs that disagreed somewhere; this one agrees everywhere that
+matters, so there is nothing to contrast and the honest form is a single description
+naming both.
 
 ## Package 146 — the three kinds of orphan a boot finds, and why a flatten is recovered only once
 
@@ -10545,7 +10587,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1362 | The exit command is built from the venue's own amount and, where no local order stands, an intent and a submission are both recorded and applied. | `execution_manager.py` 8028-8030, then 8031, then 8032, then 8033, then 8035 into 8036-8045, then 8049, then 8051-8058, then 8059 | package one hundred and forty-six | folds into P146-02 |
 | H-1363 | Each venue trade naming that order becomes a fill written to the record, applied only where the write answered with a place. | `execution_manager.py` 8061, then 8062, then 8063, then 8066, then 8082, then 8083 into 8084 | package one hundred and forty-six | folds into P146-02 |
 | H-1364 | The order is read back afterwards and an outcome built only where it now carries fills. | `execution_manager.py` 8086, then 8087 into 8092 | package one hundred and forty-six | folds into P146-02 |
+| H-1365 | A slice's send has four endings, and only a timeout or a name the venue already knows sends it to be rescued by that name. | `execution_manager.py` 5992 into 5993-5995, and 6219 into 6220-6222, then 5996 into 5997-6000, and 6223 into 6224-6227, or 6001, then 6002, and 6228, then 6229 | package one hundred and forty-seven | is P147-01 |
+| H-1366 | A venue failure and a parameter the adapter will not take are both recorded as failed with no rescue attempted. | `execution_manager.py` 6003 into 6004-6007, and 6230 into 6234, or 6008 into 6009-6013, and 6235 into 6240 | package one hundred and forty-seven | folds into P147-01 |
+| H-1367 | The moment is stamped only once the venue has answered, and the submission and every immediate fill recorded under it. | `execution_manager.py` 5991, and 6218, then 6015-6021, then 6022, then 6023, and 6248, then 6249, then 6025, then 6026-6037, and 6251, then 6252-6266 | package one hundred and forty-seven | folds into P147-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 17:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 18:00 UTC
