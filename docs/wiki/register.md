@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 647 not.**
+**6 of them reviewed, 649 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 155 — which figures settle a bracket's entry, and what a ladder's start plans before it posts
+
+Scope: the settling of a bracket's entry from two sets of figures, and the planning a
+ladder does before it records anything, part of a module the ledger marks `partial`.
+After the package before this one, seven hundred and sixty of its two thousand four
+hundred and eighty-seven statements were uncited. Neither subject is in an article.
+The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 155
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1422 | Two sets of figures are read — the order's own raw fills and the admitted totals — and whether the entry filled at all is decided on the raw figure. | Promote. The settling is in no article, and the two figures deciding different things is the finding |
+| Row H-1423 | The average entry price is worked out from the raw figures, and it is what the protection's legs rest on. | Merge with H-1422. One entry can be reported part filled on the admitted figure while its protection is sized from a larger raw one |
+| Row H-1424 | Whether it counts as filled or part filled is decided on the admitted figure against the command's amount, and the outcome carries the admitted figures. | Merge with H-1422 |
+| Row H-1425 | An entry that filled nothing ends with its order's status turned into a trade status, a rejection standing in for any the mapping does not hold. | Merge with H-1422 |
+| Row H-1426 | The bracket is taken out of the account's brackets before anything is weighed, and the protection placed only after the outcome has been built. | Merge with H-1422. A failure placing the protection cannot unsay the entry's outcome |
+| Row H-1427 | A ladder plans every level from the parameters, the whole amount and the venue's lot step before recording anything. | Promote. The planning is in no article, and a grid that cannot be planned being refused with no start written is what it buys |
+| Row H-1428 | A planning that refuses names as its slice total the count of prices the parameters held rather than a planned count. | Merge with H-1427 |
+| Row H-1429 | The start records the planned count as its slice total and nought as its interval, carrying the weights asked for or an empty set. | Merge with H-1427 |
+| Row H-1430 | The start is written and applied before the live ladder is built. | Merge with H-1427 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P155-01 | Which figures settle a bracket's entry | written | [which-figures-settle-a-brackets-entry.md](atoms/which-figures-settle-a-brackets-entry.md) |
+| P155-02 | What a ladder's start plans before it posts | written | [what-a-ladders-start-plans-before-it-posts.md](atoms/what-a-ladders-start-plans-before-it-posts.md) |
+
+### Re-seed, after writing package 155
+
+The first subject is the two-figure finding from a package thirteen before this one,
+met again in a place that uses both at once.
+
+| What it found | What came of it |
+|---|---|
+| The entry's settlement reads both the raw fills and the admitted totals, and decides different things on each. | Stated as the division. The raw figure decides whether anything filled and what price the protection rests on; the admitted figure decides what the outcome says |
+| So an entry can be reported part filled while its protection is sized from a larger figure. | Stated. Neither figure is wrong and the two are used for what each is for, which is only visible with both named |
+| A ladder's planning refusal names the count of prices asked for as its slice total. | Stated. There is no planned count to name, so the request's own count stands in |
+| A ladder's start records nought as its interval. | Stated, which is the same fact the resume states from the other side |
+
+Worth recording: the two-figure distinction written thirteen packages ago turned out
+to be the key to this routine, which reads both within six lines of each other. The
+article could be written in an hour rather than a day because the vocabulary for the
+difference already existed. That is the fourth time a written distinction has paid
+for itself later in this module.
 
 ## Package 154 — which failed protections a boot re-flattens, and how a single order's amend is named
 
@@ -10964,7 +11012,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1419 | A command with no order, or whose order is anything but a resting limit, is reported and the change dropped. | `execution_manager.py` 8680 into 8684, or 8686, then 8687 | package one hundred and fifty-four | is P154-02 |
 | H-1420 | The new price and part-shown amount are worked out from the command and the change together, and a change yielding no price is dropped. | `execution_manager.py` 8688, then 8689 into 8693 | package one hundred and fifty-four | folds into P154-02 |
 | H-1421 | The new order's name is worked out from the mode, the command, and a count of that command's amends raised by one, and the initiation recorded. | `execution_manager.py` 8695, then 8696-8698, then 8700-8712, then 8713 | package one hundred and fifty-four | folds into P154-02 |
+| H-1422 | Two sets of figures are read — the order's own raw fills and the admitted totals — and whether the entry filled at all is decided on the raw figure. | `execution_manager.py` 4590, then 4591, then 4592-4594, then 4596 | package one hundred and fifty-five | is P155-01 |
+| H-1423 | The average entry price is worked out from the raw figures. | `execution_manager.py` 4615 | package one hundred and fifty-five | folds into P155-01 |
+| H-1424 | Whether it counts as filled or part filled is decided on the admitted figure against the command's amount, and the outcome carries the admitted figures. | `execution_manager.py` 4617-4618, then 4621-4632 | package one hundred and fifty-five | folds into P155-01 |
+| H-1425 | An entry that filled nothing ends with its order's status turned into a trade status, a rejection standing in for any the mapping does not hold. | `execution_manager.py` 4596 into 4604-4611, the fallback at 4608 | package one hundred and fifty-five | folds into P155-01 |
+| H-1426 | The bracket is taken out of the account's brackets before anything is weighed, and the protection placed only after the outcome has been built. | `execution_manager.py` 4586, then 4587, then 4588, with 4635-4637, past 4621 | package one hundred and fifty-five | folds into P155-01 |
+| H-1427 | A ladder plans every level from the parameters, the whole amount and the venue's lot step before recording anything. | `execution_manager.py` 6085, then 6086, then 6088, then 6089, then 6090, then 6092-6093 | package one hundred and fifty-five | is P155-02 |
+| H-1428 | A planning that refuses names as its slice total the count of prices the parameters held. | `execution_manager.py` 6094 into 6096-6101, the total at 6100 | package one hundred and fifty-five | folds into P155-02 |
+| H-1429 | The start records the planned count as its slice total and nought as its interval, carrying the weights asked for or an empty set. | `execution_manager.py` 6105-6119, the count at 6114, the interval at 6115, with 6117, then 6118 | package one hundred and fifty-five | folds into P155-02 |
+| H-1430 | The start is written and applied before the live ladder is built. | `execution_manager.py` 6120, then 6121, then 6123-6125 | package one hundred and fifty-five | folds into P155-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 21:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 22:00 UTC
