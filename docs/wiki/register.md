@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 543 not.**
+**6 of them reviewed, 545 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 103 — what a balance comparison weighs, and what becomes of a mismatch
+
+Scope: the comparison of a host's balances against the venue's and the fate of a
+mismatch nobody accepts, part of a module the ledger marks `partial`. After the
+package before this one, a hundred of its five hundred and twenty-five statements
+were uncited. What the comparison weighs, and what becomes of an undelivered
+mismatch, are in no article. The starting, the stopping and the fund and fill passes
+are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 103
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1033 | The pass ends early on a venue refusal, on events still pending, and on the expected balances having moved while the venue was being asked. | Promote. The comparison is in no article, and the third ending is what keeps a delay from being reported as a difference |
+| Row H-1034 | Only a shortfall past that asset's own tolerance counts, a surplus or a small shortfall clearing what was remembered. | Merge with H-1033. The venue holding more than expected never being reported is the half a reader would not assume |
+| Row H-1035 | A shortfall identical to the one last remembered, or to one still waiting to be delivered, is passed over. | Merge with H-1033 |
+| Row H-1036 | A mismatch is written to the spine before anyone is told, so a mismatch in the spine is not evidence anybody heard about it. | Promote. The fate of a mismatch is in no article, and the record outliving the telling is what a reader of the spine needs |
+| Row H-1037 | Delivery hands it to the callback inside a guard naming any failure, and answers that it failed rather than raising. | Merge with H-1036 |
+| Row H-1038 | A delivered mismatch has its shortfall remembered as seen and any waiting copy cleared, where an undelivered one is kept instead, and the kept ones are tried again at the start of the next comparison. | Merge with H-1036. The two memories being complementary is the mechanism |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P103-01 | What a balance comparison weighs | written | [what-a-balance-comparison-weighs.md](atoms/what-a-balance-comparison-weighs.md) |
+| P103-02 | What becomes of a mismatch nobody took | written | [what-becomes-of-a-mismatch-nobody-took.md](atoms/what-becomes-of-a-mismatch-nobody-took.md) |
+
+### Re-seed, after writing package 103
+
+Three findings, each about something the comparison declines to do.
+
+| What it found | What came of it |
+|---|---|
+| The pass ends where the expected balances moved while the venue was being asked. | Stated as the careful ending: the answer in hand describes a moment that has passed, and comparing it would report the delay as a difference |
+| A surplus is never reported, only a shortage. | Stated. The tolerance test is one-sided and reads as two-sided at a glance |
+| The mismatch is in the spine before delivery is attempted, and delivery failing is answered rather than raised. | Stated together, since either alone leaves the wrong impression — the first that someone was told, the second that nothing was recorded |
+| The kept mismatches are retried before any asset is weighed on the next pass. | Stated, with what it buys: a listener that was down recovers the backlog without waiting for the shortfall to change |
+
+Worth recording: both articles are about restraint — three early endings, a
+one-sided tolerance, a failure answered rather than raised, and two reports
+suppressed as duplicates. A routine whose subject is what it declines to do needs
+its claims written as the declining, not as the doing with exceptions appended, or
+the exceptions read as caveats rather than as the design.
 
 ## Package 102 — what a backfill asks for, records and admits
 
@@ -8124,6 +8168,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1030 | A trade whose venue name will not read as a number is reported and skipped. | `praxis/trading.py` 1552 into 1553-1558, then 1559 | package one hundred and two | folds into P102-02 |
 | H-1031 | A backfilled trade with no trade name the manager can give is dropped with nothing said, where the socket road drops the same absence with a warning. | `praxis/trading.py` 1610 then 1611, then 1612 into 1613, against 1781 into 1782-1786 | package one hundred and two | is P102-03 |
 | H-1032 | The fill is built from the venue trade's own fields and admitted marked as coming from a recovery. | `praxis/trading.py` 1615 through 1617-1629, then 1632-1633 | package one hundred and two | folds into P102-03 |
+| H-1033 | The pass ends early on a venue refusal, on events still pending, and on the expected balances having moved while the venue was being asked. | `praxis/trading.py` 1238 into 1243, or 1245-1247 into 1249 | package one hundred and three | is P103-01 |
+| H-1034 | Only a shortfall past that asset's own tolerance counts, a surplus or a small shortfall clearing what was remembered. | `praxis/trading.py` 1256-1257, then 1260 into 1261-1262 | package one hundred and three | folds into P103-01 |
+| H-1035 | A shortfall identical to the one last remembered, or to one still waiting to be delivered, is passed over. | `praxis/trading.py` 1264 into 1265, or 1267 into 1268-1269 | package one hundred and three | folds into P103-01 |
+| H-1039 | The balances expected are taken from the manager, the venue asked for exactly those assets, and each venue total is free plus locked. | `praxis/trading.py` 1232, then 1234-1237, then 1253 | package one hundred and three | folds into P103-01 |
+| H-1036 | A mismatch is named for the account, the asset and the shortfall, and written to the spine before anyone is told. | `praxis/trading.py` 1274, then 1280 ahead of 1286 | package one hundred and three | is P103-02 |
+| H-1037 | Delivery hands it to the callback inside a guard naming any failure, and answers that it failed rather than raising. | `praxis/trading.py` 1325-1326 into 1327, then 1333, against 1335 | package one hundred and three | folds into P103-02 |
+| H-1038 | A delivered mismatch has its shortfall remembered as seen and any waiting copy cleared, where an undelivered one is kept instead. | `praxis/trading.py` 1286 into 1287 then 1288, against 1290 | package one hundred and three | folds into P103-02 |
+| H-1040 | The kept mismatches are tried again at the start of the next comparison. | `praxis/trading.py` 1251 | package one hundred and three | folds into P103-02 |
 | H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
@@ -8139,4 +8191,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 14:00 UTC
