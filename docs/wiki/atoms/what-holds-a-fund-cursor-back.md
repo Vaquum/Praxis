@@ -2,7 +2,7 @@
 row: P104-02
 baseline: 49aa659
 created: 2026-11-14 05:30 UTC
-modified: 2026-11-14 05:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "A movement in any asset but the quote one is skipped"
     source: "`praxis/trading.py` 1158 into 1159-1160"
@@ -13,7 +13,7 @@ evidence:
   - claim: "A failed delivery marks the pass undelivered and leaves the walk at once"
     source: "`praxis/trading.py` 1187, then 1188"
   - claim: "The cursor moves only where something was found and every one of them was delivered"
-    source: "`praxis/trading.py` 1190"
+    source: "`praxis/trading.py` 1156, then 1190"
   - claim: "Where it moves, it moves to the latest moment among everything fetched"
     source: "`praxis/trading.py` 1191-1193"
 ---

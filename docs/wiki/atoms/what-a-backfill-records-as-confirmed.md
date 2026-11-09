@@ -2,10 +2,10 @@
 row: P102-02
 baseline: 49aa659
 created: 2026-11-14 04:30 UTC
-modified: 2026-11-14 04:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "A trade whose venue name will not read as a number is reported and skipped"
-    source: "`praxis/trading.py` 1552 into 1553-1558, then 1559"
+    source: "`praxis/trading.py` 1551 into 1552 into 1553-1558, then 1559"
   - claim: "A leg's name is turned into its parent's, falling back to the name itself"
     source: "`praxis/trading.py` 1561-1562"
   - claim: "The highest venue name seen is tracked as the walk goes, along with the trade that carried it"

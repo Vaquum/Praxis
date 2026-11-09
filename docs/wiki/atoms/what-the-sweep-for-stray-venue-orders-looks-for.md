@@ -2,7 +2,7 @@
 row: P106-01
 baseline: 49aa659
 created: 2026-11-14 06:30 UTC
-modified: 2026-11-14 06:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "An account the manager holds no state for is answered as safe without the venue being asked"
     source: "`praxis/trading.py` 928 into 929-930"
@@ -13,7 +13,7 @@ evidence:
   - claim: "The symbols asked about are the account's active ones together with the ones a bootstrap filters on, walked in sorted order"
     source: "`praxis/trading.py` 934-937, then 940"
   - claim: "A venue that refuses one symbol marks the whole sweep unsafe and the walk goes on to the next"
-    source: "`praxis/trading.py` 941-942 into 943, then 950, then 951"
+    source: "`praxis/trading.py` 938, then 941-942 into 943, then 950, then 951"
   - claim: "A venue order whose name the host already knows is passed over"
     source: "`praxis/trading.py` 953 into 954-955"
   - claim: "A name carrying no fragment of this host's, or one this host does not own, is noted rather than acted on"

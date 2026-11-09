@@ -2,7 +2,7 @@
 row: P104-01
 baseline: 49aa659
 created: 2026-11-14 05:30 UTC
-modified: 2026-11-14 05:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "The window starts at the cursor less an overlap, or at the cutover where no cursor is held"
     source: "`praxis/trading.py` 1138-1139, then 1140"
@@ -11,7 +11,7 @@ evidence:
   - claim: "A venue that refuses the asking ends the pass with a warning"
     source: "`praxis/trading.py` 1145-1148 into 1149, then 1154"
   - claim: "The cutover is seeded from the moment the account was registered, as the spine recorded it"
-    source: "`praxis/trading.py` 1104 into 1105, then 1111-1113"
+    source: "`praxis/trading.py` 1103 into 1104 into 1105, then 1111-1113"
   - claim: "Where the spine holds no such registering, the clock at seeding time stands in"
     source: "`praxis/trading.py` 1112"
   - claim: "The cursor is seeded from the latest fund movement the spine holds, and left unset where it holds none"

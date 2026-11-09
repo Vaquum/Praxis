@@ -146,6 +146,8 @@ the others where it appears.
 - [What a stop will not leave running](atoms/what-a-stop-will-not-leave-running.md) — during a stop the facade reports itself both started and stopping, and after a failed stop it reports itself started and not stopping, because the stopping marker is always lowered while the started one is lowered only on success.
 - [What the sweep for stray venue orders looks for](atoms/what-the-sweep-for-stray-venue-orders-looks-for.md) — it compares what the venue has open against both the live and the completed orders, so its own finished work is not mistaken for a stray, and an order belonging to another host is noted and left alone.
 - [What an account's startup does in order](atoms/what-an-accounts-startup-does-in-order.md) — the saved history is replayed before anything else so everything after sees it, and the trading rules are loaded for coins named by old bracket records as well as the current ones.
+- [What a submitting road refuses first](atoms/what-a-submitting-road-refuses-first.md) — a shutdown is reported before an unready account is, so a caller submitting into a closing facade is told the facade is closing rather than that its account is not ready.
+- [Which orders a reconcile asks about](atoms/which-orders-a-reconcile-asks-about.md) — only the orders this side still believes are open are asked after, one question per order, and the walk runs over a copy so it can close orders as it goes.
 - [How a caller's callback is wrapped](atoms/how-a-callers-callback-is-wrapped.md) — a supplied callback is wrapped so it can always be awaited whether it is plain or not, and one setter deliberately passes an absent callback through unwrapped because its far side reads absence as nobody listening.
 - [What routing an outcome drops](atoms/what-routing-an-outcome-drops.md) — the lock covers finding the queue and not handing anything to it, so a queue removed in between still receives, and a full queue raises into the router rather than slowing it.
 - [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
@@ -649,8 +651,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 552
-articles exist. Of Praxis's own source files 82 are accounted for in full and 6 in
+Both sides are the subject, and Praxis is the side that has been written. 554
+articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -660,4 +662,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 17:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 18:00 UTC

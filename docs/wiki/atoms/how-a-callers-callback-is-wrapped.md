@@ -2,14 +2,14 @@
 row: P98-02
 baseline: 49aa659
 created: 2026-11-14 02:30 UTC
-modified: 2026-11-14 02:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "The shared wrapper answers at once for a callback that is absent, so what it hands back can always be awaited"
-    source: "`praxis/trading.py` 143-144 into 145, handed back at 152"
+    source: "`praxis/trading.py` 143-144 into 145, handed back at 152, used at 444, or 470"
   - claim: "Otherwise it calls the callback and awaits the answer only where the answer can be awaited"
     source: "`praxis/trading.py` 147, then 149 into 150"
   - claim: "One setter does not use that wrapper for an absent callback, passing the absence straight on instead"
-    source: "`praxis/trading.py` 407 into 408, then 409"
+    source: "`praxis/trading.py` 407 into 408, then 409, against the delegating setter at 499"
   - claim: "For a real callback that setter builds an adapter of its own, on the same shape as the shared one"
     source: "`praxis/trading.py` 411, then 413-417, handed on at 419"
 ---

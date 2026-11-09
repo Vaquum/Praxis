@@ -2,7 +2,7 @@
 row: P102-01
 baseline: 49aa659
 created: 2026-11-14 04:30 UTC
-modified: 2026-11-14 04:30 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "An account the manager holds no state for is answered as complete without anything being asked of the venue"
     source: "`praxis/trading.py` 1524 into 1525-1526"
@@ -15,7 +15,7 @@ evidence:
   - claim: "Where the spine holds no cursor, a window back from the clock stands in instead"
     source: "`praxis/trading.py` 1535-1538, handed on at 1544"
   - claim: "A symbol whose pages ran out unfinished turns the whole answer to incomplete, and the walk goes on to the next symbol"
-    source: "`praxis/trading.py` 1546 into 1547, against 1528"
+    source: "`praxis/trading.py` 1546 into 1547, against 1528, answered at 1587"
 ---
 # What a backfill asks the venue for
 

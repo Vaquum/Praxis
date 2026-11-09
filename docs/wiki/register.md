@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 551 not.**
+**6 of them reviewed, 553 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 107 — what a submitting road refuses, and which orders a reconcile asks about
+
+Scope: the guards on the two submitting roads, the scope of each reconciling pass,
+and the last of the module's statements. The ten packages before this one took it
+from two hundred and sixteen uncited statements to thirty-eight. What a submitting
+road refuses first, and which orders a reconcile asks about, are in no article. The
+cell moves to `full`.
+
+### Merge and promote, package 107
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1063 | Both submitting roads refuse while a stop is under way, and that refusal stands ahead of the demand that the account be ready. | Promote. The order is in no article, and a caller being told the facade is shutting down rather than that its account is not ready is what the order decides |
+| Row H-1064 | Each then hands the asking to the inbound side, one awaiting it and one not. | Merge with H-1063. One road can report a failure from inbound to its caller and the other cannot |
+| Row H-1065 | Both ways of asking for the health figures demand a started facade and read the same figures from the same venue, differing in nothing but one being awaitable. | Merge with H-1063 |
+| Row H-1066 | Three passes each begin by asking the manager for the account's state and answering where there is none. | Promote. The scope of a pass is in no article, and the same opening in three places is worth saying once |
+| Row H-1067 | The live orders are walked over a copy of the mapping, and an order already at its end is passed over before the venue is asked anything. | Merge with H-1066. The copy is what lets the walk admit events that close orders |
+| Row H-1068 | Each remaining order is asked after by its own name under its own symbol, one question per order. | Merge with H-1066 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P107-01 | What a submitting road refuses first | written | [what-a-submitting-road-refuses-first.md](atoms/what-a-submitting-road-refuses-first.md) |
+| P107-02 | Which orders a reconcile asks about | written | [which-orders-a-reconcile-asks-about.md](atoms/which-orders-a-reconcile-asks-about.md) |
+
+### Re-seed, after writing package 107
+
+Eleven packages took this module from two hundred and sixteen uncited statements to
+eight, and the cell moves to `full`.
+
+| What it found | What came of it |
+|---|---|
+| The stopping refusal stands ahead of the readiness demand on both roads, so a stopping facade answers about itself rather than about the account. | Stated. The first answer is the true one and the more useful, and the order is what makes it the one given |
+| One submitting road awaits its handing on and the other does not, so only one can report a failure from inbound. | Stated |
+| The two ways of asking for health figures differ in nothing but one being awaitable. | Stated, with why each exists: one for a caller that must dispatch onto the loop from another thread, one because the work needs no loop |
+| Twenty-one statements were left over after the two articles: setter tails, flags, walk heads, answers and a closure. | Each went into the article that already owned its subject, by widening a citation. Nothing needed prose of its own |
+
+Worth recording about splitting a module across eleven packages: the last one is
+mostly bookkeeping, and that is the sign the split worked. Every cluster the gap map
+named became a subject, and what remained at the end was the inside of statements
+already claimed — not a subject nobody got to. A module that ends with a real
+subject in its leftovers was split badly.
+
+Eight statements of the module are left uncited and are an exclusion rather than
+work outstanding: all eight are log calls, which the gate refuses as evidence for a
+claim.
 
 ## Package 106 — what the stray-order sweep looks for, and what an account's startup does
 
@@ -8323,6 +8371,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1059 | The symbols whose rules are loaded are the active ones, the bootstrap's, and every one a bracket in the stored events names, loaded only where something was found. | `praxis/trading.py` 554, then 555, then 556-560, then 561 into 562 | package one hundred and six | folds into P106-02 |
 | H-1060 | Readiness is what the sweep answered, settled after external events are drained and incomplete flattens recovered, and withheld from a poisoned account. | `praxis/trading.py` 546 set at 567, and 598, then 600-602, ahead of 606, the poisoning read at 604 | package one hundred and six | folds into P106-02 |
 | H-1062 | Protection remediations and the fund cursor are seeded from the stored events. | `praxis/trading.py` 564, then 565 | package one hundred and six | folds into P106-02 |
+| H-1063 | Both submitting roads refuse while a stop is under way, and that refusal stands ahead of the demand that the account be ready. | `praxis/trading.py` 1878 into 1879-1880 ahead of 1881, and 1904 into 1905-1906 ahead of 1907 | package one hundred and seven | is P107-01 |
+| H-1064 | Each then hands the asking to the inbound side, one awaiting it and one not. | `praxis/trading.py` 1882-1884, against 1908 | package one hundred and seven | folds into P107-01 |
+| H-1065 | Both ways of asking for the health figures demand a started facade and read the same figures from the same venue. | `praxis/trading.py` 1958 then 1959, and 1982 then 1983 | package one hundred and seven | folds into P107-01 |
+| H-1066 | Three passes each begin by asking the manager for the account's state and answering where there is none. | `praxis/trading.py` 856 into 857-858, and 1656 into 1657-1658, and 1016 into 1017-1018 | package one hundred and seven | is P107-02 |
+| H-1067 | The live orders are walked over a copy of the mapping, and an order already at its end is passed over before the venue is asked anything. | `praxis/trading.py` 860, then 861 into 862 | package one hundred and seven | folds into P107-02 |
+| H-1068 | Each remaining order is asked after by its own name under its own symbol. | `praxis/trading.py` 864-869 | package one hundred and seven | folds into P107-02 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
 | H-1053 | A closing of one account's stream reports its own failure and goes no further, and an account the manager has lost is skipped. | `praxis/trading.py` 640 into 641-642, against 644-645 into 646-647, and 689 then 690-691 into 692-693 | package one hundred and five | folds into P105-02 |
@@ -8344,4 +8398,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 18:00 UTC

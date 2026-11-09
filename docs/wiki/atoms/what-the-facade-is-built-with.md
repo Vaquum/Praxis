@@ -2,12 +2,12 @@
 row: P99-01
 baseline: 49aa659
 created: 2026-11-14 03:00 UTC
-modified: 2026-11-14 03:00 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "Two of the configuration's callbacks are wrapped as the facade is built, so an absent one becomes a thing that does nothing"
     source: "`praxis/trading.py` 205, and 206-208, into 143-145"
   - claim: "The symbols a bootstrap filters on are frozen into a set that cannot be changed afterwards"
-    source: "`praxis/trading.py` 211"
+    source: "`praxis/trading.py` 211, and the clock at 118"
   - claim: "A venue to trade against is built where none was handed in"
     source: "`praxis/trading.py` 212 into 213-215"
   - claim: "The inbound side is built from the manager, that venue and the account credentials"

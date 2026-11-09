@@ -2,7 +2,7 @@
 row: P105-02
 baseline: 49aa659
 created: 2026-11-14 06:00 UTC
-modified: 2026-11-14 06:00 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "A stop on a facade that never started answers at once"
     source: "`praxis/trading.py` 652 into 653"
@@ -11,9 +11,9 @@ evidence:
   - claim: "The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go"
     source: "`praxis/trading.py` 657-658, then 659-660, then 661"
   - claim: "The managed accounts are walked in sorted order, and an account the manager has lost is skipped"
-    source: "`praxis/trading.py` 689, then 690-691 into 692-693"
+    source: "`praxis/trading.py` 689, then 690-691 into 692-693, each account's in-flight read at 694"
   - claim: "The started flag is lowered and the loop let go only at the end of the work"
-    source: "`praxis/trading.py` 798, then 799"
+    source: "`praxis/trading.py` 663 into 798, then 799"
   - claim: "The stopping flag is lowered in a clause that runs however the stop ended"
     source: "`praxis/trading.py` 800-801"
   - claim: "A closing of one account's stream reports its own failure and goes no further"

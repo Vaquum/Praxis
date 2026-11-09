@@ -2,7 +2,7 @@
 row: P101-01
 baseline: 49aa659
 created: 2026-11-14 04:00 UTC
-modified: 2026-11-14 04:00 UTC
+modified: 2026-11-14 18:00 UTC
 evidence:
   - claim: "A payload whose kind is anything but an execution report is dropped without a word"
     source: "`praxis/trading.py` 1708 into 1709"
@@ -13,7 +13,7 @@ evidence:
   - claim: "An account the manager holds no state for is dropped with a warning"
     source: "`praxis/trading.py` 1726 into 1727-1728, then 1729"
   - claim: "A leg's name is turned into its parent's, falling back to the name itself"
-    source: "`praxis/trading.py` 1731-1733"
+    source: "`praxis/trading.py` 1731-1733, reached from 570 into 572-573"
   - claim: "The order is looked for among the live ones and then among the closed, with which one it came from remembered"
     source: "`praxis/trading.py` 1735-1736, then 1737 into 1738-1739"
   - claim: "An order in neither book is noted at the quietest level the log has and dropped"
