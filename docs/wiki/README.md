@@ -617,6 +617,10 @@ the others where it appears.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
 - [What the operator's two sweeps answer with](atoms/what-the-operators-two-sweeps-answer-with.md) — asking an account to cancel everything and close what it holds wraps both halves together, so a failure closing discards the answer about what was cancelled although those cancellations were already sent.
 - [What a sweep does to each item](atoms/what-a-sweep-does-to-each-item.md) — both walks carry on past an item that fails, and the walk closing positions names every position it tried while the walk cancelling orders simply leaves a failed command out of its list.
+- [What every operator road weighs first](atoms/what-every-operator-road-weighs-first.md) — the operator roads stay off entirely until a token is set, a caller from elsewhere on the network is turned away before the token is looked up, and the same answer serves both an account that is absent and no account named while none runs.
+- [What an operator's halt and resume do](atoms/what-an-operators-halt-and-resume-do.md) — the mode is changed before anything is written down, so an operator told the ask failed is looking at an account that has been halted and may not stay halted past a restart.
+- [What the health road reports unhealthy for](atoms/what-the-health-road-reports-unhealthy-for.md) — the road a container polls to decide whether to restart the host asks nothing at all about its caller, and answers with a list naming every part of the host that has stopped rather than the first one found.
+- [Which accounts the figures road knows](atoms/which-accounts-the-figures-road-knows.md) — the road serving a paper run's figures answers for the accounts the settings name, where the operator roads answer only for accounts that have finished building, so one name reaches two different answers.
 - [Alerts](atoms/alerts.md) — how Praxis says something needs a person: a marked log line, and a web call where one is configured.
 - [What a host writes about itself](atoms/what-a-host-writes-about-itself.md) — a host writes JSON, one piece per line, each line carrying its level and the moment in UTC.
 - [What the logging arrangement misses](atoms/what-the-logging-arrangement-misses.md) — log lines a library writes keep their own shape, and asking the host for plain text does not change them.
@@ -697,7 +701,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 600
+Both sides are the subject, and Praxis is the side that has been written. 604
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -708,4 +712,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 09:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 10:00 UTC

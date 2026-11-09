@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 599 not.**
+**6 of them reviewed, 603 not.**
 
 ## Package 1
 
@@ -856,6 +856,106 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 131 — what the health road reports unhealthy for, and which accounts the figures road knows
+
+Scope: the two open roads on the host's listener — the one a container polls and the
+one serving a paper run's figures — part of a module the ledger marks `partial`. After
+the package before this one, two hundred and two of its twelve hundred and one
+statements were uncited. Neither road is in an article. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 131
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1242 | Four things are weighed about the host, each adding a name to a list, and all four are weighed before anything is answered. | Promote. The road is in no article, and the answer naming every failure rather than the first is what the gathering is for |
+| Row H-1243 | Every account thread no longer alive is gathered by name, and one name added carrying all of them. | Merge with H-1242 |
+| Row H-1244 | Nothing about the caller is weighed, where the figures road beside it demands a loopback address and the operator roads demand three things. | Merge with H-1242. The road a container polls being open to anything that can reach the port is the consequence |
+| Row H-1245 | The figures road demands a loopback address and no token, and answers that it is not ready where the host has no record of its own. | Promote. The road is in no article, and which accounts it knows is the subject |
+| Row H-1246 | Its accounts come from a mapping built once from the settings and kept, so the settings are read from disk on the first ask and never again. | Merge with H-1245 |
+| Row H-1247 | That mapping is over the accounts the settings name, where the operator roads resolve over the accounts whose runtimes are published. | Merge with H-1245. The same name reaching two different answers depending on the road is the finding |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P131-01 | What the health road reports unhealthy for | written | [what-the-health-road-reports-unhealthy-for.md](atoms/what-the-health-road-reports-unhealthy-for.md) |
+| P131-02 | Which accounts the figures road knows | written | [which-accounts-the-figures-road-knows.md](atoms/which-accounts-the-figures-road-knows.md) |
+
+### Re-seed, after writing package 131
+
+Both articles came out of comparing the three kinds of road on one listener, which
+the package before this one made possible by writing down what the operator roads
+demand.
+
+| What it found | What came of it |
+|---|---|
+| The health road weighs nothing about its caller, the figures road weighs one thing, and the operator roads weigh three. | Stated in both articles from their own side. What the health road gives away is a list of which parts of the host have stopped |
+| All four health tests are weighed before anything is answered, so one ask names every failure. | Stated. A reader debugging a restarting container needs to know the answer is complete rather than first-wins |
+| The figures road resolves over the accounts the settings name and the operator roads over the accounts whose runtimes are published. | Stated as the pair. The same account name therefore reaches two different answers depending on the road |
+| The paper accounts are read from disk once and kept, so a settings change mid-run is not picked up. | Stated as the keeping. Whether anything rewrites those files mid-run is not something this module shows, so the article says the mapping is built once and stops |
+
+Worth recording: three roads on one listener, each weighing a different amount about
+its caller, is the kind of fact no article about any one road would carry. It was
+findable only after the operator roads' three tests were written down last package —
+the same effect the pattern article had two packages before that. Writing down what
+one thing demands turns into a question to ask of everything beside it.
+
+Worth recording about the work rather than the module: this package was written into
+the tree while the package before it was still being committed. The commit re-runs
+the gate, found two articles with no rows and no index entries, and refused — so the
+package before this one and this one are committed together. The freeze a gate run
+needs covers a commit too, because a commit is a gate run. Writing the next package
+starts only once the last one's hash exists.
+
+## Package 130 — what every operator road weighs first, and what an operator's halt and resume do
+
+Scope: the weighing every operator road makes of its caller and of which account it
+names, and the halting and letting go that two of those roads carry out, part of a
+module the ledger marks `partial`. After the package before this one, two hundred and
+sixteen of its twelve hundred and one statements were uncited, a hundred and
+seventy-one of them citable. Neither subject is in an article. The rest of the module
+is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 130
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1234 | A caller from any address but the two loopback ones is refused as forbidden, an unset token answers as not configured, and the header must carry the token after the word Bearer under a timing-blind comparison. | Promote. The weighing is in no article, and the roads being off entirely until a token is set is what it means |
+| Row H-1235 | The read-only status road weighs the same three. | Merge with H-1234 |
+| Row H-1236 | The account is resolved from a copy of the published runtimes, with a single running one used where none is named, several refused as needing a name, and none at all refused as unknown. | Merge with H-1234 |
+| Row H-1241 | Where an account is named and is not among them, the same unknown refusal answers. | Merge with H-1234. The unknown answer serving two different mistakes is worth stating |
+| Row H-1237 | Halting and resuming are one routine told which it is by a flag, and the reason is read from the body with a default standing in for every way of not giving one. | Promote. Neither road is in an article, and the order of what follows the mode change is what it leads to |
+| Row H-1238 | The mode is changed before the state is written down, and a failure writing answers an error at five hundred. | Merge with H-1237. An operator told the ask failed is looking at an account already halted in memory |
+| Row H-1239 | The record of the ask is appended only where the host has a record at all, and a failure there is reported and no more. | Merge with H-1237. The audit of who asked is the one part that may quietly be missing |
+| Row H-1240 | The answer is the same body the status road gives. | Merge with H-1237 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P130-01 | What every operator road weighs first | written | [what-every-operator-road-weighs-first.md](atoms/what-every-operator-road-weighs-first.md) |
+| P130-02 | What an operator's halt and resume do | written | [what-an-operators-halt-and-resume-do.md](atoms/what-an-operators-halt-and-resume-do.md) |
+
+### Re-seed, after writing package 130
+
+Both articles are about order: which things are weighed before which, and what has
+already happened by the time a failure is answered.
+
+| What it found | What came of it |
+|---|---|
+| The mode is changed in memory before the state is written down, so a five hundred answer means the halt took effect and may not survive a restart. | Stated. It is the one thing about these roads a reader needs and neither the routine nor its message says it |
+| The audit record of the ask is appended after the write and is best-effort, where the write itself is not. | Stated as the pair. One failure refuses the ask and the other is a line in the log |
+| A reason is recorded whatever the operator sends, with a default standing in for four separate ways of giving none. | Stated. The default names which ask it was, so the record is never empty |
+| The unknown-account answer serves both a named account that is absent and no account named while none runs, and only the ambiguous case lists what could have been named. | Stated |
+
+Worth recording: the halt's order was nearly written the other way round. The routine
+reads as though it persists and then changes, because the write is the line that can
+refuse — and the refusal is what a reader's eye lands on. Reading the two lines in
+order, rather than reading the refusal and assuming what it guards, is what got it
+right. That is the same mistake as reading a rule where it is written rather than
+where it is reachable, in a smaller space.
 
 ## Package 129 — what a submission remembers between its halves, and what a terminal outcome removes
 
@@ -9595,7 +9695,21 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1230 | Where the command was an entry carrying a trade name, the position is looked up under the positions lock and deleted only where nothing is left of it. | `launcher.py` 4384-4387, then 4388, then 4389, then 4390 into 4391 | package one hundred and twenty-nine | folds into P129-02 |
 | H-1231 | That deletion is remembered, and the memory is the only thing that sends the bracket's protective registration to be dropped. | `launcher.py` 4392, then 4393 into 4394-4398 | package one hundred and twenty-nine | folds into P129-02 |
 | H-1232 | Whether the command still stands marked as unsaved is read under the registry's lock again, after all three removals. | `launcher.py` 4400, then 4401 | package one hundred and twenty-nine | folds into P129-02 |
+| H-1234 | A caller from any address but the two loopback ones is refused as forbidden, an unset token answers as not configured, and the header must carry the token after the word Bearer under a timing-blind comparison. | `launcher.py` 3416 into 3417, the two at 195, or 3419, then 3421 into 3422, or 3424, then 3426 into 3427, or 3429 | package one hundred and thirty | is P130-01 |
+| H-1235 | The read-only status road weighs the same three. | `launcher.py` 3498, then 3500 into 3501 | package one hundred and thirty | folds into P130-01 |
+| H-1236 | The account is resolved from a copy of the published runtimes, with a single running one used where none is named, several refused as needing a name, and none at all refused as unknown. | `launcher.py` 3443 into 3444, then 3446, then 3448, then 3450 into 3451, or 3453 into 3454-3456, or 3458 | package one hundred and thirty | folds into P130-01 |
+| H-1241 | Where an account is named and is not among them, the same unknown refusal answers. | `launcher.py` 3460, then 3462 into 3463, or 3465 | package one hundred and thirty | folds into P130-01 |
+| H-1237 | Halting and resuming are one routine told which it is by a flag, and the reason is read from the body with a default standing in for every way of not giving one. | `launcher.py` 3513, and 3516, with 3468, then 3470 into 3471, or 3473-3474 into 3475 into 3476, or 3478, then 3480 | package one hundred and thirty | is P130-02 |
+| H-1238 | The mode is changed before the state is written down, and a failure writing answers an error at five hundred. | `launcher.py` 3536 into 3537-3540, or 3543-3546, then 3548-3549, then 3550 into 3552 | package one hundred and thirty | folds into P130-02 |
+| H-1239 | The record of the ask is appended only where the host has a record at all, and a failure there is reported and no more. | `launcher.py` 3554, then 3555-3558, then 3559 | package one hundred and thirty | folds into P130-02 |
+| H-1240 | The answer is the same body the status road gives. | `launcher.py` 3567, and 3510, both from 3483-3495 | package one hundred and thirty | folds into P130-02 |
+| H-1242 | Four things are weighed about the host, each adding a name to a list, and all four are weighed before anything is answered. | `launcher.py` 3863, then 3865 into 3866, or 3868 into 3869, or 3871 into 3872, then 3880 into 3881-3884, or 3885 | package one hundred and thirty-one | is P131-01 |
+| H-1243 | Every account thread no longer alive is gathered by name, and one name added carrying all of them. | `launcher.py` 3874-3876, then 3877 into 3878 | package one hundred and thirty-one | folds into P131-01 |
+| H-1244 | Nothing about the caller is weighed, where the figures road beside it demands a loopback address and the operator roads demand three things. | `launcher.py` 3863, against 3340 into 3341, and 3416 into 3417 | package one hundred and thirty-one | folds into P131-01 |
+| H-1245 | The figures road demands a loopback address and no token, and answers that it is not ready where the host has no record of its own. | `launcher.py` 3340 into 3341, or 3343 into 3344 | package one hundred and thirty-one | is P131-02 |
+| H-1246 | Its accounts come from a mapping built once from the settings and kept, each carrying the one standing symbol, the pool from its settings, and the series and width its settings settle. | `launcher.py` 3311 into 3312, or 3316-3325, then 3327, then 3329 | package one hundred and thirty-one | folds into P131-02 |
+| H-1247 | That mapping is over the accounts the settings name, where the operator roads resolve over the accounts whose runtimes are published. | `launcher.py` 3346, against 3443 into 3444, with 3347, then 3349 into 3350, or 3352, then 3354 into 3355-3357 | package one hundred and thirty-one | folds into P131-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 10:00 UTC
