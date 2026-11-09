@@ -18,6 +18,9 @@ the others where it appears.
 - [What an account is](atoms/what-an-account-is.md) — a name that groups the requests, orders, holdings and queues kept about it.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [What a venue must offer](atoms/what-a-venue-must-offer.md) — Praxis writes down what it needs of any exchange as a list of named things with no code behind them, so the file says what must be answered to and nothing about how.
+- [How the adapter reckons its headroom](atoms/how-the-adapter-reckons-its-headroom.md) — the request allowance it believes it has used drops to zero all at once when its window closes rather than fading, and the per-account order allowance never expires here at all.
+- [What the adapter refuses to be told](atoms/what-the-adapter-refuses-to-be-told.md) — a permission it cannot read counts as denied, a timestamp without a zone throws while one left out passes, and a blank simulator address leaves the real venue in place.
+- [What closing the adapter does first](atoms/what-closing-the-adapter-does-first.md) — it marks itself closed and empties the connection field before closing the connection, so a task racing to ensure one refuses rather than building a connection nothing would track.
 - [What an execution report is held to](atoms/what-an-execution-report-is-held-to.md) — a report that claims a trade must carry the numbers proving it, and a report of anything else has those numbers taken away.
 - [What a non-trade report loses quietly](atoms/what-a-non-trade-report-loses-quietly.md) — the fields cleared from such a report and the fields worth complaining about are two lists that differ by one, so one field is changed with nothing said.
 - [What the venue's own records are held to](atoms/what-the-venues-own-records-are-held-to.md) — a trade is checked for its timestamp alone while a record of money moving is checked three ways, and one record insists on exactly one of its two fields.
@@ -651,7 +654,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 554
+Both sides are the subject, and Praxis is the side that has been written. 557
 articles exist. Of Praxis's own source files 83 are accounted for in full and 5 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -662,4 +665,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 18:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 19:00 UTC

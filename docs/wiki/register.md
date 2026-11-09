@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 553 not.**
+**6 of them reviewed, 556 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 108 — what the venue adapter reckons, refuses and closes
+
+Scope: the adapter's reckoning of the venue's allowance, its three small refusals
+and its closing, part of a module the ledger marks `partial` with two hundred and
+seventy-six of its five hundred and thirty-four statements uncited. Articles have
+what a venue adapter is and how an order is placed. How it reckons its headroom,
+what it refuses to be told, and what closing it does first are in no article. The
+sending, the parsing and the health tracking are left for packages of their own, and
+the cell stays `partial`.
+
+### Merge and promote, package 108
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1069 | The weight counted as used is whatever the last header said until a window has passed, and then it reads as nothing at all rather than decaying by degrees. | Promote. The reckoning is in no article, and an all-at-once expiry where a reader expects a fade is the finding |
+| Row H-1070 | A limit at or below nought answers full headroom, and otherwise the headroom is what is left over the limit held between nothing and everything. | Merge with H-1069 |
+| Row H-1071 | The order count is reckoned the same way from a count kept per account, read with nothing standing in, so an account that placed nothing reads as full. | Merge with H-1069. The two differing in what they forget is worth saying where both are visible |
+| Row H-1072 | A permission flag is read only from a mapping and raises where absent or not a true-or-false value, so an unreadable answer fails closed. | Promote. The three refusals are in no article, and each failing in the safe direction is what they have in common |
+| Row H-1073 | A moment without a zone raises where one left out entirely passes, and the simulated venue counts as enabled only where its address holds something other than spaces. | Merge with H-1072 |
+| Row H-1074 | Closing marks the adapter closed before it touches the session, and takes the session out of the field before closing it. | Promote. The order is in no article, and it is what stops a racing task building a session the adapter would not track |
+| Row H-1075 | Registering keeps credentials and makes a health tracker only where none stood, where unregistering removes the credentials outright and drops the tracker tolerantly. | Merge with H-1074. The two halves disagreeing about a missing account is the thing a reader would not expect |
+
+Three subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P108-01 | How the adapter reckons its headroom | written | [how-the-adapter-reckons-its-headroom.md](atoms/how-the-adapter-reckons-its-headroom.md) |
+| P108-02 | What the adapter refuses to be told | written | [what-the-adapter-refuses-to-be-told.md](atoms/what-the-adapter-refuses-to-be-told.md) |
+| P108-03 | What closing the adapter does first | written | [what-closing-the-adapter-does-first.md](atoms/what-closing-the-adapter-does-first.md) |
+
+### Re-seed, after writing package 108
+
+Four findings, three of them about an order or a direction of failure.
+
+| What it found | What came of it |
+|---|---|
+| The used weight expires all at once when its window closes, rather than fading. | Stated, with why the fade never shows under steady traffic: each fresh header replaces the figure and restarts the window |
+| Each of the three refusals fails in the safe direction — an unreadable permission reads as refused, an ambiguous moment raises, a blank simulator address leaves the real venue in place. | Stated as what they have in common, since each alone reads as an ordinary guard |
+| Closing sets the mark before touching the session and empties the field before closing it. | Stated as the two things it buys: a racing task refuses rather than building an untracked session, and a task holding the old session cannot find it to reuse |
+| Registering creates a health tracker only where none stood, and unregistering raises on missing credentials while dropping a missing tracker quietly. | Stated. The two halves disagree about a missing account, and re-registering keeps whatever the tracker had recorded |
+
+Worth recording: the headroom pair was nearly written as one rule applied twice. The
+two are reckoned by the same arithmetic and differ in what they forget — the weight
+expires with its window and the order count does not expire here at all. Writing
+them as one rule would have been shorter and would have hidden the difference, and
+the difference is the only part a reader could act on.
 
 ## Package 107 — what a submitting road refuses, and which orders a reconcile asks about
 
@@ -8377,6 +8424,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1066 | Three passes each begin by asking the manager for the account's state and answering where there is none. | `praxis/trading.py` 856 into 857-858, and 1656 into 1657-1658, and 1016 into 1017-1018 | package one hundred and seven | is P107-02 |
 | H-1067 | The live orders are walked over a copy of the mapping, and an order already at its end is passed over before the venue is asked anything. | `praxis/trading.py` 860, then 861 into 862 | package one hundred and seven | folds into P107-02 |
 | H-1068 | Each remaining order is asked after by its own name under its own symbol. | `praxis/trading.py` 864-869 | package one hundred and seven | folds into P107-02 |
+| H-1069 | The weight counted as used is whatever the last header said until a window has passed, and then it reads as nothing at all. | `binance_adapter.py` 349, then 350 into 351, or 352 | package one hundred and eight | is P108-01 |
+| H-1070 | A limit at or below nought answers full headroom, and otherwise the headroom is what is left over the limit held between nothing and everything. | `binance_adapter.py` 364 into 365, or 367 | package one hundred and eight | folds into P108-01 |
+| H-1071 | The order count is reckoned the same way from a count kept per account, read with nothing standing in. | `binance_adapter.py` 381, then 383 into 384, or 386 | package one hundred and eight | folds into P108-01 |
+| H-1072 | A permission flag is read only from a mapping and raises where absent or not a true-or-false value, and is otherwise handed back as it stands. | `binance_adapter.py` 139, then 140 into 141-142, or 144 | package one hundred and eight | is P108-02 |
+| H-1073 | A moment without a zone raises where one left out entirely passes, and the simulated venue counts as enabled only where its address holds something other than spaces. | `binance_adapter.py` 160 into 161-162, and 120 | package one hundred and eight | folds into P108-02 |
+| H-1074 | Closing marks the adapter closed before it touches the session, takes the session out of the field before closing it, and leaves a closed one alone. | `binance_adapter.py` 423 ahead of 424, then 425 then 426 ahead of 428, and 427 into 428 | package one hundred and eight | is P108-03 |
+| H-1076 | Entering as a context makes the session and answers the adapter itself, and leaving closes it whatever the reason. | `binance_adapter.py` 397, then 398, and 409 | package one hundred and eight | folds into P108-03 |
+| H-1075 | Registering keeps credentials and makes a health tracker only where none stood, where unregistering removes the credentials outright and drops the tracker tolerantly. | `binance_adapter.py` 444, then 445 into 446, against 460, then 461 into 462 | package one hundred and eight | folds into P108-03 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
 | H-1053 | A closing of one account's stream reports its own failure and goes no further, and an account the manager has lost is skipped. | `praxis/trading.py` 640 into 641-642, against 644-645 into 646-647, and 689 then 690-691 into 692-693 | package one hundred and five | folds into P105-02 |
@@ -8398,4 +8453,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 18:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 19:00 UTC
