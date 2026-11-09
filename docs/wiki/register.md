@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 577 not.**
+**6 of them reviewed, 579 not.**
 
 ## Package 1
 
@@ -856,6 +856,57 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 119 — how an action is routed into a request, and where the two request builders part
+
+Scope: the routing of a strategy's action into a request the checks can read, and the
+two builders an entry and an exit are sent to, part of a module the ledger marks
+`partial`. After the package before this one, four hundred and forty-one of its
+twelve hundred and one statements were uncited. Much of what the two builders work
+out is already written up one road at a time; the routing above them, and what the
+two builders share, are in no article. The rest of the module is left for the
+packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 119
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1146 | The kind of action is looked up in a fixed mapping and one it does not hold is dropped, where a change answers inside its own branch and an abort answers with nothing. | Promote. The routing is in no article, and an action of an unknown kind reaching no check is what the lookup decides |
+| Row H-1147 | The strategy's budget is worked out only after the change and the abort have answered. | Merge with H-1146. A change and an abort never reaching the money is the consequence |
+| Row H-1148 | An entry's builder is given a price to fall back on and a symbol, where an exit's is given the thing that turns a scrap to dust. | Merge with H-1146. Only an exit being able to end as dust follows from what each builder holds |
+| Row H-1149 | A change's symbol is the one an entry would use, whatever the command it amends was placed against. | Merge with H-1146 |
+| Row H-1150 | Both builders drop an action carrying no size. | Promote. What the two builders share is in no article, each road having been written up on its own |
+| Row H-1151 | Where the action names no side, an entry takes a buy and an exit a sell. | Merge with H-1150 |
+| Row H-1152 | An entry's size stays the action's own where no adapter was given. | Merge with H-1150 |
+| Row H-1153 | Which level an exit's refusal is reported at is chosen by whether the whole remainder was meant. | Merge with H-1150. It is the only report in Praxis whose level is chosen rather than written |
+| Row H-1154 | Both builders let a snapped amount replace the action's own, each after its own refusal has been weighed. | Merge with H-1150 |
+| Row H-1155 | Every road that builds a request estimates the fee as the sum times the rate. | Merge with H-1150 |
+
+Two subjects promote and eight rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P119-01 | How an action is routed into a request | written | [how-an-action-is-routed-into-a-request.md](atoms/how-an-action-is-routed-into-a-request.md) |
+| P119-02 | Where the two request builders part | written | [where-the-two-request-builders-part.md](atoms/where-the-two-request-builders-part.md) |
+
+### Re-seed, after writing package 119
+
+The module's busiest region was already written up road by road, so both subjects
+here are facts about the region rather than about any road in it.
+
+| What it found | What came of it |
+|---|---|
+| A change and an abort answer before the budget is worked out. | Stated. The budget article says a change carries nought; this says the money is never reached at all, which is a different fact about the same branch |
+| Only the exit's builder is handed the thing that turns a scrap to dust. | Stated as where the asymmetry comes from. Four articles describe the dusting and none says why an entry cannot end that way |
+| An exit has nothing to fall back on for a price, because its position always carries one. | Stated beside the entry's fallback, which is the thing it is unlike |
+| The level an exit's refusal is reported at is chosen rather than written, and it is the only such choice in Praxis. | Stated in the article without the uniqueness, which one line cannot show; the uniqueness is recorded here, measured by searching the tree for the form |
+
+Worth recording: the uniqueness of the chosen report level is a true finding that
+does not belong in an article, because the citation that would carry it does not
+exist — a single line shows the choice, and nothing shows that no other line makes
+one. The register is where a fact about the absence of a form lives, and the article
+states the consequence instead: a full close turned away for being too small is
+reported as news rather than as a problem.
 
 ## Package 118 — what each check is built holding, and how the watch keeps itself going
 
@@ -8979,7 +9030,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1143 | The flag is read as a tick begins and again as the next scan is scheduled. | `launcher.py` 2321, then 2322 into 2323, or 2325-2326, with 2313 into 2314 | package one hundred and eighteen | folds into P118-02 |
 | H-1144 | A failure out of a scan is caught and reported and the next scan scheduled all the same, and the timer is marked a daemon before it is started. | `launcher.py` 2327-2328, then 2330 into 2331, with 2316, then 2317, then 2318 | package one hundred and eighteen | folds into P118-02 |
 | H-1145 | A scan takes the moment once, gathers under the registry's lock, and works out the longest wait after that lock is let go. | `launcher.py` 2284, then 2286-2293, then 2298 | package one hundred and eighteen | folds into P118-02 |
+| H-1146 | The kind of action is looked up in a fixed mapping and one it does not hold is dropped, where a change answers inside its own branch and an abort answers with nothing. | `launcher.py` 1101, then 1102 into 1110, or 1112 into 1113-1124, or 1126 into 1127 | package one hundred and nineteen | is P119-01 |
+| H-1147 | The strategy's budget is worked out only after the change and the abort have answered. | `launcher.py` 1129-1132, past 1112 and 1126 | package one hundred and nineteen | folds into P119-01 |
+| H-1148 | An entry's builder is given a price to fall back on and a symbol, where an exit's is given the thing that turns a scrap to dust. | `launcher.py` 1134 into 1135-1145, against 1147-1156 | package one hundred and nineteen | folds into P119-01 |
+| H-1149 | A change's symbol is the one an entry would use, whatever the command it amends was placed against. | `launcher.py` 1121, against 1143 | package one hundred and nineteen | folds into P119-01 |
+| H-1150 | Both builders drop an action carrying no size. | `launcher.py` 1209 into 1217, and 1295 into 1303 | package one hundred and nineteen | is P119-02 |
+| H-1151 | Where the action names no side, an entry takes a buy and an exit a sell. | `launcher.py` 1172, against 1376 | package one hundred and nineteen | folds into P119-02 |
+| H-1152 | An entry's size stays the action's own where no adapter was given. | `launcher.py` 1219, past 1221 | package one hundred and nineteen | folds into P119-02 |
+| H-1153 | Which level an exit's refusal is reported at is chosen by whether the whole remainder was meant. | `launcher.py` 1324 | package one hundred and nineteen | folds into P119-02 |
+| H-1154 | Both builders let a snapped amount replace the action's own, each after its own refusal has been weighed. | `launcher.py` 1248-1249, and 1371-1372 | package one hundred and nineteen | folds into P119-02 |
+| H-1155 | Every road that builds a request estimates the fee as the sum times the rate. | `launcher.py` 1176, or 1252, and 1375 | package one hundred and nineteen | folds into P119-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 03:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 04:00 UTC

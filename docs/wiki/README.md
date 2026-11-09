@@ -275,6 +275,8 @@ the others where it appears.
 - [What a checkpoint holds](atoms/what-a-checkpoint-holds.md) — the saved picture covers money, risk, holdings and trading state while what each strategy kept for itself goes to separate files; a stopping host, a timer and sometimes a start each ask for one.
 - [What the thirty-day cut leaves](atoms/what-the-thirty-day-cut-leaves.md) — trimming the log goes by when each line was written, while the recent-loss figures rebuilt from what is left go by when the thing described happened, and the running total adds up what survived once repeats of one outcome are dropped.
 - [What the first stage weighs before the mode](atoms/what-the-first-stage-weighs-before-the-mode.md) — a name with space around it, a request worth nothing, and a strategy whose whole allowance is nothing are each turned away before trading state is looked at, while a request to close or to alter an order is named as exempt from the amount test and the allowance test rather than having to clear them.
+- [How an action is routed into a request](atoms/how-an-action-is-routed-into-a-request.md) — a strategy's instruction of an unknown kind is reported and dropped before any check sees it, an instruction to amend an order or to give one up is answered before the money is ever reached, and only the road an exit takes is handed anything able to write a scrap off.
+- [Where the two request builders part](atoms/where-the-two-request-builders-part.md) — an entry falls back on a provider for a price and is dropped where none can be had, while an exit always has the price its position was entered at, and the refusal of a full close is reported as news rather than as a problem.
 - [What settles a request before the first stage](atoms/what-settles-a-request-before-the-first-stage.md) — the name is fixed when the settings are read, while the money allowance is written as the order is put together — from two figures the settings already hold above zero, except on a request to alter an order, which is given no allowance at all.
 - [What an entry's sum is worked out from](atoms/what-an-entrys-sum-is-worked-out-from.md) — an order to buy carries either an amount of money or a quantity, and a quantity is trimmed to what the venue trades in before it is priced, which can make the order smaller than was asked for.
 - [What Praxis works out for an exit](atoms/what-praxis-works-out-for-an-exit.md) — before the checks see a request to close a holding, that holding is looked up, what is left of it after anything already in progress is computed, and a label is minted where none came.
@@ -675,7 +677,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 578
+Both sides are the subject, and Praxis is the side that has been written. 580
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -686,4 +688,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 03:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 04:00 UTC
