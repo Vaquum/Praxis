@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 624 not.**
+**6 of them reviewed, 626 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 143 — how a protection amend is driven to its end, and when an amend places no replacement
+
+Scope: the longest uncited routine in the corpus — the one that finishes an amend
+whose cancel the venue confirmed — part of a module the ledger marks `partial`. After
+the package before this one, ten hundred and eighty-three of its two thousand four
+hundred and eighty-seven statements were uncited, sixty-five of them in this one
+routine. It is in no article. The rest of the module is left for the packages after
+this, and the cell stays `partial`.
+
+### Merge and promote, package 143
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1334 | The routine asks the venue what the cancelled pair actually filled, and a venue failure there records the state unknown and abandons the amend. | Promote. The driving is in no article, and asking the venue rather than trusting the projections is what it is for |
+| Row H-1335 | Fills that will not reconcile park the amend as cancel-confirmed for the scan to retry, the first such pass stamping when the waiting began. | Merge with H-1334. Two parkings in deliberately different states: one says the venue could not be asked, the other that the books have not caught up |
+| Row H-1336 | Past the restore deadline the replacement is placed from what the venue said anyway, rather than parked again. | Merge with H-1334 |
+| Row H-1337 | The old pair is recorded cancelled where its order still stands locally, under the name the cancel returned or the one the local order carries. | Merge with H-1334 |
+| Row H-1338 | What is left to protect is what the entry delivered, less the exit's projected fills with the old pair's own taken back out, less what the venue said that pair filled. | Promote. The subtraction is in no article, and taking the old pair's projection back out is what stops it counting twice |
+| Row H-1339 | Nothing left to protect drops the bracket and places no replacement. | Merge with H-1338 |
+| Row H-1340 | A remainder below the venue's least amount, or worth less than its least sum at the take-profit price, drops the bracket too. | Merge with H-1338. Where the venue's rules are absent both minimums read as nothing, closing that ending off |
+| Row H-1341 | The replacement is recorded as submitted and the bracket marked so before any order goes out. | Merge with H-1338 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P143-01 | How a protection amend is driven to its end | written | [how-a-protection-amend-is-driven-to-its-end.md](atoms/how-a-protection-amend-is-driven-to-its-end.md) |
+| P143-02 | When an amend places no replacement | written | [when-an-amend-places-no-replacement.md](atoms/when-an-amend-places-no-replacement.md) |
+
+### Re-seed, after writing package 143
+
+The routine had to be split in two because its two halves answer different questions,
+and the same split the scheme resume needed five packages ago.
+
+| What it found | What came of it |
+|---|---|
+| Two parkings in two different states, one for a venue that could not be asked and one for books that have not caught up. | Stated as the pair, with the reason the states are kept apart: the watchdog for the unknown state would treat an under-projected position as unprotected |
+| Past the restore deadline the replacement goes out on the venue's word alone. | Stated. A gap in the books the balance reconciler will surface is preferred to leaving a position unprotected, which the deadline exists to choose between |
+| The remainder is worked out by taking the old pair's projected fills back out of the exit's projection before subtracting the venue's figure. | Stated as what stops them counting twice. The line is one expression and the double-count it avoids is invisible without naming both sources |
+| The replacement is recorded as submitted before any order goes out. | Stated plainly. What a crash in that window leaves is a record of a submission that never happened, which the article says and the routine does not |
+| Where the venue's rules are absent both tradable minimums read as nothing. | Stated. The dust ending cannot be reached at all in that case |
+
+Worth recording: this was the single largest uncited routine left in the corpus, and
+splitting it was not optional — the first half ends in three different states and the
+second half is a subtraction with three endings. Writing it as one article would have
+needed a sentence joining a venue query to a lot-size minimum, and there is none.
 
 ## Package 142 — two ways of asking what a command filled, and what a boot ends an unfinished scheme with
 
@@ -10327,7 +10374,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1331 | The figures written are the admitted totals, with the target the scheme's whole amount and the average price the admitted money over the admitted amount. | `execution_manager.py` 2712-2714, then 2715, then 2717-2718 | package one hundred and forty-two | folds into P142-02 |
 | H-1332 | A state change and an outcome are each written to the record and then applied, the command marked terminal between them. | `execution_manager.py` 2721-2730, then 2731, then 2732, then 2734-2744, then 2745, then 2746, then 2747 | package one hundred and forty-two | folds into P142-02 |
 | H-1333 | The outcome handed on carries the slices done as the cursor held to the total. | `execution_manager.py` 2757, then 2758 | package one hundred and forty-two | folds into P142-02 |
+| H-1334 | The routine asks the venue what the cancelled pair actually filled, and a venue failure there records the state unknown and abandons the amend. | `execution_manager.py` 9519-9525, then 9531, then 9543-9546, then 9547 into 9549-9552, then 9553, then 9554, then 9555, then 9564 | package one hundred and forty-three | is P143-01 |
+| H-1335 | Fills that will not reconcile park the amend as cancel-confirmed for the scan to retry. | `execution_manager.py` 9566-9570, then 9571, then 9572 into 9573, then 9575, then 9576 into 9577, then 9585 | package one hundred and forty-three | folds into P143-01 |
+| H-1336 | Past the restore deadline the replacement is placed from what the venue said anyway. | `execution_manager.py` 9596, against 9577-9585, past the test at 9576 | package one hundred and forty-three | folds into P143-01 |
+| H-1337 | The old pair is recorded cancelled where its order still stands locally. | `execution_manager.py` 9598 into 9599-9602, then 9604-9611 | package one hundred and forty-three | folds into P143-01 |
+| H-1338 | What is left to protect is what the entry delivered, less the exit's projected fills with the old pair's own taken back out, less what the venue said that pair filled. | `execution_manager.py` 9614 | package one hundred and forty-three | is P143-02 |
+| H-1339 | Nothing left to protect drops the bracket and places no replacement. | `execution_manager.py` 9616 into 9617, then 9624 | package one hundred and forty-three | folds into P143-02 |
+| H-1340 | A remainder below the venue's least amount, or worth less than its least sum at the take-profit price, drops the bracket too. | `execution_manager.py` 9626, then 9627, then 9628, then 9630 into 9631, then 9640 | package one hundred and forty-three | folds into P143-02 |
+| H-1341 | The replacement is recorded as submitted and the bracket marked so before any order goes out. | `execution_manager.py` 9642-9649, then 9650, then 9652 | package one hundred and forty-three | folds into P143-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 15:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 16:00 UTC
