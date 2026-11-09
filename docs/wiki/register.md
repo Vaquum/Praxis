@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 669 not.**
+**6 of them reviewed, 673 not.**
 
 ## Package 1
 
@@ -856,6 +856,98 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 167 — what a finished protection change leaves on the bracket, and what a failed replacement is looked for
+
+Scope: the writing over that makes a replacement pair the live one, and the asking that
+follows a replacement whose send failed, part of a module the ledger marks `partial`.
+After the package before this one, four hundred and ninety-one of its two thousand four
+hundred and eighty-seven statements were uncited. The endings are named by the article
+on changing protection's prices and neither subject is written through.
+
+### Merge and promote, package 167
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1519 | The bracket's live pair name and its three current prices are written over and the standing moved to active. | Promote. The adoption is in no article, and the gap between clearing the parked figures and writing these is the finding |
+| Row H-1520 | The fills the venue gave as it took the pair are recorded against the closing command, and only one the record answered with a place is carried into the figures. | Merge with H-1519 |
+| Row H-1521 | A replacement the venue reports as already ended writes the pair's name on the bracket and leaves the standing unknown, the prices staying as the old pair's. | Merge with H-1519 |
+| Row H-1522 | A send that fails for any of three reasons is followed by asking whether the pair is resting after all. | Promote. The asking is named as one ending elsewhere and its three answers are in no article |
+| Row H-1523 | An asking that cannot be answered leaves the standing unknown and remembers the replacement's name as one still owing. | Merge with H-1522 |
+| Row H-1524 | An answer saying the pair is nowhere has the bracket closed out as unprotected with both names handed over as candidates. | Merge with H-1522 |
+| Row H-1525 | An answer finding the pair treats it as the send's own, under the venue's list name and the legs it reports. | Merge with H-1522 |
+| Row H-1526 | That road reports no fills given at placement, where the road of a send that answered carries the venue's. | Merge with H-1522 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P167-01 | What a finished protection change leaves on the bracket | written | [what-a-finished-protection-change-leaves-on-the-bracket.md](atoms/what-a-finished-protection-change-leaves-on-the-bracket.md) |
+| P167-02 | What a failed protection replacement is looked for | written | [what-a-failed-protection-replacement-is-looked-for.md](atoms/what-a-failed-protection-replacement-is-looked-for.md) |
+
+### Re-seed, after writing package 167
+
+The first subject completes the pair started eight packages ago. That one said four
+figures are parked on the bracket and cleared on one road; this one says what is written
+in their place, and that the two happen fifty lines apart.
+
+| What it found | What came of it |
+|---|---|
+| Between clearing the parked figures and writing the current ones, the bracket still names the old pair and carries its prices. | Stated plainly, as the state the lines leave rather than a hazard |
+| A replacement already ended at placement writes the new name and leaves the old prices. | Stated. The name and the prices part company on exactly that road |
+| A pair found by asking after a failed send carries no placement fills. | Stated. The road of a send that answered carries whatever the venue gave |
+| The fills a pair gives as it is placed belong to the closing side of the trade. | Stated, from the command named on each fill |
+
+Worth recording: a first draft said the bracket named the new pair nowhere in that gap.
+It names the old one. The clearing and the writing touch different fields, and reading
+the clearing alone made an absence of something that was never cleared.
+
+## Package 166 — when protection in doubt is remediated rather than waited on, and how much a cancelled pair filled
+
+Scope: the deadline that ends the wait over a protection the venue will not confirm,
+and the venue's own count of what a cancelled pair filled, part of a module the ledger
+marks `partial`. After the package before this one, five hundred and five of its two
+thousand four hundred and eighty-seven statements were uncited. The wait is named as an
+ending by the watchdog's article and its measure is in none; the count is in no article.
+The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 166
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1511 | The wait is measured from the moment the doubt began against the restore deadline, and a wait short of it ends the pass. | Promote. The ending is named elsewhere and what ends it is in no article |
+| Row H-1512 | A bracket carrying no moment the doubt began at is left alone. | Merge with H-1511 |
+| Row H-1513 | What is left open is the entry's delivered figure less what the closing command has filled, and nothing left open means nothing done. | Merge with H-1511 |
+| Row H-1514 | Both figures are the record's own rather than the venue's. | Merge with H-1511 |
+| Row H-1515 | The list is asked for by its name, each leg asked after in turn, and the legs' figures summed. | Promote. The count is in no article, and nothing catching a venue failure is the finding |
+| Row H-1516 | Nothing here catches a venue failure, so one reaches the caller, which turns it into the pair's standing becoming unknown. | Merge with H-1515 |
+| Row H-1517 | The same two questions asked to find out whether a leg is still working answer a failure as a leg still working rather than letting it out. | Merge with H-1515 |
+| Row H-1518 | This figure goes on to size what replaces the pair, where that answer decides whether a close may go out at all. | Merge with H-1515 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P166-01 | When protection in doubt is remediated rather than waited on | written | [when-protection-in-doubt-is-remediated-rather-than-waited-on.md](atoms/when-protection-in-doubt-is-remediated-rather-than-waited-on.md) |
+| P166-02 | How much a cancelled protection pair filled | written | [how-much-a-cancelled-protection-pair-filled.md](atoms/how-much-a-cancelled-protection-pair-filled.md) |
+
+### Re-seed, after writing package 166
+
+The two subjects are the two ends of one venue question. The counting asks the venue and
+lets a failure out; the remediation is what happens after enough of those failures, and
+it works from the record because the venue's answer never came.
+
+| What it found | What came of it |
+|---|---|
+| Two routines ask the venue the same two questions and treat a failure oppositely. | Stated in the second article, with what each answer goes on to do |
+| The remediation's figures are the record's own. | Stated as a consequence rather than a choice: this is the road taken when the venue could not be asked |
+| A bracket with no moment stamped is left alone. | Stated. Nothing on this road stamps one |
+| A wait short of the deadline ends the pass rather than the doubt. | Stated. The bracket is looked at again until the deadline passes or the asking settles it |
+
+Worth recording: a failure policy is not a property of a question. The same two calls
+carry a swallowed failure in one routine and an escaping one in the other, and only the
+caller's use of the answer explains it.
 
 ## Package 165 — which thread the manager will take work from, and what a second budget offered for a command does
 
@@ -11571,7 +11663,23 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1508 | A budget naming neither a size nor a spend is not recorded at all, and one offered where none is held is written under the command's name. | `execution_manager.py` 2383, then 2384, or 2409 | package one hundred and sixty-five | folds into P165-02 |
 | H-1509 | A second budget differing from the first is reported only where the caller asked for conflicts, and the budget is read back by the figure that caps a fill. | `execution_manager.py` 2389-2391, against 2477, read from 2428 | package one hundred and sixty-five | folds into P165-02 |
 | H-1510 | One road of the four asks for conflicts, the one installing a command. | `execution_manager.py` 2346, then 2350, against 1129, and 1158, and 4927 | package one hundred and sixty-five | folds into P165-02 |
+| H-1511 | The wait is measured from the moment the doubt began against the restore deadline, and a wait short of it ends the pass. | `execution_manager.py` 7511, then 7512 into 7513 | package one hundred and sixty-six | is P166-01 |
+| H-1512 | A bracket carrying no moment the doubt began at is left alone. | `execution_manager.py` 7508, then 7509 | package one hundred and sixty-six | folds into P166-01 |
+| H-1513 | What is left open is the entry's delivered figure less what the closing command has filled, and nothing left open means nothing done. | `execution_manager.py` 7517, then 7518, then 7519, then 7520 into 7521, or 7523-7529, the names gathered at 10039 | package one hundred and sixty-six | folds into P166-01 |
+| H-1514 | Both figures are the record's own rather than the venue's. | `execution_manager.py` 7517, and 7518, against 9935-9946 | package one hundred and sixty-six | folds into P166-01 |
+| H-1515 | The list is asked for by its name, each leg asked after in turn, and the legs' figures summed. | `execution_manager.py` 9935, then 9939, then 9940, then 9941, then 9944, then 9946 | package one hundred and sixty-six | is P166-02 |
+| H-1516 | Nothing here catches a venue failure, so one reaches the caller, which turns it into the pair's standing becoming unknown. | `execution_manager.py` 9935, against 9547, then 9553, then 9555 | package one hundred and sixty-six | folds into P166-02 |
+| H-1517 | The same two questions asked to find out whether a leg is still working answer a failure as a leg still working rather than letting it out. | `execution_manager.py` 7544, and 7548, against 9935, and 9941, the failure answered at 7555, then 7561 | package one hundred and sixty-six | folds into P166-02 |
+| H-1518 | This figure goes on to size what replaces the pair, where that answer decides whether a close may go out at all. | `execution_manager.py` 9544-9546, carried to 9566-9570, against 7628, then 7636 | package one hundred and sixty-six | folds into P166-02 |
+| H-1519 | The bracket's live pair name and its three current prices are written over and the standing moved to active, the pair recorded active first. | `execution_manager.py` 9790-9796, then 9797, then 9798, then 9799, then 9800, then 9801, then 9802, the parked four cleared before it at 9744, then 9745, then 9746, then 9747 | package one hundred and sixty-seven | is P167-01 |
+| H-1520 | The fills the venue gave as it took the pair are recorded against the closing command, and only one the record answered with a place is carried into the figures. | `execution_manager.py` 9769, then 9770-9785, the command named at 9777, then 9786, then 9787 into 9788 | package one hundred and sixty-seven | folds into P167-01 |
+| H-1521 | A replacement the venue reports as already ended writes the pair's name on the bracket and leaves the standing unknown, the prices staying as the old pair's. | `execution_manager.py` 9749, then 9756, then 9757, then 9758, then 9759, then 9767, against 9799 | package one hundred and sixty-seven | folds into P167-01 |
+| H-1522 | A send that fails for any of three reasons is followed by asking whether the pair is resting after all. | `execution_manager.py` 9682, naming the three, then 9683, then 9685, then 9686 | package one hundred and sixty-seven | is P167-02 |
+| H-1523 | An asking that cannot be answered leaves the standing unknown and remembers the replacement's name as one still owing. | `execution_manager.py` 9690, then 9695, then 9696, then 9697, then 9706 | package one hundred and sixty-seven | folds into P167-02 |
+| H-1524 | An answer saying the pair is nowhere has the bracket closed out as unprotected with both names handed over as candidates. | `execution_manager.py` 9708, then 9709-9712, then 9714 | package one hundred and sixty-seven | folds into P167-02 |
+| H-1525 | An answer finding the pair treats it as the send's own, under the venue's list name and the legs it reports. | `execution_manager.py` 9716-9723, then 9725, then 9728 | package one hundred and sixty-seven | folds into P167-02 |
+| H-1526 | That road reports no fills given at placement, where the road of a send that answered carries the venue's. | `execution_manager.py` 9728, against 9730, then 9737, then 9738 | package one hundred and sixty-seven | folds into P167-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 04:00 UTC

@@ -149,6 +149,8 @@ the others where it appears.
 - [The remainder subtraction written twice](atoms/the-remainder-subtraction-written-twice.md) — one subtraction decides how much of a holding stands unprotected, written in two places, and the same arithmetic leads to closing the holding out on one road and to protecting it afresh on the other.
 - [How a protection's fills are brought up to the venue's figure](atoms/how-a-protections-fills-are-brought-up-to-the-venues-figure.md) — the venue's own trades are read back when it has filled more of a pair than Praxis counted, and what the reading cannot settle holds the change.
 - [What a protection change writes on the bracket](atoms/what-a-protection-change-writes-on-the-bracket.md) — the name and prices of the replacement pair are parked on the trade and read back off it, and only a recorded send clears them away.
+- [What a finished protection change leaves on the bracket](atoms/what-a-finished-protection-change-leaves-on-the-bracket.md) — the replacement pair becomes the live one by writing over the figures describing the old one, and one ending writes the name but keeps the old prices.
+- [What a failed protection replacement is looked for](atoms/what-a-failed-protection-replacement-is-looked-for.md) — a send that fails is not believed; the venue is asked whether the pair is resting after all, and the answer picks one of three endings.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
 - [The three kinds of orphan a boot finds](atoms/the-three-kinds-of-orphan-a-boot-finds.md) — a command the record shows starting and never finishing is sorted by what the record holds, and a send that failed counts as finishing one just as a send that succeeded does.
@@ -182,6 +184,8 @@ the others where it appears.
 - [How a new ladder grid is renumbered](atoms/how-a-new-ladder-grid-is-renumbered.md) — rungs too small to trade are dropped and the survivors numbered without gaps, which is what lets the walk that finds them again run from nothing upwards without stopping early.
 - [How a ladder's rungs are found again](atoms/how-a-ladders-rungs-are-found-again.md) — a grid of resting orders is recovered by working out what each rung was called and asking the account whether that order is there, so a rung the venue accepted but the record never saw is still found.
 - [What a ladder amend caught mid-flight resumes as](atoms/what-a-ladder-amend-caught-mid-flight-resumes-as.md) — a price change interrupted by a restart comes back as a change still under way, holding rungs from both the old grid and the new, so the watchdog drives it on from where it stopped.
+- [When protection in doubt is remediated rather than waited on](atoms/when-protection-in-doubt-is-remediated-rather-than-waited-on.md) — the wait over a protection the venue will not confirm runs to a deadline, and what is closed afterwards is sized from the record rather than the venue.
+- [How much a cancelled protection pair filled](atoms/how-much-a-cancelled-protection-pair-filled.md) — the venue is asked half by half what the pair it has just taken down filled, and a venue that will not answer leaves no figure and no change.
 - [How a protection in doubt is re-confirmed](atoms/how-a-protection-in-doubt-is-re-confirmed.md) — a protective pair the venue says is working is written back as live under the version it already had, and an order missing from the account's own records is a reason to wait rather than to write.
 - [What retiring a ladder's old grid counts](atoms/what-retiring-a-ladders-old-grid-counts.md) — the rungs being retired are found by working their names out again, and the change is marked as committed on the strength of what is about to be attempted rather than what the venue confirms.
 - [How a ladder's change moves from one phase to the next](atoms/how-a-ladders-change-moves-from-one-phase-to-the-next.md) — the old rungs come down and the new ones go up in two steps, and a mark on the work says which step a later attempt should start at.
@@ -767,7 +771,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 670
+Both sides are the subject, and Praxis is the side that has been written. 674
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -778,4 +782,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 03:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 04:00 UTC
