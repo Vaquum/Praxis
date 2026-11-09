@@ -2,12 +2,12 @@
 row: N6-05
 baseline: 49aa659
 created: 2026-10-26 16:40 UTC
-modified: 2026-10-26 21:30 UTC
+modified: 2026-11-13 17:30 UTC
 evidence:
   - claim: "A stopping host puts each outcome it reads on one of two roads, by whether its identifier is on the list the stopping still has outstanding"
     source: "`nexus/startup/shutdown_sequencer.py` 655-657 against 659-663, the list built at 615 and shortened at 663"
   - claim: "The second road ends at a handler the launcher wired"
-    source: "`nexus/startup/shutdown_sequencer.py` 702, the handler passed at `praxis/launcher.py` 4026"
+    source: "`nexus/startup/shutdown_sequencer.py` 701-702, the handler passed at `praxis/launcher.py` 4026"
   - claim: "The list holds every sale whose record was kept and every abort whose send came back, the latter under the identifier of the command that abort names"
     source: "`nexus/startup/shutdown_sequencer.py` 461 and 592 after 588-590, the identifier required of the request at `nexus/strategy/action.py` 240-243"
   - claim: "So a command sent long before the stopping, where the stopping aborted it, is on the first road"

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 489 not.**
+**6 of them reviewed, 493 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 83 — what a stopping host builds, sends and waits on
+
+Scope: the sequencer that brings a host down, which the ledger marks `partial` with
+sixty-seven of its two hundred and fifty-five statements uncited. Articles have what
+a stopping host halts first, what it waits for, what it saves of its strategies,
+what a failed save costs it, and where an outcome outside the wait is sent. What it
+refuses to be built with, what its wait takes off the pending set, how its two exit
+builders differ on the same absence, and what each of its submissions records are in
+no article.
+
+### Merge and promote, package 83
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-911 | Five of the things a sequencer is built with must be present and of their own kind, a configuration may be absent, and where both a configuration and an account name are given the two must name the same account. | Promote. What the building refuses is in no article, and three builds being allowed while a fourth is refused is the shape of it |
+| Row H-912 | A wait with nothing pending, no road inbound or no span answers at once with the set it was given; otherwise it works on a copy against a deadline taken as the wait begins. | Promote. The wait's own shape is in no article, and a deadline weighed before an outcome is taken rather than after one is applied is what lets the last application overrun it |
+| Row H-913 | A fill and an ending are both applied, and only an ending takes its command off the set. | Merge with H-912. It is the thing a reader would get wrong about a partly filled command |
+| Row H-914 | The builder of the request answers with nothing where no trade is named, where the trade is not held, and where there is no configuration, reporting the first two and not the third; the builder of the order raises on the same absences. | Promote. The pair is in no article, and the same absence being a quiet nothing in one and a raise in the other decides whether a host skips a position or stops stopping |
+| Row H-915 | Both submissions do nothing at all where either the road out or the configuration is missing, while the escalation of what is still pending reports before it returns. | Promote. What each submission leaves behind is in no article, and the silent road being the sending while the noisy one is the giving up is worth stating plainly |
+| Row H-916 | A sent exit raises the position's pending sale under the positions lock, or under no lock where none was given, and is kept under the name that came back. | Merge with H-915 |
+
+Four subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N83-01 | What a sequencer refuses to be built with | written | [what-a-sequencer-refuses-to-be-built-with.md](atoms/what-a-sequencer-refuses-to-be-built-with.md) |
+| N83-02 | What the wait for outcomes takes off the pending set | written | [what-the-wait-for-outcomes-takes-off-the-pending-set.md](atoms/what-the-wait-for-outcomes-takes-off-the-pending-set.md) |
+| N83-03 | The same absence in the two exit builders | written | [the-same-absence-in-the-two-exit-builders.md](atoms/the-same-absence-in-the-two-exit-builders.md) |
+| N83-04 | What each shutdown submission records | written | [what-each-shutdown-submission-records.md](atoms/what-each-shutdown-submission-records.md) |
+
+### Re-seed, after writing Nexus package 83
+
+One claim was cut for restating a row already in the corpus, found by the same
+search as the last two packages.
+
+| What it found | What came of it |
+|---|---|
+| "A sent abort puts the name it was given on that list, never one that came back" is already a row, under where an outcome outside the wait is sent, which has the abort's name on the list and what it names. | The claim keeps the exit half, which was new, and links the abort half. The asymmetry is still stated, resting on one new claim and one old one |
+| Eleven statements were left over after the four articles: a step of the ordered sequence, a guard around a handoff, three readings into names of their own, the making of a folder, a flag that anything was written, and the quiet answer where nothing is pending. | Each went into the article that already owned its subject, by widening a citation. One needed a short section of its own, in the article on the wait |
+
+Worth recording: the overlap search is now finding something in three packages
+running, and in all three the overlap was a claim about the *same lines* phrased
+differently enough that nothing but a line search would catch it. Searching the
+corpus for the words would have missed every one.
+
+Six statements of the module are left uncited and are an exclusion rather than work
+outstanding: all six are log calls, which the gate refuses as evidence for a claim.
 
 ## Nexus package 82 — what the first stage holds its hooks to
 
@@ -7100,8 +7148,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-908 | A change asks a provider for the commands it may name where one was given and otherwise reads the captured set, while a stop has no provider. | `intake_stage.py` 289-293, against 321 | package eighty-two | folds into N82-03 |
 | H-909 | The mode is read off the state two levels deep, and a mode that is neither halted nor reduce-only answers with nothing. | `intake_stage.py` 356, and 387 | package eighty-two | recorded; what-the-halted-mode-turns-away states it |
 | H-910 | A repeated entry's command name is read into a name of its own before it is weighed. | `intake_stage.py` 161 into 162-168 | package eighty-two | recorded; the-window-that-turns-a-repeated-entry-away states it |
+| H-911 | Five of the things a sequencer is built with must be present and of their own kind, a configuration may be absent, and where both a configuration and an account name are given the two must name the same account. | `shutdown_sequencer.py` 118 into 119-120, or 122 into 123-124, or 126 into 127-128, or 130 into 131-132, or 134 into 135-136, against 138 into 139-140, and 142-146 into 147-151 | package eighty-three | is N83-01 |
+| H-912 | A wait with nothing pending, no road inbound or no span answers at once with the set it was given; otherwise it works on a copy against a deadline taken as the wait begins. | `shutdown_sequencer.py` 619 into 620, or 643 into 644, against 646 and 647 and 649 | package eighty-three | is N83-02 |
+| H-913 | A fill and an ending are both applied, and only an ending takes its command off the set. | `shutdown_sequencer.py` 659-660, against 662-663 | package eighty-three | folds into N83-02 |
+| H-914 | The builder of the request answers with nothing on three roads, reporting two of them; the builder of the order raises on the same absences. | `shutdown_sequencer.py` 536 into 537-538, or 540-541 into 542-547, or 549 into 550, against 491 into 492-493, or 495 into 496-497 | package eighty-three | is N83-03 |
+| H-915 | Both submissions do nothing at all where either the road out or the configuration is missing, while the escalation of what is still pending reports before it returns. | `shutdown_sequencer.py` 391 into 392, and 574 into 575, against 780 into 781-785 | package eighty-three | is N83-04 |
+| H-916 | A sent exit raises the position's pending sale under the positions lock, or under no lock where none was given, and is kept under the name that came back. | `shutdown_sequencer.py` 445-448 into 455-458, the lock chosen at 450-454, the name kept at 460 then 461 | package eighty-three | folds into N83-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 18:00 UTC

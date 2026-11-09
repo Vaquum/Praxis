@@ -436,6 +436,10 @@ the others where it appears.
 - [What a strategy is handed when it is asked to stop](atoms/what-a-strategy-is-handed-when-it-is-asked-to-stop.md) — the holdings it owns, the money it still has room for, and the state trading is in, with its own settings arriving empty.
 - [The abort a host sends as it stops](atoms/the-abort-a-host-sends-as-it-stops.md) — a request to drop an order already handed over, naming it by a label the strategy itself supplies.
 - [What a stopping host waits for](atoms/what-a-stopping-host-waits-for.md) — it keeps a list as it sends and reads replies until that list is clear; should a set time pass with entries left, it tries to drop them and reads once more for half as long before going down regardless.
+- [What a sequencer refuses to be built with](atoms/what-a-sequencer-refuses-to-be-built-with.md) — building the thing that brings a host down insists on five pieces being present and of the right sort, allows the settings to be absent, and refuses only one combination: the account named twice and named differently.
+- [What the wait for outcomes takes off the pending set](atoms/what-the-wait-for-outcomes-takes-off-the-pending-set.md) — the host waits for answers on what it still owes, checks the clock before taking each answer rather than after acting on one, and strikes a command off only when an answer ends it, so a partly filled one keeps the wait open.
+- [The same absence in the two exit builders](atoms/the-same-absence-in-the-two-exit-builders.md) — a closing instruction with no trade named is quietly skipped by the first builder and throws in the second, so the first decides which holdings are even attempted and the second trusts what it is handed.
+- [What each shutdown submission records](atoms/what-each-shutdown-submission-records.md) — with no way out or no settings, the sending does nothing and says nothing while the giving up says so; a sent closing raises the holding's reserved-for-sale amount and is filed under the name the far side gave back.
 - [Where an outcome outside the wait is sent](atoms/where-an-outcome-outside-the-wait-is-sent.md) — a reply arrives for an order the shutdown is not watching, and a second route hands it to the code that keeps the books, which records it against the order where it has a file on one, and otherwise asks for the money back if the reply is a final one.
 - [The name an order comes back with](atoms/the-name-an-order-comes-back-with.md) — the label the other side answers with when an order is handed over, and when a label that differs from what was asked for is treated as a failure.
 - [Which name a command is kept under](atoms/which-name-a-command-is-kept-under.md) — an order is filed under either the label the sender chose or the label the other side answered with, and which of those applies was fixed long before the order went.
@@ -587,15 +591,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 490
+Both sides are the subject, and Praxis is the side that has been written. 494
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 61 are accounted for in full and 3 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 62 are accounted for in full and 2 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 17:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 18:00 UTC

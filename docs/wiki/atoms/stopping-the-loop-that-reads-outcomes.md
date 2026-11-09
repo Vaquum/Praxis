@@ -2,10 +2,10 @@
 row: N6-07
 baseline: 49aa659
 created: 2026-10-26 20:10 UTC
-modified: 2026-10-26 20:10 UTC
+modified: 2026-11-13 17:30 UTC
 evidence:
   - claim: "The loop reading outcomes is the last of the three the stopping sequence calls a stop on, and that call comes before any strategy is asked"
-    source: "`nexus/startup/shutdown_sequencer.py` 186 after 184-185 and before 187"
+    source: "`nexus/startup/shutdown_sequencer.py` 186 after 184-185 and before 187-189"
   - claim: "Its worker takes outcomes off the same queue the stopping's own waiting will read from, and the stop is called before that waiting starts"
     source: "`nexus/core/outcome_loop.py` 211 reached from 379-382, against `nexus/startup/shutdown_sequencer.py` 650, the stop at 186 before 189"
   - claim: "The stop raises a flag the worker reads once per turn, and waits for the worker to come out, for a span the stopping leaves to the loop itself"

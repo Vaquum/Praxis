@@ -2,14 +2,14 @@
 row: N6-04
 baseline: 49aa659
 created: 2026-10-26 16:30 UTC
-modified: 2026-10-26 18:30 UTC
+modified: 2026-11-13 17:30 UTC
 evidence:
   - claim: "The wait is over the identifiers the sending recorded, which is every abort that went and every sale whose record against the position was built"
     source: "`nexus/startup/shutdown_sequencer.py` 614-615 over 592 and 461, against 443"
   - claim: "It reads outcomes off a queue, each read waiting a short while of its own for one to arrive"
     source: "`nexus/startup/shutdown_sequencer.py` 650 into `nexus/infrastructure/praxis_connector/praxis_inbound.py` 42-45"
   - claim: "A fill or an ending is worked through against the host's figures, which move only where that identifier belongs to a sale whose record was kept and a processor is wired"
-    source: "`nexus/startup/shutdown_sequencer.py` 659-660 into 768, past 752-754 and 756-765, the record written at 460"
+    source: "`nexus/startup/shutdown_sequencer.py` 659-660 into 767-768, past 749-750 and 752-754 and 756-765, the record written at 460"
   - claim: "An ending strikes its identifier off whether the figures moved or not, so an abort's ending clears the wait and moves nothing"
     source: "`nexus/startup/shutdown_sequencer.py` 662-663 against 752-754, an abort recorded at 592 with no record written for it"
   - claim: "The reading goes on until nothing is left outstanding or a deadline passes"

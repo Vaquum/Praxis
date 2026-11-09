@@ -2,10 +2,10 @@
 row: N7-12
 baseline: 49aa659
 created: 2026-10-27 23:30 UTC
-modified: 2026-10-27 23:30 UTC
+modified: 2026-11-13 17:30 UTC
 evidence:
   - claim: "The directory is made where needed, and a failure to make it ends the writing for every strategy at once"
-    source: "`nexus/startup/shutdown_sequencer.py` 836 against 837-839"
+    source: "`nexus/startup/shutdown_sequencer.py` 835-836 against 837-839"
   - claim: "A write that fails on the disk is logged and the rest are still tried"
     source: "`nexus/startup/shutdown_sequencer.py` 860-861 over the writing at 854-858"
   - claim: "The failure lands on a temporary file, so the file that strategy had before is left as it was"
@@ -21,7 +21,7 @@ evidence:
   - claim: "The timer that would otherwise write one was stopped before the sequence began, though a turn already under way still writes"
     source: "`praxis/launcher.py` 4006 before 4009, the turn running on at `nexus/infrastructure/snapshot_scheduler.py` 119-123 into 147"
   - claim: "Where anything was written, the directory itself is pushed to the disk too, and a failure at that is logged and passed over"
-    source: "`nexus/startup/shutdown_sequencer.py` 863-869 against 870-871"
+    source: "`nexus/startup/shutdown_sequencer.py` 841 set at 859, read at 863 into 864-869 against 870-871"
 ---
 # What a failed save costs the stopping
 
