@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 689 not.**
+**6 of them reviewed, 691 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 176 — what rescuing a protective pair by its list name answers, and what hearing a protection has ended does
+
+Scope: the look-up that follows a protective pair's failed send, and what is done on
+hearing from the venue that a pair has ended, part of a module the ledger marks
+`partial`. After the package before this one, three hundred and seventy-one of its two
+thousand four hundred and eighty-seven statements were uncited. Neither subject is in an
+article.
+
+### Merge and promote, package 176
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1591 | Three roads answer nothing — the venue not knowing the list, the asking failing, and the list reported refused — and nothing has the entry remediated as unprotected. | Promote. The look-up is in no article, and three unlike failures answering alike is the finding |
+| Row H-1592 | A list reported as having all its legs done has its standing worked out from those legs, and anything else stands as open. | Merge with H-1591 |
+| Row H-1593 | The answer carries the venue's own list name, the standing, the legs' names and no placement fills. | Merge with H-1591 |
+| Row H-1594 | The list is asked after by the name it was sent under, reached only for a pair rather than a single order. | Merge with H-1591 |
+| Row H-1595 | A state-unknown is recorded before the bracket's standing is moved, and that record is what a restart reads. | Promote. The hearing is in no article, and the record going first is the finding |
+| Row H-1596 | The record names the pair's current name as both the old one and the new. | Merge with H-1595 |
+| Row H-1597 | The version used is the standing one or the first, whichever is greater. | Merge with H-1595 |
+| Row H-1598 | A scan over protection is then asked for. | Merge with H-1595 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P176-01 | What rescuing a protective pair by its list name answers | written | [what-rescuing-a-protective-pair-by-its-list-name-answers.md](atoms/what-rescuing-a-protective-pair-by-its-list-name-answers.md) |
+| P176-02 | What hearing a protection has ended does | written | [what-hearing-a-protection-has-ended-does.md](atoms/what-hearing-a-protection-has-ended-does.md) |
+
+### Re-seed, after writing package 176
+
+The first subject makes four readings of the venue about one protective pair, counting
+the three written in earlier packages. This one is the only one where a refusal and an
+unanswerable question give the same answer.
+
+| What it found | What came of it |
+|---|---|
+| A refusal and a failed asking both answer nothing, and nothing remediates the entry. | Stated. The caller cannot tell the two apart, and treats them alike |
+| The answer carries no placement fills, whatever the pair filled. | Stated. Those arrive by the legs' names rather than the list's |
+| The doubt is recorded before it is believed. | Stated, with what the restart takes from that record |
+| The record names one name twice. | Stated beside the watchdog's reading, which asks about a name appearing twice once |
+
+Worth recording: naming the same name as both the old and the new is not redundancy but
+shape — the record an ending writes is the same shape as the record an amend writes, so
+one reader serves both. The register notes it because reading either routine alone makes
+the duplication look like an oversight.
 
 ## Package 175 — what a scheme's settings are rebuilt from, and the entry report a restart makes good
 
@@ -12112,7 +12158,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1588 | The bracket is taken off the live brackets before the report is made. | `execution_manager.py` 4746, then 4752 | package one hundred and seventy-five | folds into P175-02 |
 | H-1589 | The figures are the admitted totals, with an average price only where something has filled and no reason. | `execution_manager.py` 4790-4792, then 4797-4808, the reason left empty at 4807 | package one hundred and seventy-five | folds into P175-02 |
 | H-1590 | It is reached only where the entry order has ended and filled above nothing. | `execution_manager.py` 4743, then 4748, then 4752 | package one hundred and seventy-five | folds into P175-02 |
+| H-1591 | Three roads answer nothing — the venue not knowing the list, the asking failing, and the list reported refused — and nothing has the entry remediated as unprotected. | `execution_manager.py` 5586, then 5594, or 5595, then 5604, or 5606, then 5614, reaching 4983, then 4990-4995, then 4997 | package one hundred and seventy-six | is P176-01 |
+| H-1592 | A list reported as having all its legs done has its standing worked out from those legs, and anything else stands as open. | `execution_manager.py` 5616, then 5617-5619, or 5620, then 5621 | package one hundred and seventy-six | folds into P176-01 |
+| H-1593 | The answer carries the venue's own list name, the standing, the legs' names and no placement fills. | `execution_manager.py` 5634-5641, the fills left empty at 5637 | package one hundred and seventy-six | folds into P176-01 |
+| H-1594 | The list is asked after by the name it was sent under, reached only for a pair rather than a single order. | `execution_manager.py` 5581, then 5582-5585, reached from 5513, then 5514 | package one hundred and seventy-six | folds into P176-01 |
+| H-1595 | A state-unknown is recorded before the bracket's standing is moved and the moment stamped, and that record is what a restart reads. | `execution_manager.py` 6845, then 6861, then 6862, against 1779, then 1780, then 1787, the names read at 1837, and 1838 | package one hundred and seventy-six | is P176-02 |
+| H-1596 | The record names the pair's current name as both the old one and the new, where the watchdog asks about a name appearing twice once. | `execution_manager.py` 6845-6857, the two names set at 6855, and 6856, against 7366-7373 | package one hundred and seventy-six | folds into P176-02 |
+| H-1597 | The version used is the standing one or the first, whichever is greater. | `execution_manager.py` 6837-6839 | package one hundred and seventy-six | folds into P176-02 |
+| H-1598 | A scan over protection is then asked for. | `execution_manager.py` 6863 | package one hundred and seventy-six | folds into P176-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 08:30 UTC
