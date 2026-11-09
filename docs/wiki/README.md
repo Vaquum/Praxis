@@ -275,6 +275,9 @@ the others where it appears.
 - [When the store writes without its locks](atoms/when-the-store-writes-without-its-locks.md) — the part that saves state is handed the locks covering what it reads only after the start has already saved once, so that early save runs with none of them held.
 - [Which of the store's writes take which locks](atoms/which-of-the-stores-writes-take-which-locks.md) — the saves it makes differ in what they lock: a save of the whole state holds the locks over what it reads, while a save of a single event holds none itself and leans on its caller to hold part of them.
 - [What the walk that lets marks go cannot reach](atoms/what-the-walk-that-lets-marks-go-cannot-reach.md) — the notes saying an instruction's figures are unsaved are cleared from a list copied before the save begins, so a note added while that save runs is not looked at by it; that clearing is the only thing anywhere that removes a note.
+- [How a value is written out and read back](atoms/how-a-value-is-written-out-and-read-back.md) — exact decimal figures go to storage as text and are rebuilt from that text, so no precision is lost, while anything the writer cannot handle throws rather than being stored in some other shape.
+- [The three shapes a coercion looks inside](atoms/the-three-shapes-a-coercion-looks-inside.md) — a field that allows several types always becomes the first of them, a list or pair turns every item into the first type it names, and a nested record keeps only the fields it still declares.
+- [How an event is rebuilt from what was stored](atoms/how-an-event-is-rebuilt-from-what-was-stored.md) — a stored event whose type the code no longer has stops the read, while a stored field the type no longer declares is dropped without a word, so stale records fail loudly and stale fields vanish quietly.
 - [What the money's lock is doing when a result is written](atoms/what-the-moneys-lock-is-doing-when-a-result-is-written.md) — the line recording what a sale came to is written with that lock held by no one, reached two ways: where the sale frees money set aside, the lock is handed back as the freeing finishes; where it frees none, nothing reaches for the lock at all.
 - [What a write of the whole state waits on](atoms/what-a-write-of-the-whole-state-waits-on.md) — once the locks covering the account have been handed over, saving the whole picture takes whichever of them the money works under, so it waits on whichever of the money's own jobs is holding it; the job that sets money aside holds it from the moment it takes it until it answers.
 - [The wrapper every strategy sits behind](atoms/the-wrapper-every-strategy-sits-behind.md) — each strategy is wrapped on its own, and that wrapper holds a lock which makes the strategy answer one thing at a time, while two different strategies can be answering at the same moment.
@@ -616,7 +619,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 519
+Both sides are the subject, and Praxis is the side that has been written. 522
 articles exist. Of Praxis's own source files 81 are accounted for in full and 7 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -627,4 +630,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 03:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 04:00 UTC

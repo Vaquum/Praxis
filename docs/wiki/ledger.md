@@ -45,7 +45,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/iceberg_params.py` | full | P2-22 |
 | `praxis/core/plan_even_slices.py` | full | P10-03, P16-02, P2-19 |
 | `praxis/core/plan_weighted_slices.py` | full | P18-02, P2-19, P4-08, P4-52 |
-| `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61 |
+| `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61, P93-01, P93-02, P93-03 |
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | N2-07, P11-01, P11-02, P11-03, P2-13, P2-26 |
 | `praxis/core/estimate_slippage.py` | full | P1-06, P3-03 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 04:00 UTC

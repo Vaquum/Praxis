@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 518 not.**
+**6 of them reviewed, 521 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 93 — how the spine writes a value and reads it back
+
+Scope: the turning of an event into bytes and back, part of a module the ledger
+marks `partial` with a hundred and seventy-two of its two hundred and seventy-one
+statements uncited. Articles have what the spine is, the chain each record carries
+and what the walk that checks it misses. How a value is written out and read back,
+the shapes a coercion looks inside, and how an event is rebuilt are in no article.
+The schema and its migrations, the appending, and the reads are left for packages of
+their own, and the cell stays `partial`.
+
+### Merge and promote, package 93
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-965 | A decimal figure is written as text and rebuilt through its text, while anything else the writer cannot write raises, naming the kind that arrived. | Promote. The round trip of a figure is in no article, and text on both sides is what keeps a price exact across a restart |
+| Row H-966 | A value whose kind matches no rule is handed back exactly as it arrived, the answer starting as the value and being replaced only where a rule applies. | Merge with H-965. It is what happens to everything the rules do not name |
+| Row H-971 | Nothing stays nothing, whatever it was meant to become. | Merge with H-965 |
+| Row H-967 | A target naming several kinds takes the first that is not the none-kind, a sequence target turns every item into the first kind it names, and a record target turns only the keys its fields name. | Promote. The three are in no article, and a pair of unlike kinds becoming two of the first is the one a reader would never guess |
+| Row H-968 | Any key a record's fields do not name is dropped in silence. | Merge with H-967 |
+| Row H-969 | An event's kind is looked up by the name stored beside it and an unknown name raises, where an unknown key is dropped. | Promote. How an event is rebuilt is in no article, and a missing kind stopping the reading while a missing field passes is the asymmetry worth having |
+| Row H-970 | The top level's field kinds come from a map built ahead of time where a nested record's are kept the first time one is seen. | Merge with H-969 |
+
+Three subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P93-01 | How a value is written out and read back | written | [how-a-value-is-written-out-and-read-back.md](atoms/how-a-value-is-written-out-and-read-back.md) |
+| P93-02 | The three shapes a coercion looks inside | written | [the-three-shapes-a-coercion-looks-inside.md](atoms/the-three-shapes-a-coercion-looks-inside.md) |
+| P93-03 | How an event is rebuilt from what was stored | written | [how-an-event-is-rebuilt-from-what-was-stored.md](atoms/how-an-event-is-rebuilt-from-what-was-stored.md) |
+
+### Re-seed, after writing package 93
+
+Three findings, all of them about what the reading does quietly.
+
+| What it found | What came of it |
+|---|---|
+| A sequence target turns every item into the first kind it names, so a pair of two unlike kinds comes back as two of the first. | Stated. The rule reads as ordinary until applied to a pair, and the article says what it does to one |
+| A target naming several kinds takes the first that is not the none-kind, whatever arrived. | Stated, with the condition it rests on: the two kinds being close enough that turning one into the other works |
+| Any key a record's fields do not name is dropped in silence, at every level. | Stated in two articles, because it is true of a nested record and of an event, and a reader who finds it in one place should not have to infer the other |
+| Adding the event's rebuilding to the article on the three shapes took it past its cap. | Split. The rebuilding is its own subject, and the article on the shapes is better for being about the shapes alone |
+
+Worth recording: the third row is a repetition on purpose. The rule is one rule in
+the code and two statements in the wiki, because a reader arriving at either level
+needs it, and sending them to the other article for it would be worse than saying it
+twice. The register should say when a repetition is deliberate, or a later reading
+will take it for a duplicate and cut one.
 
 ## Package 92 — what binsim does with a submitted order
 
@@ -7607,6 +7654,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-959 | A submitted order asks for a signed caller first, measures the book's age from the poller's last good poll, and refuses a name that comes to nothing. | `server.py` 325 then 326-329, and 331 then 332, and 387 then 389 into 390-393 | package ninety-two | is P92-01 |
 | H-960 | A money-sized order walks the book and then weighs the lot rules, where an amount-sized one weighs them first and walks after. | `server.py` 419 then 440 then 441 then 442, or 444 then 446 into 447-450 then 452 then 455 | package ninety-two | folds into P92-01 |
 | H-964 | A book with nothing in it refuses either sizing road alike, under a code saying the book is stale. | `server.py` 420 into 425-426, or 456 into 458-460 | package ninety-two | folds into P92-01 |
+| H-965 | A decimal figure is written as text and rebuilt through its text, while anything else the writer cannot write raises, naming the kind that arrived. | `event_spine.py` 318 into 319, against 320-321, and 352 into 353 | package ninety-three | is P93-01 |
+| H-966 | A value whose kind matches no rule is handed back exactly as it arrived. | `event_spine.py` 351, standing as the answer at 365 | package ninety-three | folds into P93-01 |
+| H-971 | Nothing stays nothing, whatever it was meant to become. | `event_spine.py` 337 into 338 | package ninety-three | folds into P93-01 |
+| H-967 | A target naming several kinds takes the first that is not the none-kind, a sequence target turns every item into the first kind it names, and a record target turns only the keys its fields name. | `event_spine.py` 340-341 into 342 then 343, or 345-346 into 347-348, or 358 into 359-360 then 361 | package ninety-three | is P93-02 |
+| H-968 | Any key a record's fields do not name is dropped in silence. | `event_spine.py` 362, then 363 | package ninety-three | folds into P93-02 |
+| H-969 | An event's kind is looked up by the name stored beside it and an unknown name raises, the payload parsed before any field is looked at. | `event_spine.py` 381 into 382-384, then 385 | package ninety-three | is P93-03 |
+| H-970 | The top level's field kinds come from a map built ahead of time where a nested record's are kept the first time one is seen. | `event_spine.py` 386, against 359-360 | package ninety-three | folds into P93-03 |
 | H-961 | A buy's fee at a level is the amount times the rate and every other side's is the amount times the price times the rate. | `server.py` 478-487, the two at 482-483, against 484 | package ninety-two | is P92-02 |
 | H-962 | The check against the smallest worth is made on the amount filled, and an account the ledger has no entry for is refused as an order turned away. | `server.py` 474 then 489, and 491 into 492-495, then 496 into 501-502 | package ninety-two | folds into P92-02 |
 | H-963 | The money the order came to is summed from the same levels, price times amount at each. | `server.py` 520, answered at 522-524 | package ninety-two | folds into P92-02 |
@@ -7614,4 +7668,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 04:00 UTC
