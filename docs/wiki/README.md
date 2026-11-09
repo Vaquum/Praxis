@@ -191,6 +191,8 @@ the others where it appears.
 
 ## The written history, and what it proves
 
+- [Which of the host's appends can stop the work](atoms/which-of-the-hosts-appends-can-stop-the-work.md) — the host writes several kinds of event the same way, and the record of what an order was sent as raises where an acknowledgement only logs, so a failure there stops the order going out.
+- [What a delivery record carries](atoms/what-a-delivery-record-carries.md) — what the host writes down about an order before sending it comes back unchanged after a restart, while a rebuilt outcome has its average price recomputed, its slice counts set to one, and its timing taken from the record.
 - [The event spine](atoms/the-event-spine.md) — the file Praxis writes its events to, in the order it wrote them.
 - [The chain](atoms/the-chain.md) — records carry codes drawn from the record before, so editing a coded one shows up.
 - [When an older record can be opened](atoms/when-an-older-record-can-be-opened.md) — a record from an earlier build is brought forward to the shape this one expects, unless its identity or its duplicate marks say otherwise.
@@ -681,7 +683,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 584
+Both sides are the subject, and Praxis is the side that has been written. 586
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -692,4 +694,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 05:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 05:30 UTC

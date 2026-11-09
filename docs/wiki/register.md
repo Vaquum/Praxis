@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 583 not.**
+**6 of them reviewed, 585 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 122 — which of the host's appends can stop the work, and what a delivery record carries
+
+Scope: the opening of the host's own record, the three kinds of event it appends to
+it, and what a restart rebuilds from two of those records, part of a module the
+ledger marks `partial`. After the package before this one, three hundred and
+eighty-three of its twelve hundred and one statements were uncited. The record itself
+is in an article and none of the host's writing to it is. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 122
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1175 | The three appends share a shape — stop where the loop or the stack is missing, build the event with the host's clock, hand it to the Praxis loop and wait ten seconds — and the delivery record alone raises rather than reporting. | Promote. None of the three is in an article, and the one that raises stopping the order from being sent is what the difference is for |
+| Row H-1176 | The acknowledgement and the abandonment wrap the handover and the wait, where the delivery record wraps nothing. | Merge with H-1175 |
+| Row H-1177 | A failure writing a delivery record reaches the caller, which undoes the registration and re-raises. | Merge with H-1175 |
+| Row H-1178 | The record is opened only where a path was given, its folder made where absent and its shape made sure of before it is used. | Merge with H-1175 |
+| Row H-1179 | A delivery record carries nine fields and rebuilding the order's record from it takes the same nine back, one for one. | Promote. What a restart holds about an order is in no article, and the one-for-one is what makes it exactly what was written |
+| Row H-1180 | An outcome rebuilt from its record works out the fill's average price, sets the slice counts to one, and takes the record's own moment as the outcome's. | Merge with H-1179. The rebuilding not being one for one is the contrast |
+| Row H-1181 | The two slippage measures are carried from the record rather than worked out again, because what they were worked out from is not on the record. | Merge with H-1179 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P122-01 | Which of the host's appends can stop the work | written | [which-of-the-hosts-appends-can-stop-the-work.md](atoms/which-of-the-hosts-appends-can-stop-the-work.md) |
+| P122-02 | What a delivery record carries | written | [what-a-delivery-record-carries.md](atoms/what-a-delivery-record-carries.md) |
+
+### Re-seed, after writing package 122
+
+Three routines written in the same shape, with one of the three differing throughout,
+and two rebuildings where one is faithful and the other is not.
+
+| What it found | What came of it |
+|---|---|
+| Three appends share a shape line for line, and the delivery record differs at both points where the shape allows a choice: it raises on a missing stack rather than reporting, and it wraps nothing. | Stated as the shape and the two departures from it. Reading any one of the three alone shows neither |
+| A failure writing a delivery record reaches the caller's own rollback and re-raises, so the order is not sent. | Stated. The chain runs from the append to a catch five hundred lines away, and the append says nothing about it |
+| The order's record rebuilt from a delivery record is one for one, where the outcome rebuilt from its own record is not. | Stated as the pair. The faithful one is the interesting half: nothing is defaulted, so a restart holds what was written |
+| The slippage measures are carried rather than reworked, because the figures they came from are not on the record. | Stated with the reason, which is a fact about what the record holds rather than an intention |
+
+Worth recording: the three-appends finding came from the same method as the last
+package's — read two or three routines written in one shape side by side and ask
+where they differ. In both packages the differences were invisible from any single
+routine and were the whole of the content. That is now the method that has found the
+subject in three packages running, and it works because a long module is written by
+copying.
 
 ## Package 121 — what a bracket's protective exit is registered as, and what a strategy is told about the account
 
@@ -9156,7 +9203,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1172 | Its money is the pool at its share less what it has deployed, held at nothing at the least. | `launcher.py` 2516, then 2517, then 2518 | package one hundred and twenty-one | folds into P121-02 |
 | H-1173 | Every position the account holds is copied under the lock, and only then narrowed to the strategy's own. | `launcher.py` 2520 into 2521-2522, or 2524, then 2526-2528 | package one hundred and twenty-one | folds into P121-02 |
 | H-1174 | The mode is the strategy's own where it has one, and the account's where it has none. | `launcher.py` 2530, then 2531 | package one hundred and twenty-one | folds into P121-02 |
+| H-1175 | The three appends share a shape — stop where the loop or the stack is missing, build the event with the host's clock, hand it to the Praxis loop and wait ten seconds — and the delivery record alone raises rather than reporting. | `launcher.py` 3148 into 3153, and 3190 into 3195, against 3231 into 3236, with 3155-3161, then 3164-3167 | package one hundred and twenty-two | is P122-01 |
+| H-1176 | The acknowledgement and the abandonment wrap the handover and the wait, where the delivery record wraps nothing. | `launcher.py` 3163 into 3168-3172, and 3206 into 3211-3215, against 3254-3257 | package one hundred and twenty-two | folds into P122-01 |
+| H-1177 | A failure writing a delivery record reaches the caller, which undoes the registration and re-raises. | `launcher.py` 2188 inside 2135, into 2201 into 2206-2207 | package one hundred and twenty-two | folds into P122-01 |
+| H-1178 | The record is opened only where a path was given, its folder made where absent and its shape made sure of before it is used. | `launcher.py` 3123 into 3124-3125, or 3127, then 3128, then 3129, then 3130, then 3133 | package one hundred and twenty-two | folds into P122-01 |
+| H-1179 | A delivery record carries nine fields and rebuilding the order's record from it takes the same nine back, one for one. | `launcher.py` 3238-3250, then 1639-1649 | package one hundred and twenty-two | is P122-02 |
+| H-1180 | An outcome rebuilt from its record works out the fill's average price, sets the slice counts to one, and takes the record's own moment as the outcome's. | `launcher.py` 1674 into 1675-1677, then 1688, then 1689, then 1691 | package one hundred and twenty-two | folds into P122-02 |
+| H-1181 | The two slippage measures are carried from the record rather than worked out again. | `launcher.py` 1693, and 1694 | package one hundred and twenty-two | folds into P122-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 05:30 UTC
