@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 523 not.**
+**6 of them reviewed, 525 not.**
 
 ## Package 1
 
@@ -857,6 +857,49 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 95 — what the spine's migrations add, prove and drop
+
+Scope: the three migrations that bring an older spine file forward, part of a module
+the ledger marks `partial`. After the package before this one, a hundred and four of
+its two hundred and seventy-one statements were uncited. What the first migrations
+add and prove, and what the last one drops, are in no article. The appending and the
+reads are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 95
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-978 | Each seal column is added only where it is absent and the two identity facts are then written, with nothing filling a seal in for a record that lacks one. | Promote. What the first migration does is in no article, and records keeping no seal is why the chain begins where it does rather than at the first row |
+| Row H-979 | A legacy row with no matching fill refuses the whole migration, and a file spanning more than one symbol refuses too. | Promote. The two refusals are in no article, and both declining to guess where a migration could paper over is the character of the pair |
+| Row H-982 | The one symbol found is recorded, and an empty one is recorded where none was found at all. | Merge with H-979 |
+| Row H-980 | A file with no old table is left alone and a table holding nothing is dropped at once, while a table holding rows demands the symbol the migration before recorded. | Promote. The last migration is in no article, and the two migrations being a pair — one proving the symbol, the other refusing to move a row without it — needs both halves |
+| Row H-981 | The rows are copied, read back and weighed against what was there, and any that did not arrive refuses the drop, naming how many are missing. | Merge with H-980. The check standing between the copy and the drop is the whole point of the routine |
+| Row H-983 | Only once every row is accounted for is the old table dropped. | Merge with H-980 |
+
+Three subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P95-01 | What the first migrations add and prove | written | [what-the-first-migrations-add-and-prove.md](atoms/what-the-first-migrations-add-and-prove.md) |
+| P95-02 | What the last migration drops | written | [what-the-last-migration-drops.md](atoms/what-the-last-migration-drops.md) |
+
+### Re-seed, after writing package 95
+
+Two of the three subjects promoted into one article each; the third merged, because
+the proving is the routine rather than a part of it.
+
+| What it found | What came of it |
+|---|---|
+| Nothing in the first migration fills a seal in for a record that lacks one. | Stated as an absence citing the whole routine, which is eleven lines. The docstring says the same, and the claim rests on the body having no such statement |
+| Both of the second migration's refusals ask for the work to be done elsewhere rather than guessing. | Stated as what they have in common, since either alone reads as an ordinary guard |
+| The check that every row arrived stands between the copy and the drop, and the drop is the one step running the migration again cannot undo. | Stated, with why the placement matters: a copy that lost rows leaves both tables for someone to look at |
+| An empty symbol is recorded where none was found, so a later reading can tell nothing-found from not-yet-looked. | Stated in the first article and relied on by the second, which refuses without one |
+
+Worth recording: the last row is the pair's whole design, and neither routine shows
+it. The first writes a value that means "none", and the second treats a missing
+value as a refusal — so the empty string is load-bearing, and a reader of either
+routine alone would take it for a harmless default.
+
 ## Package 94 — what opening the spine's file asks of it
 
 Scope: the opening of the spine's file and the identity it demands, part of a module
@@ -1194,7 +1237,7 @@ refuses outright, and what a reading of it hands back are in no article.
 | Row H-934 | A ledger refuses to be built without an account name, refuses a fill in any symbol but the one it books as something not built, and refuses a sell larger than the lots left open. | Promote. What it refuses outright is in no article, and a refusal saying the ledger cannot do this at all rather than that the fill was wrong is worth separating from the ones that judge a request |
 | Row H-935 | Every way of reading the ledger takes its lock and hands back something freshly made, the trade records copied one by one rather than the mapping alone. | Promote. What a reading hands back is in no article, and a reader never holding a live view is what makes the readings safe to keep |
 
-Three subjects promote and one row merges into them, with nothing declined.
+Three subjects promote and three rows merge into them, with nothing declined.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -7706,6 +7749,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-975 | A file with no table of its own facts refuses outright, and two facts are then weighed in turn, each able to fail by being absent or by being different. | `event_spine.py` 839 into 840-841, then 843-846 read at 847, against 849 into 850-854, or 856 into 857-861 | package ninety-four | is P94-02 |
 | H-976 | The anchor is later read rather than assumed, and its absence refuses again. | `event_spine.py` 876, then 878 into 879-883, then 885 | package ninety-four | folds into P94-02 |
 | H-977 | Whether a column or a table is already there is answered by asking the database about itself, and a file carrying no version reads as nought. | `event_spine.py` 567-568 then 570, and 723-724, and 549-550 then 552 | package ninety-four | folds into P94-02 |
+| H-978 | Each seal column is added only where it is absent and the two identity facts are then written, with nothing filling a seal in for a record that lacks one. | `event_spine.py` 586 into 587-588, and 589 into 590-591, then 593-594, and 595-596, the whole routine at 586-596 | package ninety-five | is P95-01 |
+| H-979 | A legacy row with no matching fill refuses the whole migration, and a file spanning more than one symbol refuses too. | `event_spine.py` 621-622 ahead of 624, then 627 into 628-633, or 635 into 636-640 | package ninety-five | folds into P95-01 |
+| H-982 | The one symbol found is recorded, and an empty one is recorded where none was found at all. | `event_spine.py` 642, then 643-644 | package ninety-five | folds into P95-01 |
+| H-980 | A file with no old table is left alone and a table holding nothing is dropped at once, while a table holding rows demands the symbol the migration before recorded. | `event_spine.py` 670 into 671, or 673 then 675 into 676-677 then 679, or 681 then 683 into 684-688 | package ninety-five | is P95-02 |
+| H-981 | The rows are copied, read back and weighed against what was there, and any that did not arrive refuses the drop, naming how many are missing. | `event_spine.py` 690-691, then 693, then 694, then 696 into 697-701 | package ninety-five | folds into P95-02 |
+| H-983 | Only once every row is accounted for is the old table dropped. | `event_spine.py` 703-704 | package ninety-five | folds into P95-02 |
 | H-967 | A target naming several kinds takes the first that is not the none-kind, a sequence target turns every item into the first kind it names, and a record target turns only the keys its fields name. | `event_spine.py` 340-341 into 342 then 343, or 345-346 into 347-348, or 358 into 359-360 then 361 | package ninety-three | is P93-02 |
 | H-968 | Any key a record's fields do not name is dropped in silence. | `event_spine.py` 362, then 363 | package ninety-three | folds into P93-02 |
 | H-969 | An event's kind is looked up by the name stored beside it and an unknown name raises, the payload parsed before any field is looked at. | `event_spine.py` 381 into 382-384, then 385 | package ninety-three | is P93-03 |
@@ -7717,4 +7766,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 06:00 UTC
