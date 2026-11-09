@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 514 not.**
+**6 of them reviewed, 516 not.**
 
 ## Package 1
 
@@ -856,6 +856,48 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 91 — the sockets binsim accepts
+
+Scope: the two socket connections binsim accepts and what it answers down them,
+part of a module the ledger marks `partial`. After the package before this one,
+sixty-five of its two hundred and twenty-five statements were uncited. The two
+sockets, and what a subscription frame is answered with, are in no article. The
+submitting of an order is left for the package after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 91
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-954 | Both sockets are opened with the same heartbeat and prepared before anything is read; one reads every frame and hands each text one on, the other reads every frame and does nothing with any of them. | Promote. The pair is in no article, and a caller unable to tell a discarded subscription from an acted-on one is what the contrast costs |
+| Row H-955 | The answering socket takes the ledger and the shared counter off the application before it opens, and both answer the socket itself once their reading has ended. | Merge with H-954 |
+| Row H-956 | A frame that will not read as JSON is dropped in silence and so is one that reads as anything but an object, while a wrong method, an empty value and an unmatched key are each answered with a refusal. | Promote. What a frame is answered with is in no article, and the line between silence and a refusal being readability alone is the finding |
+| Row H-957 | The parameters are read only where they came as an object and each value is trimmed only where it is text, so a value sent as a number or a list arrives at the test as empty. | Merge with H-956 |
+| Row H-958 | A frame that passed everything is answered with a number taken from the shared counter, and that number is the whole of what the caller gets. | Merge with H-956 |
+
+Two subjects promote and three rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P91-01 | The two sockets binsim accepts | written | [the-two-sockets-binsim-accepts.md](atoms/the-two-sockets-binsim-accepts.md) |
+| P91-02 | What a subscription frame is answered with | written | [what-a-subscription-frame-is-answered-with.md](atoms/what-a-subscription-frame-is-answered-with.md) |
+
+### Re-seed, after writing package 91
+
+The reading found one thing worth stating that neither cluster shows on its own.
+
+| What it found | What came of it |
+|---|---|
+| The line between dropping a frame and refusing it is whether binsim could read it: a parsed frame is always answered and an unparsed one never is. | Stated. Neither half means much alone, and the rule is what a caller debugging silence needs |
+| A value sent as a number, a list or nothing at all arrives at the emptiness test as empty, because the trimming happens only where the value is text. | Stated. The test reads as though it catches blanks, and it catches wrong types the same way |
+| The second socket's loop breaks on a close or an error, which the loop would end on anyway. | Stated as what it does, with no claim that it matters. The frames it drops are the subject; the redundant break is not |
+
+Worth recording: the third row is the judgement this package turned on. A loop that
+breaks on a condition it would exit on anyway is a real difference in the code and
+no difference in behaviour, and the pull to write it up as a finding is the same
+pull the package before this one recorded. It is in the article as a plain statement
+of what the loop does, and nowhere as a thing a reader should care about.
 
 ## Package 90 — what binsim's server holds, and what it is handed
 
@@ -7509,8 +7551,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-951 | Eleven roads are added at once, two of them sharing a path and differing only by method. | `server.py` 192-204, and 198, against 201 | package ninety | folds into P90-02 |
 | H-952 | The check against the smallest worth answers at once where the book gave no price to weigh against. | `server.py` 683 into 684, against 686 | package ninety | is P90-03 |
 | H-953 | Snapping an amount floors it onto the step and multiplies back, and reading a figure from a parameter answers the figure once it has passed. | `server.py` 564, and 725 | package ninety | folds into P90-03 |
+| H-954 | Both sockets are opened with the same heartbeat and prepared before anything is read; one reads every frame and hands each text one on, the other reads every frame and does nothing with any of them. | `server.py` 821 then 822, and 916 then 917, against 824 into 825-826 then 828, and 919 into 920-921 | package ninety-one | is P91-01 |
+| H-955 | The answering socket takes the ledger and the shared counter off the application before it opens, and both answer the socket itself once their reading has ended. | `server.py` 818, and 819, and 830, and 923, the application given out at 962 | package ninety-one | folds into P91-01 |
+| H-956 | A frame that will not read as JSON is dropped in silence and so is one that reads as anything but an object, while a wrong method, an empty value and an unmatched key are each answered with a refusal. | `server.py` 840-841 into 842-843, then 845 into 846, against 851 into 852-859 then 861, or 870 into 871-878 then 880, or 882 into 883-890 then 892 | package ninety-one | is P91-02 |
+| H-957 | The parameters are read only where they came as an object and each value is trimmed only where it is text. | `server.py` 863, then 864, and 865, then 867, and 868 | package ninety-one | folds into P91-02 |
+| H-958 | A frame that passed everything is answered with a number taken from the shared counter, and the frame's own identifier is read with an empty one standing in. | `server.py` 894 then 896-900, and 848 | package ninety-one | folds into P91-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 02:00 UTC

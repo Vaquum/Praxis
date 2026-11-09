@@ -421,6 +421,8 @@ the others where it appears.
 - [Starting and stopping the depth poller](atoms/starting-and-stopping-the-depth-poller.md) — starting raises while it already runs and otherwise clears the flag, opens a session and spawns the loop; stopping sets the flag and awaits the task, suppressing only the error a cancelled task raises, so another failure escapes with the task still held and the session still open.
 - [What binsim's read endpoints answer](atoms/what-binsims-read-endpoints-answer.md) — health and time ignore the request entirely, the trading-rules endpoint checks a symbol only when one is supplied, and the order-book endpoint insists on one, reporting a missing symbol under a different code from an unrecognised one.
 - [What binsim's server holds and when](atoms/what-binsims-server-holds-and-when.md) — it is built with its web application already made, and takes hold of the pieces that serve requests only once a start has succeeded, so a failed start leaves it holding neither of them and reading as stopped.
+- [The two sockets binsim accepts](atoms/the-two-sockets-binsim-accepts.md) — one connection reads what arrives and replies, the other reads what arrives and throws it away, and both stay up on the same keepalive, so a caller cannot tell a discarded message from one that was acted on.
+- [What a subscription frame is answered with](atoms/what-a-subscription-frame-is-answered-with.md) — a message the simulator cannot parse is dropped without reply while anything it can parse always gets one, and a value sent as the wrong type reaches the emptiness test as empty.
 - [What the application is handed and what it serves](atoms/what-the-application-is-handed-and-what-it-serves.md) — the book, the balances, the price feed and the staleness limit are each attached to the application under their own key, every handler reaching them through it, and one path answers about an order or submits one depending on the method used.
 - [What an order's figures are put through](atoms/what-an-orders-figures-are-put-through.md) — rounding an amount only ever lowers it, and the smallest-value check returns immediately when the book has no price to measure against, so such an order passes it unmeasured.
 - [What asking for a signature buys](atoms/what-asking-for-a-signature-buys.md) — the endpoints that demand a signed caller use it for the account name, and an account the simulator has never heard of comes back as a refused signature, so a bad key and an unknown account look identical.
@@ -612,7 +614,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 515
+Both sides are the subject, and Praxis is the side that has been written. 517
 articles exist. Of Praxis's own source files 80 are accounted for in full and 8 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -623,4 +625,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 02:00 UTC
