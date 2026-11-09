@@ -857,6 +857,34 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Nexus package 80 — the road out to Praxis, swept
+
+Scope: the connector that carries Nexus's commands out to Praxis, which the ledger
+marks `partial` with fifteen of its seventy-five statements uncited. Nothing
+promotes and no article is written. Every one of the fifteen is plumbing inside a
+statement an article already accounts for, so the citations were widened to take
+them in and the cell moves to `full`.
+
+### What the fifteen were
+
+| What was uncited | What accounts for it now |
+|---|---|
+| The guard around reading the receiver's shape, and the answer it gives where the shape cannot be read | [The name an order comes back with](atoms/the-name-an-order-comes-back-with.md), whose claim about what that reading leaves now cites the guard with it |
+| The guard around the wait for a submitted command | The same article, whose claim about handing the call over now cites the guard with the wait |
+| The words the refusal of a mismatched name carries | The same article, whose claim about that refusal now cites them with the raise |
+| The guards around the three other waits | [How a call across the seam is made](atoms/how-a-call-across-the-seam-is-made.md), whose claim about handing a call over and waiting now cites each guard with its wait |
+| The words the two moment refusals carry | [The marker a command's moment must carry](atoms/the-marker-a-commands-moment-must-carry.md), whose claim about those two refusals now cites them with each test |
+
+Five statements are left uncited and are an exclusion rather than work outstanding:
+all five are log calls, which the gate refuses as evidence for a claim. Each
+reports a handover that the article covering that handover already states.
+
+Worth recording about the shape of this package rather than the module: a sweep is
+what is left when every uncited statement turns out to be the inside of something
+already claimed. It is not a smaller version of writing a package — nothing was
+found that an article did not have. The widening is bookkeeping, and the ledger
+cell was the only thing wrong.
+
 ## Nexus package 79 — how the loop that values positions paces itself
 
 Scope: the loop that values open positions, which the ledger marks `partial` with
@@ -6964,4 +6992,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 15:00 UTC
