@@ -151,6 +151,8 @@ the others where it appears.
 - [Which commands count as amendable](atoms/which-commands-count-as-amendable.md) — the set a change may be aimed at is built by gathering three kinds and taking five things out, and the last step adds bracket entries back without asking what the removals concluded.
 - [How a change is routed to its handler](atoms/how-a-change-is-routed-to-its-handler.md) — which handler a change reaches is settled by the shape of the change's own parameters, and the protective road is taken before the tests the other roads make, reaching a handler with three different tests of its own.
 - [What placing a bracket's protection writes first](atoms/what-placing-a-brackets-protection-writes-first.md) — the holding is marked as protected before the protective pair is even built, so a failure after that leaves it claiming a protection that may never have reached the venue.
+- [How an amend's replacement order goes out](atoms/how-an-amends-replacement-order-goes-out.md) — every failure sending the replacement reports the change as failed as well as the send, and the command's own description is rewritten only once the venue has taken the new order.
+- [What a parked amend is retried against](atoms/what-a-parked-amend-is-retried-against.md) — a change whose old order had not finished waits on the venue agreeing that it has, however many passes that takes, and nothing in the retry gives up on it.
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
 - [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — every request to alter work must name the command, the account and a reason, and a change to how work is spread over time is refused outright.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — which fields each way of working lets a change touch, and what it checks before touching them.
@@ -737,7 +739,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 640
+Both sides are the subject, and Praxis is the side that has been written. 642
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -748,4 +750,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 19:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 20:00 UTC

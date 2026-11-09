@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 639 not.**
+**6 of them reviewed, 641 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 151 — how an amend's replacement order goes out, and what a parked amend is retried against
+
+Scope: the sending of a replacement order for an amended command, and the retrying of
+an amend parked because its old order had not finished, part of a module the ledger
+marks `partial`. After the package before this one, eight hundred and fifty-four of
+its two thousand four hundred and eighty-seven statements were uncited. Neither
+subject is in an article. The rest of the module is left for the packages after this,
+and the cell stays `partial`.
+
+### Merge and promote, package 151
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1392 | A part-shown amount is carried only where it was given and stands below the remainder, and one moment is taken for the intent, which is recorded before the send. | Promote. The road is in no article, and every failure on it reporting the amend as failed as well as the send is the finding |
+| Row H-1393 | A rescue that finds nothing records the send as failed and then the amend as failed, and a venue failure and a bad parameter are handled as one branch doing the same. | Merge with H-1392. A fresh slice keeps those two apart and reports only the send |
+| Row H-1394 | The command itself is replaced with one carrying the amended price and part-shown amount only once the venue has taken the new order. | Merge with H-1392 |
+| Row H-1395 | The parked amends are walked over a copy, and one whose command the manager no longer holds is dropped and passed over. | Promote. The retry is in no article, and waiting on the venue's agreement rather than on local state is what it is |
+| Row H-1396 | The old order is cancelled and asked after in one step, and an order the venue answers nothing for or whose status is not terminal leaves the amend parked. | Merge with H-1395. An amend waits however many passes that takes, and nothing here gives up on it |
+| Row H-1397 | An amend is dropped from the parked ones only where driving it on answers that it finished. | Merge with H-1395 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P151-01 | How an amend's replacement order goes out | written | [how-an-amends-replacement-order-goes-out.md](atoms/how-an-amends-replacement-order-goes-out.md) |
+| P151-02 | What a parked amend is retried against | written | [what-a-parked-amend-is-retried-against.md](atoms/what-a-parked-amend-is-retried-against.md) |
+
+### Re-seed, after writing package 151
+
+The first subject is the same four-road shape a package four before this one wrote
+down, with two departures from it.
+
+| What it found | What came of it |
+|---|---|
+| Every failure on the replacement road reports the amend as failed as well as the send. | Stated as what this road adds. It is written on every road out but the rescued one |
+| A venue failure and a bad parameter are one branch here, where a fresh slice keeps them apart. | Stated as the departure. Both record the same two things, so the separation a slice keeps buys nothing here |
+| The command's own parameters are rewritten only once the venue has taken the new order. | Stated. Until then the command still describes the order being replaced |
+| A parked amend waits on the venue agreeing the old order is finished, however many passes that takes. | Stated. Nothing in the retry gives up, which is the whole of what makes it a park rather than a failure |
+
+Worth recording: recognising the four-road shape from a package four earlier made this
+one quick to read and the two departures easy to see. That is the third time a shape
+written down once has made a later routine faster to account for — the pattern
+article, the remainder subtraction, and now the send's four roads. A written shape is
+a reading instrument.
 
 ## Package 150 — what a ladder's change is refused for, and when a bracket's protection becomes active
 
@@ -10749,7 +10794,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1389 | The bracket is given the order's name, the average entry price and the three protective prices, and only once all five stand is its protection called active and the bracket written back. | `execution_manager.py` 5031, then 5032, then 5033, then 5034, then 5035, then 5036, then 5037 | package one hundred and fifty | folds into P150-02 |
 | H-1390 | The bracket was marked as having its protection placed long before any of this. | `execution_manager.py` 4906, ahead of 5028-5037 | package one hundred and fifty | folds into P150-02 |
 | H-1391 | Each fill the answer already carried is written against the exit's name on the protective side. | `execution_manager.py` 5039, then 5040-5051, the exit named at 5047, the side at 5049 | package one hundred and fifty | folds into P150-02 |
+| H-1392 | A part-shown amount is carried only where it was given and stands below the remainder, and one moment is taken for the intent, which is recorded before the send. | `execution_manager.py` 10321, then 10322, then 10324-10330 | package one hundred and fifty-one | is P151-01 |
+| H-1393 | A rescue that finds nothing records the send as failed and then the amend as failed, and a venue failure and a bad parameter are handled as one branch doing the same. | `execution_manager.py` 10355 into 10356-10358, then 10359 into 10360-10365, or 10366, then 10367, or 10368 into 10369-10374 | package one hundred and fifty-one | folds into P151-01 |
+| H-1394 | Past all of it the submission is recorded under the answer's moment, the command replaced with one carrying the amended price and part-shown amount, and each carried fill written. | `execution_manager.py` 10376-10381, then 10382, then 10383, then 10385-10387, then 10389, then 10390-10394 | package one hundred and fifty-one | folds into P151-01 |
+| H-1395 | The parked amends are walked over a copy, and one whose command the manager no longer holds is dropped and passed over. | `execution_manager.py` 8830, then 8831 into 8832, or 8834, then 8835, then 8836 into 8837-8838 | package one hundred and fifty-one | is P151-02 |
+| H-1396 | The old order is cancelled and asked after in one step, and an order the venue answers nothing for or whose status is not terminal leaves the amend parked. | `execution_manager.py` 8840-8842, then 8843 into 8844 | package one hundred and fifty-one | folds into P151-02 |
+| H-1397 | An amend is dropped from the parked ones only where driving it on answers that it finished. | `execution_manager.py` 8846-8848, then 8849 into 8850 | package one hundred and fifty-one | folds into P151-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 19:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 20:00 UTC
