@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 657 not.**
+**6 of them reviewed, 659 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 160 — what an amend asks the venue before it replaces, and what is written down when a flatten goes out
+
+Scope: the pair of questions put to the venue between taking a resting order down and
+putting another up, and the writes a hand-placed close makes around its send, part of a
+module the ledger marks `partial`. After the package before this one, five hundred and
+seventy-eight of its two thousand four hundred and eighty-seven statements were
+uncited. Neither subject is in an article. The rest of the module is left for the
+packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 160
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1463 | The cancel goes out first with nothing of its answer kept, and the order is then asked after, that answer being what comes back. | Promote. The pair is in no article, and the figure the replacement is sized against comes from the second question |
+| Row H-1464 | A cancel the venue has no record of is passed over, while one that fails any other way answers nothing. | Merge with H-1463 |
+| Row H-1465 | An asking that cannot be answered answers nothing too. | Merge with H-1463 |
+| Row H-1466 | One caller abandons the change on that nothing and leaves the order resting, and the other passes it over for a later pass. | Merge with H-1463 |
+| Row H-1467 | The closing command is installed, its trade remembered and the order's name mapped to it only once an answer to the send is in hand. | Promote. The write order is in no article, and a recorded failure installing no command is the finding |
+| Row H-1468 | The intent is recorded and applied before the send. | Merge with H-1467 |
+| Row H-1469 | A venue failure is first put to a rescue by the order's own name, one that finds nothing recording the failure and ending the send, one that finds the order standing in for the send's answer. | Merge with H-1467 |
+| Row H-1470 | Each fill the venue gives as it takes the order is recorded against the closing command, and only one the record answered with a place is carried into the figures. | Merge with H-1467 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P160-01 | What an amend asks the venue before it replaces | written | [what-an-amend-asks-the-venue-before-it-replaces.md](atoms/what-an-amend-asks-the-venue-before-it-replaces.md) |
+| P160-02 | What is written down when a flatten goes out | written | [what-is-written-down-when-a-flatten-goes-out.md](atoms/what-is-written-down-when-a-flatten-goes-out.md) |
+
+### Re-seed, after writing package 160
+
+The first subject turned on a line that does nothing visible: the cancel's answer is
+asked for and then dropped. Reading only the cancel, the question of why a second call
+follows has no answer on the page.
+
+| What it found | What came of it |
+|---|---|
+| Nothing of the cancel's answer is kept, and the figure the replacement is sized against comes from the asking that follows. | Stated. The discarded answer is what makes the second question necessary rather than redundant |
+| The same nothing stops one caller and defers the other. | Stated as the article's close. A routine answering nothing says nothing about what should happen next |
+| The closing command is installed only after the send has an answer. | Stated. A send ending in a recorded failure installs no command at all |
+| A rescue that finds the order stands in for the send's answer. | Stated. Everything after it runs as though the send had succeeded |
+
+Worth recording: the duplicate-write guard — carrying a fill into the figures only
+where the record answered with a place — now stands in four routines. Four
+appearances of two lines is no longer a detail of each; it is how fills are written,
+and the articles say so in the same words each time.
 
 ## Package 159 — how a protection's fills are brought up to the venue's figure, and what a change writes on the bracket
 
@@ -11238,7 +11285,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1460 | The version the change carries is one past the version standing, and the new pair's name worked out from it as a retry number. | `execution_manager.py` 9430, then 9431-9436 | package one hundred and fifty-nine | folds into P159-02 |
 | H-1461 | The request is recorded before the version is put on the bracket and the standing moved, with the cancel's two answers each moving it again. | `execution_manager.py` 9449, then 9450, then 9451, then 9463, then 9464, or 9474, then 9480, then 9481 | package one hundred and fifty-nine | folds into P159-02 |
 | H-1462 | The four parked figures are cleared on one road only, once the replacement's send has been recorded. | `execution_manager.py` 9741, then 9744, then 9745, then 9746, then 9747 | package one hundred and fifty-nine | folds into P159-02 |
+| H-1463 | The cancel goes out first with nothing of its answer kept, and the order is then asked after, that answer being what comes back. | `execution_manager.py` 10274, then 10275, then 10289, then 10290, the figure read off it at 8781 | package one hundred and sixty | is P160-01 |
+| H-1464 | A cancel the venue has no record of is passed over, while one that fails any other way answers nothing. | `execution_manager.py` 10278, then 10279, or 10280, then 10287 | package one hundred and sixty | folds into P160-01 |
+| H-1465 | An asking that cannot be answered answers nothing too. | `execution_manager.py` 10293, then 10300 | package one hundred and sixty | folds into P160-01 |
+| H-1466 | One caller abandons the change on that nothing and leaves the order resting, and the other passes it over for a later pass. | `execution_manager.py` 8716, then 8717, then 8723, against 8840, then 8843, then 8844 | package one hundred and sixty | folds into P160-01 |
+| H-1467 | The closing command is installed, its trade remembered and the order's name mapped to it only once an answer to the send is in hand. | `execution_manager.py` 7814, then 7815, then 7816, against 7810 | package one hundred and sixty | is P160-02 |
+| H-1468 | The intent is recorded and applied before the send, and the send recorded and applied after it. | `execution_manager.py` 7779, then 7780, then 7782, then 7818, then 7825, then 7826 | package one hundred and sixty | folds into P160-02 |
+| H-1469 | A venue failure is first put to a rescue by the order's own name, one that finds nothing recording the failure and ending the send, one that finds the order standing in for the send's answer. | `execution_manager.py` 7791, then 7792, then 7795, then 7802, then 7810, or 7812 | package one hundred and sixty | folds into P160-02 |
+| H-1470 | Each fill the venue gives as it takes the order is recorded against the closing command, and only one the record answered with a place is carried into the figures. | `execution_manager.py` 7828, then 7829-7844, the command named at 7836, then 7845, then 7846 into 7847 | package one hundred and sixty | folds into P160-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 00:30 UTC
