@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 707 not.**
+**6 of them reviewed, 709 not.**
 
 ## Package 1
 
@@ -529,8 +529,8 @@ Found while answering package 1, not answered by it. These enter the next packag
 | What happens to an order fed out in slices, or a bracket, when its deadline passes? | P1-03 covers only the pass-level check before such work is started. Answered in package 2: the winding up in P1-09, and a bracket measured against neither clock in P2-23. | P1-09, P2-23 |
 | How a trade is modified | Built on cancellation, which is now written. Written in package 3, as P3-13. | P3-13 |
 | Does the venue feed actually repair a record written off after an unanswerable lookup? | H-025 shows the claim lives only in a docstring. | unassigned |
-| Is the deferred ladder-cancel report (U-03) worth raising against Praxis? | A caller waiting on that cancellation hears nothing until a restart, and then hears "rejected as a boot orphan" rather than "cancelled". Weaker than first recorded, since the report is not lost. | unassigned |
-| Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
+| Is the deferred ladder-cancel report (U-03) worth raising against Praxis? | A caller waiting on that cancellation hears nothing until a restart, and then hears "rejected as a boot orphan" rather than "cancelled". Weaker than first recorded, since the report is not lost. Answered as far as the wiki can: the whole path is written in P188-02, from the call-off read at the ladder's start to the refusal the next boot sends, and what remains is a decision for Praxis about whether a late report carrying the wrong word is worth changing. | P188-02 |
+| Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. Answered as far as the wiki can: the reading, what it costs a second symbol, and the money record's own refusal of one are written in P188-01, and what remains is a decision for Praxis about whether a second symbol is ever traded. | P188-01 |
 | Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. Answered as far as the wiki can: the path is written in P27-01, and what remains is a decision for Praxis about whether the second report is intended. | P27-01 |
 | Does a schedule change survive a restart? | Answered: H-040 traces the write, the fold and the restore. It does; the docstring saying otherwise is stale, and TD-135 already records the fix. | H-040 |
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 188 — the two questions answered as far as the wiki can, and the Praxis side closed
+
+Scope: the two findings that held three ledger cells open. Each is written as the path
+it is, which is all the wiki can do about a question whose answer is a decision. With
+both written, every Praxis module reads `full`.
+
+### What was holding the three cells
+
+A check will not let a file stand as `full` while a finding citing it names a question
+nobody has been assigned. Row H-042 names U-03 and cites two modules; row H-045 names
+U-04 and cites a third. Neither cell was short of an article about its module — each was
+short of the wiki having said what the question is about.
+
+The precedent is U-05, answered eleven packages into the Praxis run by writing the path
+as P27-01 and leaving the decision named in the question's own row. These two follow it.
+
+### Merge and promote, package 188
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-045 | A fill's commission is taken out of the holdings it adds only where the fill is a buy and the fee was charged in one named asset, so a buy of any other symbol is credited gross. | Promote. Written against U-04, which the question row now names |
+| Row H-045 | The money record refuses a fill of any symbol but one outright, and that refusal is swallowed where the record is written to. | Merge with the above. It is what stands between the gap and a second symbol |
+| Row H-042 | A ladder called off before its first rung builds a report with a count of parts of nought, which the outcome's own type refuses. | Promote. Written against U-03, which the question row now names |
+| Row H-042 | The raise is swallowed, the command is left in the shape a boot reads as an orphan, and the next boot refuses it. | Merge with the above. The caller hears the call-off late and as a refusal |
+
+Two subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P188-01 | The one asset a commission is netted in | written | [the-one-asset-a-commission-is-netted-in.md](atoms/the-one-asset-a-commission-is-netted-in.md) |
+| P188-02 | The call-off a ladder hears as a refusal | written | [the-call-off-a-ladder-hears-as-a-refusal.md](atoms/the-call-off-a-ladder-hears-as-a-refusal.md) |
+
+### Re-seed, after writing package 188
+
+Both subjects had been traced, raised, and left. What neither had was an article saying
+plainly what happens, and that absence — not any gap in the modules themselves — is what
+kept three cells short.
+
+| What it found | What came of it |
+|---|---|
+| A question with nobody assigned holds every cell its finding cites. | Answered the only way the wiki can: the path written, the decision named and left with Praxis |
+| The holdings gap is reachable only past a refusal the money record raises and something else swallows. | Stated in P188-01. The swallowing is why a second symbol would show as a quiet drift rather than a stop |
+| The ladder's call-off is not lost, only late and mislabelled. | Stated in P188-02, which is what the earlier correction of U-03 had recorded without an article to point at |
+| With both written, every Praxis module reads `full`. | The ledger says so, and its summary now names the exclusions rather than the gaps |
+
+Worth recording: three cells were held open for want of two articles about things the
+register had already traced. A finding raised as a question is not written down until a
+reader can find it without the register.
 
 ## Package 187 — the last cell the wiki can close
 
@@ -12779,4 +12828,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 14:30 UTC

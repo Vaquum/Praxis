@@ -64,6 +64,8 @@ the others where it appears.
 - [The prices an order must name](atoms/the-prices-an-order-must-name.md) — which kinds of order need a price, a trigger, or both.
 - [Where the order type decides](atoms/where-the-order-type-decides.md) — the few places where the kind of order alone changes what Praxis does.
 - [The order book](atoms/the-order-book.md) — what a venue publishes about a pair: buyers on one side, sellers on the other, each a price and an amount wanted.
+- [The one asset a commission is netted in](atoms/the-one-asset-a-commission-is-netted-in.md) — a buy's commission is taken out of the holdings it adds only when the fee was charged in one named asset, and what that costs any other symbol.
+- [The call-off a ladder hears as a refusal](atoms/the-call-off-a-ladder-hears-as-a-refusal.md) — a ladder called off before its first rung is reported at the next restart, and reported as refused rather than cancelled.
 - [Holdings](atoms/holdings.md) — what one trade holds: which way it went, how much, and the average price paid to build it.
 
 ## A decision becomes an order
@@ -805,15 +807,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 708
-articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
-part, with none left untouched; and all 70 in Nexus are named, none
+Both sides are the subject, and Praxis is the side that has been written. 710
+articles exist. Of Praxis's own source files all 88 are accounted for in full,
+with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
-behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, all 64 are accounted for in full. [The file ledger](ledger.md) names every file on both sides, so a
+behaviour to trace. Of the 64 Nexus modules carrying a row, all 64 are
+accounted for in full. What remains on both sides is depth rather than coverage. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 14:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 14:30 UTC
