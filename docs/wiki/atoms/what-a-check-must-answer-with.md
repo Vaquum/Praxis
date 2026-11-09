@@ -2,7 +2,7 @@
 row: N1-04
 baseline: 49aa659
 created: 2026-10-16 15:40 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "A refusal must name the stage that made it, a reason code and a message, neither of the last two blank"
     source: "`nexus/core/validator/pipeline_models.py` 247-261"
@@ -52,4 +52,4 @@ A stage that raises rather than answering ends the walk with no decision at all.
 
 ---
 
-Created 2026-10-16 15:40 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-16 15:40 UTC · Last modified 2026-10-23 07:08 UTC

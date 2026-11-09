@@ -1,8 +1,8 @@
 ---
 row: P75-02
 baseline: 49aa659
-created: 2026-11-13 06:30 UTC
-modified: 2026-11-13 06:30 UTC
+created: 2026-11-08 22:30 UTC
+modified: 2026-11-08 22:30 UTC
 evidence:
   - claim: "A buy's cost is the notional with the fee added, and a buy is refused where the quote balance is below that cost"
     source: "`replay_venue_adapter.py` 490, then 491-496"

@@ -2,7 +2,7 @@
 row: P3-25
 baseline: 49aa659
 created: 2026-10-12 00:45 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A price change on a single order cancels the resting order and places a fresh one"
     source: "`execution_manager.py` 8716 and 8740-8745, and 8746 into 8786-8795, the fresh one sent from 8810-8813 and the change answered as carried through at 8814"
@@ -50,4 +50,4 @@ The change is held in memory alone, and the window the stop lands in decides wha
 
 ---
 
-Created 2026-10-12 00:45 UTC · Last modified 2026-10-14 08:50 UTC
+Created 2026-10-12 00:45 UTC · Last modified 2026-11-09 14:05 UTC

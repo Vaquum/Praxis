@@ -1,8 +1,8 @@
 ---
 row: P68-07
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "Waiting on the stopped reconnect loop passes over the cancelling alone"
     source: "`binance_ws.py` 275"

@@ -1,8 +1,8 @@
 ---
 row: P136-01
 baseline: 49aa659
-created: 2026-11-15 12:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 10:41 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Only the ladder starts are walked, from the set the history pass keeps for them alone"
     source: "`execution_manager.py` 1313, reaching 1218 into 1219"

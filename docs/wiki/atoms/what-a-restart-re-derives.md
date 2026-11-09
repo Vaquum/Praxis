@@ -1,8 +1,8 @@
 ---
 row: N69-06
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "A restart's re-deriving takes the lock and empties the recovered shutdown hold outright, writing its three fields rather than going through the clearing that recomputes"
     source: "`nexus/core/mode_controller.py` 349, then 351-354, against 442-452"

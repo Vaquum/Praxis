@@ -1,8 +1,8 @@
 ---
 row: P138-01
 baseline: 49aa659
-created: 2026-11-15 13:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 10:49 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "One pass gathers the bracket starts, the latest unresolved phase, and the latest amend request kept apart from it"
     source: "`execution_manager.py` 1772-1774, then 1775, then 1776 into 1777, or 1779 into 1780, then 1781 into 1782"

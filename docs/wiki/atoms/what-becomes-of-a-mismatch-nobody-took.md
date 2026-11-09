@@ -1,8 +1,8 @@
 ---
 row: P103-02
 baseline: 49aa659
-created: 2026-11-14 05:00 UTC
-modified: 2026-11-14 05:00 UTC
+created: 2026-11-09 08:04 UTC
+modified: 2026-11-09 08:04 UTC
 evidence:
   - claim: "A mismatch is named for the account, the asset and the shortfall itself"
     source: "`praxis/trading.py` 1274"

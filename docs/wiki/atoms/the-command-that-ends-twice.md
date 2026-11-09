@@ -1,8 +1,8 @@
 ---
 row: P27-01
 baseline: 49aa659
-created: 2026-11-11 10:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-08 16:13 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A protective order the venue reports cancelled gives that bracket's exit command an ending, since the command is not yet marked ended"
     source: "`execution_manager.py` 10663 passing, 10712-10713 into 10782, then 10784-10799"

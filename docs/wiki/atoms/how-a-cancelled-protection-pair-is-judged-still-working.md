@@ -1,8 +1,8 @@
 ---
 row: P158-01
 baseline: 49aa659
-created: 2026-11-15 23:30 UTC
-modified: 2026-11-15 23:30 UTC
+created: 2026-11-09 12:21 UTC
+modified: 2026-11-09 12:21 UTC
 evidence:
   - claim: "The pair is asked after by its list name, and each leg that list names is asked after in turn"
     source: "`execution_manager.py` 7543, then 7544, then 7547, then 7548"

@@ -1,8 +1,8 @@
 ---
 row: N56-02
 baseline: 49aa659
-created: 2026-11-12 13:30 UTC
-modified: 2026-11-12 14:00 UTC
+created: 2026-11-08 18:01 UTC
+modified: 2026-11-08 18:01 UTC
 evidence:
   - claim: "An exit must be a sell"
     source: "`nexus/core/validator/intake_stage.py` 238-244"

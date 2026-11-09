@@ -1,8 +1,8 @@
 ---
 row: P66-04
 baseline: 49aa659
-created: 2026-11-13 00:00 UTC
-modified: 2026-11-13 00:00 UTC
+created: 2026-11-08 19:59 UTC
+modified: 2026-11-08 19:59 UTC
 evidence:
   - claim: "Logging is arranged before the arguments are even read, though a complaint about an argument is written by the argument reader itself rather than through it"
     source: "`__main__.py` 270 ahead of 272, the reading at 280"

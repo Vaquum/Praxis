@@ -2,7 +2,7 @@
 row: P4-27
 baseline: 49aa659
 created: 2026-10-02 09:11 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Six ceilings are read from the settings and handed back together: an order's size in money, a position's size, how often orders may go out, how wide the book may be, how old the book's figures may be, and how far the price worked out of the book may sit from the one expected"
     source: "`launcher.py` 760-767, then 788, the per-account settings built from them at 351"

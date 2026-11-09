@@ -1,8 +1,8 @@
 ---
 row: P122-02
 baseline: 49aa659
-created: 2026-11-15 05:30 UTC
-modified: 2026-11-15 05:30 UTC
+created: 2026-11-09 09:37 UTC
+modified: 2026-11-09 09:37 UTC
 evidence:
   - claim: "A delivery record carries the command's name, its side, whether it was an entry, its sum, its fees, the strategy, the trade name, the size, and whether the whole remainder was meant"
     source: "`launcher.py` 3238-3250"

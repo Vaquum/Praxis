@@ -2,7 +2,7 @@
 row: N9-04
 baseline: 49aa659
 created: 2026-11-03 15:40 UTC
-modified: 2026-11-13 13:00 UTC
+modified: 2026-11-09 02:48 UTC
 evidence:
   - claim: "The name a success records goes onto the state object a write serializes, and is put out with the rest of that state by whatever write comes next"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 165 onto the object kept at 63, which `praxis/launcher.py` 4343 hands it, serialized by a later write at `praxis/launcher.py` 3549 into `nexus/infrastructure/state_store.py` 199, or by a checkpoint at 179 into `nexus/infrastructure/snapshot.py` 45, the set copied at `nexus/infrastructure/wal_codec.py` 78 into 94 and packed at 97"

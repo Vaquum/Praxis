@@ -1,8 +1,8 @@
 ---
 row: N25-01
 baseline: 49aa659
-created: 2026-11-11 07:30 UTC
-modified: 2026-11-11 08:00 UTC
+created: 2026-11-08 15:57 UTC
+modified: 2026-11-08 15:57 UTC
 evidence:
   - claim: "The interval is refused unless it is a whole or ordinary number, with a true-or-false refused outright, and it is refused at or below nought"
     source: "`nexus/infrastructure/snapshot_scheduler.py` 51-57"

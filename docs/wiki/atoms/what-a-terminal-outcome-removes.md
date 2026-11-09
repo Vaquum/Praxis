@@ -1,8 +1,8 @@
 ---
 row: P129-02
 baseline: 49aa659
-created: 2026-11-15 09:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 10:03 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A terminal outcome drops the command's registration under the registry's lock"
     source: "`launcher.py` 4380, then 4381 into 4382"

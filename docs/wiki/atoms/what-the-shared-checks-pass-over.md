@@ -1,8 +1,8 @@
 ---
 row: P61-04
 baseline: 49aa659
-created: 2026-11-12 19:00 UTC
-modified: 2026-11-12 19:00 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "A revision of a protective pair must be a whole number at or above one, with a true-or-false refused by a test standing beside the one for kind"
     source: "`events.py` 91-93, the floor declared at 76"

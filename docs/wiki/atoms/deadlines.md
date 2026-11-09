@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-11-16 12:30 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "A deadline counts as passed where the moment given stands at or past it"
     source: "`execution_manager.py` 2939"

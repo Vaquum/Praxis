@@ -1,8 +1,8 @@
 ---
 row: P144-01
 baseline: 49aa659
-created: 2026-11-15 16:30 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 11:13 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "Both list names a bracket might be protected by are gathered, the one it holds and any replacement still owing, with an absent name left out"
     source: "`execution_manager.py` 7419-7426, the two running totals started at 7427, then 7428"

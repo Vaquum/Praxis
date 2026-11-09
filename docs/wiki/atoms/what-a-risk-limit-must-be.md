@@ -1,8 +1,8 @@
 ---
 row: N19-01
 baseline: 49aa659
-created: 2026-11-10 22:00 UTC
-modified: 2026-11-10 22:30 UTC
+created: 2026-11-08 15:24 UTC
+modified: 2026-11-08 15:24 UTC
 evidence:
   - claim: "A limit given must be a figure of the exact kind, finite, and at or above nought"
     source: "`nexus/core/validator/risk_stage.py` 36-48 into 49-53"

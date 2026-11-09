@@ -1,8 +1,8 @@
 ---
 row: P166-02
 baseline: 49aa659
-created: 2026-11-16 03:30 UTC
-modified: 2026-11-16 03:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The list is asked for by its name, each leg it names asked after in turn, and the legs' figures summed"
     source: "`execution_manager.py` 9935, then 9939, then 9940, then 9941, then 9944, then 9946"

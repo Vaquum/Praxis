@@ -1,8 +1,8 @@
 ---
 row: P149-01
 baseline: 49aa659
-created: 2026-11-15 19:00 UTC
-modified: 2026-11-15 19:00 UTC
+created: 2026-11-09 11:36 UTC
+modified: 2026-11-09 11:36 UTC
 evidence:
   - claim: "The queue is weighed as what it already holds plus the reservations standing against it, and a command arriving at the cap is refused"
     source: "`execution_manager.py` 3497-3500, then 3507-3511"

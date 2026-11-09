@@ -1,8 +1,8 @@
 ---
 row: N82-03
 baseline: 49aa659
-created: 2026-11-13 17:00 UTC
-modified: 2026-11-13 17:00 UTC
+created: 2026-11-09 04:13 UTC
+modified: 2026-11-09 04:13 UTC
 evidence:
   - claim: "The hook holds one answer and hands it back at the end, rather than answering from inside a branch"
     source: "`nexus/core/validator/intake_stage.py` 219, handed back at 330, the hook itself handed back at 332"

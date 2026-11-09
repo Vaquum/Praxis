@@ -1,8 +1,8 @@
 ---
 row: N6-10
 baseline: 49aa659
-created: 2026-10-26 23:50 UTC
-modified: 2026-11-13 17:00 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-11-09 04:13 UTC
 evidence:
   - claim: "A stopping host sets the mode to halted at the head of its sequence, before it stops a loop of its own"
     source: "`nexus/startup/shutdown_sequencer.py` 183 into 219-227, before 184-186"
@@ -40,4 +40,4 @@ The refusal returns before that stage's hooks are called, so whatever a hook wou
 
 ---
 
-Created 2026-10-26 23:50 UTC · Last modified 2026-10-26 23:50 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-11-09 04:13 UTC

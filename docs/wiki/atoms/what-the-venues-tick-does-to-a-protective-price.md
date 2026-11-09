@@ -1,8 +1,8 @@
 ---
 row: P183-02
 baseline: 49aa659
-created: 2026-11-16 12:00 UTC
-modified: 2026-11-16 12:00 UTC
+created: 2026-11-09 13:31 UTC
+modified: 2026-11-09 13:31 UTC
 evidence:
   - claim: "A price named outright is used as named"
     source: "`execution_manager.py` 5208, then 5209, or 5218, then 5219"

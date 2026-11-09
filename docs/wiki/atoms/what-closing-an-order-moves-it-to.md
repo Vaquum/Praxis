@@ -1,8 +1,8 @@
 ---
 row: P88-02
 baseline: 49aa659
-created: 2026-11-13 21:00 UTC
-modified: 2026-11-13 21:00 UTC
+created: 2026-11-09 06:08 UTC
+modified: 2026-11-09 06:08 UTC
 evidence:
   - claim: "A closing looks the order up first and answers at once where the projection does not hold it"
     source: "`trading_state.py` 365 into 366-367"

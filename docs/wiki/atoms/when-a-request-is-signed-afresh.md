@@ -1,8 +1,8 @@
 ---
 row: P113-01
 baseline: 49aa659
-created: 2026-11-14 10:00 UTC
-modified: 2026-11-14 10:00 UTC
+created: 2026-11-09 08:42 UTC
+modified: 2026-11-09 08:42 UTC
 evidence:
   - claim: "A session and the account's credentials are taken once, before any request is built"
     source: "`binance_adapter.py` 720, then 721"

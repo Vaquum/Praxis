@@ -1,8 +1,8 @@
 ---
 row: N15-08
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-10 21:00 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 15:17 UTC
 evidence:
   - claim: "The moment a mode last changed is asked for nothing beyond being a moment"
     source: "`nexus/core/domain/operational_mode.py` 151-153"

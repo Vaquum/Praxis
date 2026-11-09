@@ -1,8 +1,8 @@
 ---
 row: P9-03
 baseline: 49aa659
-created: 2026-11-10 03:30 UTC
-modified: 2026-11-10 03:30 UTC
+created: 2026-11-08 13:35 UTC
+modified: 2026-11-08 13:35 UTC
 evidence:
   - claim: "A bucket of permissions refuses a rate at or below nought"
     source: "`praxis/infrastructure/token_bucket.py` 45-47"

@@ -1,8 +1,8 @@
 ---
 row: N83-01
 baseline: 49aa659
-created: 2026-11-13 17:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-11-09 04:19 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "Five of the things a sequencer is built with must be present and of their own kind, each weighed in turn"
     source: "`nexus/startup/shutdown_sequencer.py` 118 into 119-120, then 122 into 123-124, then 126 into 127-128, then 130 into 131-132, then 134 into 135-136"

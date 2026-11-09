@@ -1,8 +1,8 @@
 ---
 row: N71-06
 baseline: 49aa659
-created: 2026-11-13 02:30 UTC
-modified: 2026-11-13 03:00 UTC
+created: 2026-11-08 21:14 UTC
+modified: 2026-11-08 21:14 UTC
 evidence:
   - claim: "The cohort's reference and its name are read off the manifest's entry and written out on every turn that reaches this step"
     source: "`nexus/strategy/predict_loop.py` 527, and 528, reached at 407"

@@ -1,8 +1,8 @@
 ---
 row: N77-01
 baseline: 49aa659
-created: 2026-11-13 10:00 UTC
-modified: 2026-11-13 10:00 UTC
+created: 2026-11-09 00:32 UTC
+modified: 2026-11-09 00:32 UTC
 evidence:
   - claim: "A pass with no command parked answers at once"
     source: "`nexus/core/outcome_loop.py` 273-274"

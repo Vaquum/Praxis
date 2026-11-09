@@ -1,8 +1,8 @@
 ---
 row: P165-02
 baseline: 49aa659
-created: 2026-11-16 03:00 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 12:39 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "A budget naming neither a size nor a spend is not recorded at all"
     source: "`execution_manager.py` 2383, then 2384"

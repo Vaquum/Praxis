@@ -2,7 +2,7 @@
 row: N5-06
 baseline: 49aa659
 created: 2026-10-25 14:00 UTC
-modified: 2026-10-26 14:00 UTC
+modified: 2026-10-26 07:47 UTC
 evidence:
   - claim: "A sale a host sends as it stops carries a decision allowing it, rather than asking the walk for one"
     source: "`nexus/startup/shutdown_sequencer.py` 398-404"
@@ -44,4 +44,4 @@ The venue adapter reads it for the venue's own sizes as the order is placed, and
 
 ---
 
-Created 2026-10-25 14:00 UTC · Last modified 2026-10-25 14:00 UTC
+Created 2026-10-25 14:00 UTC · Last modified 2026-10-26 07:47 UTC

@@ -1,8 +1,8 @@
 ---
 row: P96-01
 baseline: 49aa659
-created: 2026-11-14 01:30 UTC
-modified: 2026-11-14 01:30 UTC
+created: 2026-11-09 07:38 UTC
+modified: 2026-11-09 07:38 UTC
 evidence:
   - claim: "A reading of the new deduplication rows builds a set of triples as the rows arrive, each part cast to the kind the comparison needs"
     source: "`event_spine.py` 739 into 740-743"

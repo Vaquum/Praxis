@@ -1,8 +1,8 @@
 ---
 row: P93-02
 baseline: 49aa659
-created: 2026-11-14 00:00 UTC
-modified: 2026-11-14 00:00 UTC
+created: 2026-11-09 07:27 UTC
+modified: 2026-11-09 07:27 UTC
 evidence:
   - claim: "A target naming several kinds has the none-kind dropped and the first of the rest used"
     source: "`event_spine.py` 340-341 into 342, then 343"

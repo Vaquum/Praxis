@@ -1,8 +1,8 @@
 ---
 row: N13-03
 baseline: 49aa659
-created: 2026-11-08 15:40 UTC
-modified: 2026-11-08 17:30 UTC
+created: 2026-11-08 05:22 UTC
+modified: 2026-11-08 05:22 UTC
 evidence:
   - claim: "A granted record must have something in its lock field"
     source: "`nexus/core/capital_controller/reservation.py` 123-125"

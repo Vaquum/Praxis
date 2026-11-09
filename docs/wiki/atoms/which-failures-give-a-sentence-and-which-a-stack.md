@@ -1,8 +1,8 @@
 ---
 row: P66-05
 baseline: 49aa659
-created: 2026-11-13 00:00 UTC
-modified: 2026-11-13 00:00 UTC
+created: 2026-11-08 19:59 UTC
+modified: 2026-11-08 19:59 UTC
 evidence:
   - claim: "Started as a program, the guard around the whole run catches the ordinary kind of failure, writes it out with its trace, and answers with a failing code"
     source: "`__main__.py` 320-324"

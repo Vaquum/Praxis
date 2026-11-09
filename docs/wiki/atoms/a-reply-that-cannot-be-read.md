@@ -2,7 +2,7 @@
 row: P1-10
 baseline: 49aa659
 created: 2026-09-23 20:04 UTC
-modified: 2026-11-16 12:30 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "On a send, a body that will not parse as JSON is wrapped as a transport failure"
     source: "`binance_adapter.py` 592 caught at 660-662, leaving at 680, wrapped at 1637-1643"

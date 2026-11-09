@@ -1,8 +1,8 @@
 ---
 row: N82-01
 baseline: 49aa659
-created: 2026-11-13 16:30 UTC
-modified: 2026-11-13 16:30 UTC
+created: 2026-11-09 04:13 UTC
+modified: 2026-11-09 04:13 UTC
 evidence:
   - claim: "The mode check runs before any hook, and an answer from it ends the stage there"
     source: "`nexus/core/validator/intake_stage.py` 442, then 443-444"

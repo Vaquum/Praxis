@@ -1,8 +1,8 @@
 ---
 row: P8-02
 baseline: 49aa659
-created: 2026-11-10 01:30 UTC
-modified: 2026-11-10 01:30 UTC
+created: 2026-11-08 11:11 UTC
+modified: 2026-11-08 11:11 UTC
 evidence:
   - claim: "The shared check for a name lets a none through where the caller asked for optional"
     source: "`praxis/core/domain/_require_str.py` 25-26"

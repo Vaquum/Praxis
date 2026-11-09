@@ -1,8 +1,8 @@
 ---
 row: P156-02
 baseline: 49aa659
-created: 2026-11-15 22:30 UTC
-modified: 2026-11-15 22:30 UTC
+created: 2026-11-09 12:10 UTC
+modified: 2026-11-09 12:10 UTC
 evidence:
   - claim: "Each fill carried back by the venue's answer is written to the record and applied only where the write answered with a place"
     source: "`execution_manager.py` 5056, then 5057 into 5058"

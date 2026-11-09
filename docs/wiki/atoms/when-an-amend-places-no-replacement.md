@@ -1,8 +1,8 @@
 ---
 row: P143-02
 baseline: 49aa659
-created: 2026-11-15 16:00 UTC
-modified: 2026-11-15 16:00 UTC
+created: 2026-11-09 11:09 UTC
+modified: 2026-11-09 11:09 UTC
 evidence:
   - claim: "What is left to protect is what the entry delivered, less the exit's projected fills with the old pair's own taken back out, less what the venue said that pair filled"
     source: "`execution_manager.py` 9614"

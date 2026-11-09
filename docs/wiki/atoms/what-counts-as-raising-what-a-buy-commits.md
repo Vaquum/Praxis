@@ -1,8 +1,8 @@
 ---
 row: P20-01
 baseline: 49aa659
-created: 2026-11-11 00:00 UTC
-modified: 2026-11-11 01:30 UTC
+created: 2026-11-08 15:33 UTC
+modified: 2026-11-08 15:34 UTC
 evidence:
   - claim: "A sell's change is answered no before anything else is read"
     source: "`validate_trade_modify.py` 97-98"

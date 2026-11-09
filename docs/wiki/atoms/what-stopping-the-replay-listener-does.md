@@ -1,8 +1,8 @@
 ---
 row: P14-02
 baseline: 49aa659
-created: 2026-11-10 13:00 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:25 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "Stopping the listener shuts the worker pool down, waiting for the replay in progress and cancelling whatever is still queued when it runs"
     source: "`replay_api.py` 168-169, attached to the app's cleanup at 174"

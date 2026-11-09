@@ -1,8 +1,8 @@
 ---
 row: N37-01
 baseline: 49aa659
-created: 2026-11-11 19:00 UTC
-modified: 2026-11-12 00:00 UTC
+created: 2026-11-08 16:46 UTC
+modified: 2026-11-08 17:01 UTC
 evidence:
   - claim: "The pool must be finite and above nought"
     source: "`nexus/core/domain/capital_state.py` 44-46"

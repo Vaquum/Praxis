@@ -1,8 +1,8 @@
 ---
 row: N6-04
 baseline: 49aa659
-created: 2026-10-26 16:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "The wait is over the identifiers the sending recorded, which is every abort that went and every sale whose record against the position was built"
     source: "`nexus/startup/shutdown_sequencer.py` 614-615 over 592 and 461, against 443"
@@ -54,4 +54,4 @@ What survives is logged by name and left. The host goes on to save what its stra
 
 ---
 
-Created 2026-10-26 16:30 UTC · Last modified 2026-10-26 18:30 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-11-09 04:19 UTC

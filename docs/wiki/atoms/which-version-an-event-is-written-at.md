@@ -1,8 +1,8 @@
 ---
 row: N63-02
 baseline: 49aa659
-created: 2026-11-12 21:00 UTC
-modified: 2026-11-12 21:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "An event carrying an outcome name is written at the second version with that name in it, and one with no name at the first version without it"
     source: "`nexus/infrastructure/wal_codec.py` 581-589, or 591-597"

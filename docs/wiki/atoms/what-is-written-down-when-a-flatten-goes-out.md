@@ -1,8 +1,8 @@
 ---
 row: P160-02
 baseline: 49aa659
-created: 2026-11-16 00:30 UTC
-modified: 2026-11-16 00:30 UTC
+created: 2026-11-09 12:26 UTC
+modified: 2026-11-09 12:26 UTC
 evidence:
   - claim: "The intent is recorded and applied before the send"
     source: "`execution_manager.py` 7779, then 7780, then 7782"

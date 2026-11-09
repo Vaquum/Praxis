@@ -1,8 +1,8 @@
 ---
 row: N84-03
 baseline: 49aa659
-created: 2026-11-13 18:30 UTC
-modified: 2026-11-13 18:30 UTC
+created: 2026-11-09 04:45 UTC
+modified: 2026-11-09 04:45 UTC
 evidence:
   - claim: "A rejection and a cancel each release the order's outstanding total from whichever pot its state names"
     source: "`nexus/core/capital_controller/capital_controller.py` 673-674, or 675-676, and 1002-1003, or 1004-1005"

@@ -1,8 +1,8 @@
 ---
 row: P95-01
 baseline: 49aa659
-created: 2026-11-14 01:00 UTC
-modified: 2026-11-14 01:00 UTC
+created: 2026-11-09 07:34 UTC
+modified: 2026-11-09 07:34 UTC
 evidence:
   - claim: "Each of the two seal columns is added only where it is absent, so a file made with them already skips the altering"
     source: "`event_spine.py` 586 into 587-588, and 589 into 590-591"

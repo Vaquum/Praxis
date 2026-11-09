@@ -1,8 +1,8 @@
 ---
 row: N16-02
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 10:26 UTC
 evidence:
   - claim: "Three kinds of command are named"
     source: "`nexus/infrastructure/praxis_connector/trade_command_type.py` 23-25"

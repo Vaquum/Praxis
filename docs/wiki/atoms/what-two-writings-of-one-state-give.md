@@ -1,8 +1,8 @@
 ---
 row: N63-10
 baseline: 49aa659
-created: 2026-11-12 22:00 UTC
-modified: 2026-11-12 22:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "The two sets of handled names are put into order as they are written"
     source: "`nexus/infrastructure/wal_codec.py` 94, and 95"

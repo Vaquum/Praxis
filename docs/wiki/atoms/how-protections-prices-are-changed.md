@@ -2,7 +2,7 @@
 row: P4-48
 baseline: 49aa659
 created: 2026-10-14 07:25 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "No live bracket, no resting pair, a pair not active, no entry price and prices that will not resolve are each logged and returned rather than raised"
     source: "`execution_manager.py` 9388-9393, 9395-9400, 9402-9409 and 9411-9426"
@@ -57,4 +57,4 @@ One that comes back already ended is also left unknown rather than marked restin
 
 ---
 
-Created 2026-10-14 07:25 UTC · Last modified 2026-10-14 07:25 UTC
+Created 2026-10-14 07:25 UTC · Last modified 2026-11-09 14:05 UTC

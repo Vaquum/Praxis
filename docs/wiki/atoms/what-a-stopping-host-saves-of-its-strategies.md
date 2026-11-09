@@ -1,8 +1,8 @@
 ---
 row: N7-01
 baseline: 49aa659
-created: 2026-10-27 09:00 UTC
-modified: 2026-10-27 11:10 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "Each strategy the host's manifest names is asked for its own state as bytes, and one that raises has empty bytes kept under its name"
     source: "`nexus/startup/shutdown_sequencer.py` 814-822"
@@ -38,4 +38,4 @@ A name carrying a path separator is refused rather than written. Each remaining 
 
 ---
 
-Created 2026-10-27 09:00 UTC · Last modified 2026-10-27 11:10 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

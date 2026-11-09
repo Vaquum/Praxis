@@ -1,8 +1,8 @@
 ---
 row: P141-01
 baseline: 49aa659
-created: 2026-11-15 15:00 UTC
-modified: 2026-11-15 15:00 UTC
+created: 2026-11-09 11:01 UTC
+modified: 2026-11-09 11:01 UTC
 evidence:
   - claim: "A bracket's protection counts as active where it is placed, carries a name, and reports itself active — three things tested together"
     source: "`execution_manager.py` 1057-1061"

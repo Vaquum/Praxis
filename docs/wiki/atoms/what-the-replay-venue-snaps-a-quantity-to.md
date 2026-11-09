@@ -1,8 +1,8 @@
 ---
 row: P75-03
 baseline: 49aa659
-created: 2026-11-13 06:30 UTC
-modified: 2026-11-13 06:30 UTC
+created: 2026-11-08 22:30 UTC
+modified: 2026-11-08 22:30 UTC
 evidence:
   - claim: "A symbol the venue holds no rules for has its quantity passed through unchanged and unrefused"
     source: "`replay_venue_adapter.py` 139-141"

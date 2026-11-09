@@ -1,8 +1,8 @@
 ---
 row: P94-01
 baseline: 49aa659
-created: 2026-11-14 00:30 UTC
-modified: 2026-11-14 00:30 UTC
+created: 2026-11-09 07:30 UTC
+modified: 2026-11-09 07:30 UTC
 evidence:
   - claim: "The version the file carries is read first, and one newer than the build knows refuses to open at all"
     source: "`event_spine.py` 493, then 494 into 495-499"

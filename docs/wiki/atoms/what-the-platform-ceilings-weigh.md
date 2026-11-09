@@ -2,8 +2,8 @@
 row: N2-06
 baseline: 49aa659
 created: 2026-10-21 16:00 UTC
-modified: 2026-10-22 15:00 UTC
-reviewed: 2026-10-22 15:00 UTC
+modified: 2026-10-22 08:39 UTC
+reviewed: 2026-10-22 08:39 UTC
 evidence:
   - claim: "The platform stage weighs what the order comes to in money against a ceiling, reading that off the decision itself, and only where the ceiling is set"
     source: "`nexus/core/validator/platform_limits_stage.py` 130-143, the ceiling unset by default at 41"
@@ -57,4 +57,4 @@ Every one of the five is unset by default, so a stage with no ceilings passes ev
 
 ---
 
-Created 2026-10-21 16:00 UTC · Last modified 2026-10-22 15:00 UTC
+Created 2026-10-21 16:00 UTC · Last modified 2026-10-22 08:39 UTC

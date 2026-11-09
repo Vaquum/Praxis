@@ -1,8 +1,8 @@
 ---
 row: P131-02
 baseline: 49aa659
-created: 2026-11-15 10:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 10:10 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A caller from any address but the two loopback ones is refused as forbidden"
     source: "`launcher.py` 3340 into 3341"

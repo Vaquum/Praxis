@@ -1,8 +1,8 @@
 ---
 row: N14-06
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "Four of its fields are walked by name, and each is refused unless it is text with something left in it once trimmed"
     source: "`nexus/infrastructure/praxis_connector/protection_remediation.py` 41-42 over the four names, into 45-47"

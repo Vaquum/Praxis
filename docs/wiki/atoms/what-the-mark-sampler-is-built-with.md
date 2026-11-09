@@ -1,8 +1,8 @@
 ---
 row: P24-01
 baseline: 49aa659
-created: 2026-11-11 06:30 UTC
-modified: 2026-11-11 07:00 UTC
+created: 2026-11-08 15:54 UTC
+modified: 2026-11-08 15:54 UTC
 evidence:
   - claim: "The account and the pair are each tested for truth alone, so a name of blank space is kept and only an empty one is refused"
     source: "`mark_sampler.py` 50-51, or 53-54"

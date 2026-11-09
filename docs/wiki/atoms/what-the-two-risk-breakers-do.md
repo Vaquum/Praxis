@@ -1,8 +1,8 @@
 ---
 row: N69-08
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "The daily-loss breaker does nothing at all where no limit is set, neither placing its hold nor lifting it"
     source: "`nexus/core/mode_controller.py` 385-388"

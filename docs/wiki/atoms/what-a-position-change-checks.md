@@ -1,8 +1,8 @@
 ---
 row: N78-03
 baseline: 49aa659
-created: 2026-11-13 11:30 UTC
-modified: 2026-11-13 12:30 UTC
+created: 2026-11-09 02:48 UTC
+modified: 2026-11-09 02:48 UTC
 evidence:
   - claim: "Every check that a figure is present at all is an assertion, and each one names a field of the outcome"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 413, or 445-446, or 458-461, or 499-501"

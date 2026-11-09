@@ -1,8 +1,8 @@
 ---
 row: P18-01
 baseline: 49aa659
-created: 2026-11-10 19:00 UTC
-modified: 2026-11-10 19:00 UTC
+created: 2026-11-08 14:58 UTC
+modified: 2026-11-08 14:58 UTC
 evidence:
   - claim: "A start reads the state from the snapshot and then lets any record of a state change the log still holds replace it"
     source: "`nexus/infrastructure/state_store.py` 260-261 into 266-267, the records appended again as the host runs at 198-207"

@@ -1,8 +1,8 @@
 ---
 row: N14-01
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "A strategy event is refused unless the strategy's reference and the kind it names are each text with something left in them once trimmed"
     source: "`nexus/infrastructure/strategy_event.py` 56-58, or 60-62"

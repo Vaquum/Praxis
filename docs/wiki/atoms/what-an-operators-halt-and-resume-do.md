@@ -1,8 +1,8 @@
 ---
 row: P130-02
 baseline: 49aa659
-created: 2026-11-15 09:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 10:10 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Halting and resuming are one routine, told which it is by a flag"
     source: "`launcher.py` 3513, and 3516"

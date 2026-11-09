@@ -1,8 +1,8 @@
 ---
 row: P126-01
 baseline: 49aa659
-created: 2026-11-15 07:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:53 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A host is refused unless exactly one of a record and a path to one is given, both and neither failing the same test"
     source: "`launcher.py` 2750 into 2751-2752"

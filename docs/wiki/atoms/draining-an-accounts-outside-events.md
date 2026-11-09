@@ -1,8 +1,8 @@
 ---
 row: P182-01
 baseline: 49aa659
-created: 2026-11-16 11:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Three queues are drained in turn: the events waiting to be taken in, the news from outside, and the work to be reacted to"
     source: "`execution_manager.py` 3734, then 3735, then 3736, then 3737"

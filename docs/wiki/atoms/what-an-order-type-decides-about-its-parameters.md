@@ -1,8 +1,8 @@
 ---
 row: P109-02
 baseline: 49aa659
-created: 2026-11-14 08:00 UTC
-modified: 2026-11-14 08:00 UTC
+created: 2026-11-09 08:28 UTC
+modified: 2026-11-09 08:28 UTC
 evidence:
   - claim: "Each order kind is looked up in a table of what it demands, and a kind the table lacks is refused as unsupported"
     source: "`binance_adapter.py` 775, then 777 into 778-779"

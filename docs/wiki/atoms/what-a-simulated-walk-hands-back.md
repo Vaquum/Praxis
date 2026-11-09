@@ -1,8 +1,8 @@
 ---
 row: P31-01
 baseline: 49aa659
-created: 2026-11-11 13:30 UTC
-modified: 2026-11-11 14:00 UTC
+created: 2026-11-08 16:25 UTC
+modified: 2026-11-08 16:25 UTC
 evidence:
   - claim: "Each walk refuses a figure that is not finite and one at or below nought"
     source: "`praxis/binsim/book.py` 144-148, or 214-218"

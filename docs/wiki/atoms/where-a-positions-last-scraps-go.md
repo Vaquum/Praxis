@@ -2,7 +2,7 @@
 row: N3-01
 baseline: 49aa659
 created: 2026-10-22 15:00 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "A close meant to take the whole position whose finishing fill leaves some of it moves what is left into the account's dust, sets the size to nought, and removes the position"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 563 into 576-580 into 594-595, a size of nought being what closes it at `nexus/core/domain/position.py` 94"
@@ -50,4 +50,4 @@ Beyond the two lines that add to it, the dust is named in three places: where it
 
 ---
 
-Created 2026-10-22 15:00 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-22 15:00 UTC · Last modified 2026-10-23 07:08 UTC

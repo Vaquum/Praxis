@@ -1,8 +1,8 @@
 ---
 row: N40-02
 baseline: 49aa659
-created: 2026-11-11 21:30 UTC
-modified: 2026-11-12 00:00 UTC
+created: 2026-11-08 16:54 UTC
+modified: 2026-11-08 17:01 UTC
 evidence:
   - claim: "Its three names must each be text with something left once trimmed, the trimming only testing them"
     source: "`nexus/core/capital_controller/tracked_order.py` 59-61, or 63-65, or 67-69"

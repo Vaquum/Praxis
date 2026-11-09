@@ -1,8 +1,8 @@
 ---
 row: P110-01
 baseline: 49aa659
-created: 2026-11-14 08:30 UTC
-modified: 2026-11-14 08:30 UTC
+created: 2026-11-09 08:31 UTC
+modified: 2026-11-09 08:31 UTC
 evidence:
   - claim: "Anything below the first failing status answers at once and raises nothing"
     source: "`binance_adapter.py` 1115 into 1116"

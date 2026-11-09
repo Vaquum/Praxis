@@ -1,8 +1,8 @@
 ---
 row: P107-02
 baseline: 49aa659
-created: 2026-11-14 07:00 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:20 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "An account the manager holds no state for is passed over, and so is one whose state the terminal pass cannot find"
     source: "`praxis/trading.py` 856 into 857-858, and 1656 into 1657-1658, and 1495"

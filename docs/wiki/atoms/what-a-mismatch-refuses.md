@@ -1,8 +1,8 @@
 ---
 row: N16-05
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 10:26 UTC
 evidence:
   - claim: "Three of a mismatch's names are walked and each refused unless it is text with something left in it once trimmed"
     source: "`nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` 46-47 over the three names, into 48-50"

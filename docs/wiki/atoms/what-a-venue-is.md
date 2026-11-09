@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"

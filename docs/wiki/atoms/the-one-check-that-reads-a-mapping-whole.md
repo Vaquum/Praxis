@@ -1,8 +1,8 @@
 ---
 row: N17-04
 baseline: 49aa659
-created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+created: 2026-11-08 10:35 UTC
+modified: 2026-11-08 10:35 UTC
 evidence:
   - claim: "Each capital share must be a finite decimal above nought and at or below a hundred"
     source: "`nexus/instance_config.py` 256-258, or 259-261"

@@ -1,8 +1,8 @@
 ---
 row: N45-02
 baseline: 49aa659
-created: 2026-11-12 02:30 UTC
-modified: 2026-11-12 03:00 UTC
+created: 2026-11-08 17:14 UTC
+modified: 2026-11-08 17:14 UTC
 evidence:
   - claim: "The account's three rolling losses are summed over its strategies each time they are read"
     source: "`nexus/core/domain/risk_state.py` 215, or 221, or 227"

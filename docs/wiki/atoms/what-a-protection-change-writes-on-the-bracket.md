@@ -1,8 +1,8 @@
 ---
 row: P159-02
 baseline: 49aa659
-created: 2026-11-16 00:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 12:23 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The version the change carries is one past the version standing, and the new pair's name is worked out from it as a retry number"
     source: "`execution_manager.py` 9430, then 9431-9436"

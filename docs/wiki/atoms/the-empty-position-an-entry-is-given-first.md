@@ -1,8 +1,8 @@
 ---
 row: P120-01
 baseline: 49aa659
-created: 2026-11-15 04:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:27 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A position of no size is put in under the command's own name on either road an entry takes, before the order goes out"
     source: "`launcher.py` 2137 into 2138-2145, or 4314, then 4315, then 4316, both reaching 1446-1452"

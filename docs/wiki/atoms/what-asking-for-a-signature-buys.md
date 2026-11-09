@@ -1,8 +1,8 @@
 ---
 row: P89-02
 baseline: 49aa659
-created: 2026-11-13 22:00 UTC
-modified: 2026-11-13 22:00 UTC
+created: 2026-11-09 07:07 UTC
+modified: 2026-11-09 07:07 UTC
 evidence:
   - claim: "Four endpoints demand a signed caller before anything else, and the name they get back is the account"
     source: "`server.py` 289, and 300, and 307, and 271"

@@ -1,8 +1,8 @@
 ---
 row: N72-06
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 03:30 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "Each strategy the manifest names is built, and the name it is filed under is that strategy's own name trimmed"
     source: "`nexus/startup/sequencer.py` 509-512, trimmed at 510"

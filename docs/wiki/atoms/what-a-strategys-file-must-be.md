@@ -1,8 +1,8 @@
 ---
 row: N59-03
 baseline: 49aa659
-created: 2026-11-12 16:30 UTC
-modified: 2026-11-12 16:30 UTC
+created: 2026-11-08 18:43 UTC
+modified: 2026-11-08 18:43 UTC
 evidence:
   - claim: "The files are checked once the whole manifest has been built and every other check has passed"
     source: "`nexus/infrastructure/manifest.py` 559-569, then 571"

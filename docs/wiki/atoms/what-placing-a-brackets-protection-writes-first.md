@@ -1,8 +1,8 @@
 ---
 row: P145-02
 baseline: 49aa659
-created: 2026-11-15 17:00 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 11:18 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "An entry holding nothing has its bracket registered all the same, with no protection placed and the skip reported"
     source: "`execution_manager.py` 4887 into 4898, then 4904"

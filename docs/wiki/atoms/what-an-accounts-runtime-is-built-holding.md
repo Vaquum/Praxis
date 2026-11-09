@@ -1,8 +1,8 @@
 ---
 row: P181-02
 baseline: 49aa659
-created: 2026-11-16 11:00 UTC
-modified: 2026-11-16 11:00 UTC
+created: 2026-11-09 13:14 UTC
+modified: 2026-11-09 13:14 UTC
 evidence:
   - claim: "Six things are handed over: the account's name, its three queues, its trading record and its money record"
     source: "`execution_manager.py` 577, then 578, then 579, then 580, then 587, then 588"

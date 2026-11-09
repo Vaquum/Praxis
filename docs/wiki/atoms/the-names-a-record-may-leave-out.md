@@ -1,8 +1,8 @@
 ---
 row: P61-07
 baseline: 49aa659
-created: 2026-11-12 19:30 UTC
-modified: 2026-11-12 19:30 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "The shared test for a name takes a flag saying the name may be absent, and answers early where it is set and the name is nothing at all"
     source: "`_require_str.py` 25-26, the early answer given only where the flag is set"

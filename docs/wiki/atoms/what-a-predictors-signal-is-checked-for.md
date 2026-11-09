@@ -1,8 +1,8 @@
 ---
 row: N14-03
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "A signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a dictionary"
     source: "`nexus/strategy/signal.py` 32-34, or 36-38"

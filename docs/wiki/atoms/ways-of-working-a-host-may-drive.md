@@ -2,7 +2,7 @@
 row: P3-22
 baseline: 49aa659
 created: 2026-10-01 09:10 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A host is told which ways of working it may drive, as a list of names in its settings"
     source: "`launcher.py` 851 and 856-862, each kept at 878 and the set handed back at 880"

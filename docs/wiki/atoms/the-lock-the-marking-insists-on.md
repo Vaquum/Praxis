@@ -1,8 +1,8 @@
 ---
 row: N52-01
 baseline: 49aa659
-created: 2026-11-12 09:30 UTC
-modified: 2026-11-13 13:30 UTC
+created: 2026-11-08 17:43 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "Where a positions lock is given, it must be the very lock the risk record holds"
     source: "`nexus/core/mtm_loop.py` 87-90 into 91-92 and 107"

@@ -1,8 +1,8 @@
 ---
 row: P161-02
 baseline: 49aa659
-created: 2026-11-16 01:00 UTC
-modified: 2026-11-16 01:00 UTC
+created: 2026-11-09 12:29 UTC
+modified: 2026-11-09 12:29 UTC
 evidence:
   - claim: "The replayed events are sifted for the four kinds that book into the money record"
     source: "`execution_manager.py` 2114-2117, the four named at 2116"

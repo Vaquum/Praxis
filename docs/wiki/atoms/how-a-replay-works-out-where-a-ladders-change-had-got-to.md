@@ -1,8 +1,8 @@
 ---
 row: P179-01
 baseline: 49aa659
-created: 2026-11-16 10:00 UTC
-modified: 2026-11-16 10:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "A change that started is remembered with its phase at cancelling"
     source: "`execution_manager.py` 1253, then 1254, then 1255"

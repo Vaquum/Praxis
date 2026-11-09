@@ -1,8 +1,8 @@
 ---
 row: P163-02
 baseline: 49aa659
-created: 2026-11-16 02:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 12:34 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The completion is recorded before anything is adopted"
     source: "`execution_manager.py` 9318 reaching 9337-9342, then 9343"

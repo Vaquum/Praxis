@@ -1,8 +1,8 @@
 ---
 row: N47-01
 baseline: 49aa659
-created: 2026-11-12 04:30 UTC
-modified: 2026-11-13 14:30 UTC
+created: 2026-11-08 17:22 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "Each way across refuses before calling where the function it would call was never configured"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 248-250, or 303-305, or 343-345, or 361-363, or 400-402, or 434-436"

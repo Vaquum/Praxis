@@ -2,7 +2,7 @@
 row: N3-06
 baseline: 49aa659
 created: 2026-10-22 16:40 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "A fill against a position being sold has its own part taken out of the deployed figures before the remainder is dusted"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 241-247, ahead of 576-580"
@@ -46,4 +46,4 @@ A close the venue refuses before an order exists reaches none of that: the takin
 
 ---
 
-Created 2026-10-22 16:40 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-22 16:40 UTC · Last modified 2026-10-23 07:08 UTC

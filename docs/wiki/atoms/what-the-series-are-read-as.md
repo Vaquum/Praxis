@@ -1,8 +1,8 @@
 ---
 row: P15-01
 baseline: 49aa659
-created: 2026-11-10 14:30 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:34 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "The four series a snapshot is worked out from are read as arrays of floating-point numbers before any of them is checked"
     source: "`praxis/metrics/limen_snapshot.py` 96-99, ahead of the checks from 102"

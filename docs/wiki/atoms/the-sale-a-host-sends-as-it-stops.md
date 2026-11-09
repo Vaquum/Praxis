@@ -2,7 +2,7 @@
 row: N5-04
 baseline: 49aa659
 created: 2026-10-25 11:30 UTC
-modified: 2026-10-26 13:00 UTC
+modified: 2026-10-26 07:47 UTC
 evidence:
   - claim: "A host shutting down asks each strategy in turn what it wants done and keeps whatever it answers with"
     source: "`nexus/startup/shutdown_sequencer.py` 305-306 into 325-328"
@@ -54,4 +54,4 @@ The record of the sale against the position is built after the command has been 
 
 ---
 
-Created 2026-10-25 11:30 UTC · Last modified 2026-10-25 13:00 UTC
+Created 2026-10-25 11:30 UTC · Last modified 2026-10-26 07:47 UTC

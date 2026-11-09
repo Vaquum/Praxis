@@ -1,8 +1,8 @@
 ---
 row: P174-02
 baseline: 49aa659
-created: 2026-11-16 07:30 UTC
-modified: 2026-11-16 07:30 UTC
+created: 2026-11-09 12:57 UTC
+modified: 2026-11-09 12:57 UTC
 evidence:
   - claim: "One moment is taken and carried into both the record and the report"
     source: "`execution_manager.py` 2296, then 2299, and 2320"

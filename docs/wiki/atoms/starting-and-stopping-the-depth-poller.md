@@ -1,8 +1,8 @@
 ---
 row: P51-02
 baseline: 49aa659
-created: 2026-11-12 08:30 UTC
-modified: 2026-11-12 08:30 UTC
+created: 2026-11-08 17:39 UTC
+modified: 2026-11-08 17:39 UTC
 evidence:
   - claim: "Starting raises where the poller is already running"
     source: "`praxis/binsim/feed.py` 152-153"

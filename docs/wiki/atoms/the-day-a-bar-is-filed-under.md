@@ -1,8 +1,8 @@
 ---
 row: P15-03
 baseline: 49aa659
-created: 2026-11-10 14:30 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:34 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "A bar is filed under the calendar day of the moment handed in for it"
     source: "`praxis/metrics/limen_snapshot.py` 220"

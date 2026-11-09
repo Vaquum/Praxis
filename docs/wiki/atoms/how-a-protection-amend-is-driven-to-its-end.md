@@ -1,8 +1,8 @@
 ---
 row: P143-01
 baseline: 49aa659
-created: 2026-11-15 16:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 11:09 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The amend's own figures are taken off the bracket, and four of them are insisted upon"
     source: "`execution_manager.py` 9519-9525, then 9526, and 9527, and 9528, and 9529, the closing command named at 9532 and the old pair read at 9534"

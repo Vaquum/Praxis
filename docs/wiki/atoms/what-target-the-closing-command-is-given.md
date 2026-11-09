@@ -1,8 +1,8 @@
 ---
 row: P184-01
 baseline: 49aa659
-created: 2026-11-16 12:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 13:36 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "An abort reports against that same recorded budget, the resting order's own size standing in where none was recorded"
     source: "`execution_manager.py` 10531, then 10533 into 10534, or 10536"

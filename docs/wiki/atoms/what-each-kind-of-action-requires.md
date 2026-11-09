@@ -1,8 +1,8 @@
 ---
 row: N67-03
 baseline: 49aa659
-created: 2026-11-13 00:30 UTC
-modified: 2026-11-13 00:30 UTC
+created: 2026-11-08 20:17 UTC
+modified: 2026-11-08 20:17 UTC
 evidence:
   - claim: "An entry gathers five missing fields into one complaint naming all of them: the direction, a size or an amount of money, the way of working, the kind of order and the deadline"
     source: "`nexus/strategy/action.py` 176-189"

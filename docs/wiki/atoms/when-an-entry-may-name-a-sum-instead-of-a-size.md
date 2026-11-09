@@ -1,8 +1,8 @@
 ---
 row: N67-04
 baseline: 49aa659
-created: 2026-11-13 00:30 UTC
-modified: 2026-11-13 00:30 UTC
+created: 2026-11-08 20:17 UTC
+modified: 2026-11-08 20:17 UTC
 evidence:
   - claim: "An entry must carry a size or a sum to spend, and carrying both is refused"
     source: "`nexus/strategy/action.py` 179-180 into 187-189, then 191-193"

@@ -1,8 +1,8 @@
 ---
 row: N18-01
 baseline: 49aa659
-created: 2026-11-09 23:00 UTC
-modified: 2026-11-09 23:00 UTC
+created: 2026-11-08 10:55 UTC
+modified: 2026-11-08 10:55 UTC
 evidence:
   - claim: "The kind on a record of processing must be one of the named ones"
     source: "`nexus/infrastructure/praxis_connector/process_result.py` 37-39"

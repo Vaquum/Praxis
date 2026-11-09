@@ -1,8 +1,8 @@
 ---
 row: N13-02
 baseline: 49aa659
-created: 2026-11-08 15:40 UTC
-modified: 2026-11-08 15:40 UTC
+created: 2026-11-08 05:22 UTC
+modified: 2026-11-08 05:22 UTC
 evidence:
   - claim: "A capital lock carries the moment it was made at and the moment it runs out at, and they are the only pair of its fields it weighs against each other"
     source: "`nexus/core/capital_controller/reservation.py` 42-84, which puts two of its fields side by side at 82 and nowhere else"

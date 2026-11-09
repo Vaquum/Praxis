@@ -1,8 +1,8 @@
 ---
 row: P167-02
 baseline: 49aa659
-created: 2026-11-16 04:00 UTC
-modified: 2026-11-16 04:00 UTC
+created: 2026-11-09 12:43 UTC
+modified: 2026-11-09 12:43 UTC
 evidence:
   - claim: "A send that fails for any of three reasons is followed by asking whether the pair is resting after all"
     source: "`execution_manager.py` 9682, naming the three, then 9683, then 9685, then 9686"

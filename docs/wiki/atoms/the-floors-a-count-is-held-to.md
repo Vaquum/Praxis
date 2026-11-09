@@ -1,8 +1,8 @@
 ---
 row: P62-02
 baseline: 49aa659
-created: 2026-11-12 20:00 UTC
-modified: 2026-11-12 20:00 UTC
+created: 2026-11-08 19:13 UTC
+modified: 2026-11-08 19:13 UTC
 evidence:
   - claim: "The count of slices is refused below one where a scheme is replanned and refused below nought where one begins, so a scheme may begin with none and may not be replanned to none"
     source: "`events.py` 425-427, against 783-785"

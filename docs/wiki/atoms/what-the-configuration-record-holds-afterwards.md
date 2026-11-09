@@ -1,8 +1,8 @@
 ---
 row: P43-02
 baseline: 49aa659
-created: 2026-11-12 00:30 UTC
-modified: 2026-11-12 01:00 UTC
+created: 2026-11-08 17:05 UTC
+modified: 2026-11-08 17:05 UTC
 evidence:
   - claim: "The record is declared unchangeable, so an ordinary write to any of its fields is refused from the moment it is made"
     source: "`trading_config.py` 31, over the fields declared at 83-110"

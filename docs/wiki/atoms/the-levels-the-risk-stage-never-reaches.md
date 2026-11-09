@@ -1,8 +1,8 @@
 ---
 row: N19-02
 baseline: 49aa659
-created: 2026-11-10 22:00 UTC
-modified: 2026-11-10 23:00 UTC
+created: 2026-11-08 15:24 UTC
+modified: 2026-11-08 15:26 UTC
 evidence:
   - claim: "The walk answers with a breach where a figure is over its limit, and with nothing where none is"
     source: "`nexus/core/validator/risk_stage.py` 115-119, or else 121"

@@ -1,8 +1,8 @@
 ---
 row: N63-03
 baseline: 49aa659
-created: 2026-11-12 21:00 UTC
-modified: 2026-11-12 21:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "Each of the three readers wraps its whole build in one catch over five kinds of failure and raises one complaint from any of them"
     source: "`nexus/infrastructure/wal_codec.py` 133 into 153-155, or 650 into 657-659, or 676 into 691-693"

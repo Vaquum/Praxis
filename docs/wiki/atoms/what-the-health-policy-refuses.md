@@ -1,8 +1,8 @@
 ---
 row: N15-02
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-10 17:30 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 14:48 UTC
 evidence:
   - claim: "Ten thresholds are walked by name and each refused unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`nexus/core/health_evaluator.py` 98-103 into 105-107"

@@ -1,8 +1,8 @@
 ---
 row: N38-01
 baseline: 49aa659
-created: 2026-11-11 20:00 UTC
-modified: 2026-11-11 20:00 UTC
+created: 2026-11-08 16:49 UTC
+modified: 2026-11-08 16:49 UTC
 evidence:
   - claim: "A recovery checks the log's marker before it reads anything"
     source: "`nexus/infrastructure/state_store.py` 259, ahead of 260-261"

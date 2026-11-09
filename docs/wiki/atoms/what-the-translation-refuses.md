@@ -1,8 +1,8 @@
 ---
 row: N16-01
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 10:26 UTC
 evidence:
   - claim: "The translation refuses a decision that does not allow the action"
     source: "`nexus/infrastructure/praxis_connector/translate.py` 63-65"

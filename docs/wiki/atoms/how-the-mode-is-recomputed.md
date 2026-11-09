@@ -1,8 +1,8 @@
 ---
 row: N69-01
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "Any halting hold standing, or a health reading of halted, gives halted"
     source: "`nexus/core/mode_controller.py` 488-489"

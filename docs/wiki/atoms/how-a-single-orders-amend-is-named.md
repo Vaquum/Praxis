@@ -1,8 +1,8 @@
 ---
 row: P154-02
 baseline: 49aa659
-created: 2026-11-15 21:30 UTC
-modified: 2026-11-15 21:30 UTC
+created: 2026-11-09 12:01 UTC
+modified: 2026-11-09 12:01 UTC
 evidence:
   - claim: "A command with no order, or whose order is anything but a resting limit, is reported and the change dropped"
     source: "`execution_manager.py` 8680 into 8684"

@@ -1,8 +1,8 @@
 ---
 row: N78-01
 baseline: 49aa659
-created: 2026-11-13 11:30 UTC
-modified: 2026-11-13 11:30 UTC
+created: 2026-11-09 02:48 UTC
+modified: 2026-11-09 02:48 UTC
 evidence:
   - claim: "Each of the three names a dust close is given must be text with something other than spaces in it"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 662 into 663-664, then 666 into 667-668, then 670 into 671-672"

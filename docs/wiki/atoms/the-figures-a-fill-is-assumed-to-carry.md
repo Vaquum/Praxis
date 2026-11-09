@@ -1,8 +1,8 @@
 ---
 row: N55-01
 baseline: 49aa659
-created: 2026-11-12 12:30 UTC
-modified: 2026-11-12 13:00 UTC
+created: 2026-11-08 17:57 UTC
+modified: 2026-11-08 17:57 UTC
 evidence:
   - claim: "Four figures a fill carries are checked for being there by assertion, which ends the work rather than answering"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 217-220, asserted again at 445-446 and 458-461"

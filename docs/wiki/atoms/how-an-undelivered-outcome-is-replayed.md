@@ -2,7 +2,7 @@
 row: P2-39
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A plan is worked out from the rows alone, for one account"
     source: "`launcher.py` 1728-1745, the plan handed back at 1778"

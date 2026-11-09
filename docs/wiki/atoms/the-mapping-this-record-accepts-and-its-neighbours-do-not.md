@@ -1,8 +1,8 @@
 ---
 row: N17-02
 baseline: 49aa659
-created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+created: 2026-11-08 10:35 UTC
+modified: 2026-11-08 10:35 UTC
 evidence:
   - claim: "The per-strategy caps are refused unless what was handed in is a mapping of any kind"
     source: "`nexus/instance_config.py` 145-150"

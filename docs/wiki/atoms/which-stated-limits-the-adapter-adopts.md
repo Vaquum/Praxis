@@ -1,8 +1,8 @@
 ---
 row: P115-02
 baseline: 49aa659
-created: 2026-11-14 11:00 UTC
-modified: 2026-11-14 11:00 UTC
+created: 2026-11-09 08:48 UTC
+modified: 2026-11-09 08:48 UTC
 evidence:
   - claim: "Each stated limit is walked, and any entry that is not a mapping is passed over"
     source: "`binance_adapter.py` 2476, then 2477 into 2478"

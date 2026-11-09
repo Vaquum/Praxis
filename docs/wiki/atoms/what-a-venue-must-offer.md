@@ -1,8 +1,8 @@
 ---
 row: P74-04
 baseline: 49aa659
-created: 2026-11-13 05:30 UTC
-modified: 2026-11-13 06:00 UTC
+created: 2026-11-08 21:46 UTC
+modified: 2026-11-08 21:46 UTC
 evidence:
   - claim: "The interface declares twenty-one things, each body being one placeholder"
     source: "`venue_adapter.py` 754, 767, 780, 848, 894, 920, 946, 972, 998, 1016, 1034, 1064, 1088, 1104, 1123, 1133, 1148, 1158, 1176, 1189 and 1204"

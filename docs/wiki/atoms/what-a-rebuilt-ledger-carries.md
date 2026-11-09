@@ -1,8 +1,8 @@
 ---
 row: P54-02
 baseline: 49aa659
-created: 2026-11-12 11:30 UTC
-modified: 2026-11-13 20:30 UTC
+created: 2026-11-08 17:53 UTC
+modified: 2026-11-09 05:30 UTC
 evidence:
   - claim: "The state a ledger can be rebuilt from holds the account's name, whether it was registered, the way of costing, the balances, the per-trade figures and the open lots"
     source: "`account_ledger.py` 131-135 and the fields following it, the same shape answered at 199"

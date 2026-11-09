@@ -1,8 +1,8 @@
 ---
 row: P157-02
 baseline: 49aa659
-created: 2026-11-15 23:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 12:16 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The venue's remembered rules give the lot step, the least amount and the least sum, with nothing standing in for the step and nought for both minimums where no rules are held"
     source: "`execution_manager.py` 9080, then 9081, then 9082, then 9083"

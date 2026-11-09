@@ -1,8 +1,8 @@
 ---
 row: P141-02
 baseline: 49aa659
-created: 2026-11-15 15:00 UTC
-modified: 2026-11-15 15:00 UTC
+created: 2026-11-09 11:01 UTC
+modified: 2026-11-09 11:01 UTC
 evidence:
   - claim: "The account is taken out of the manager's own mapping first, by a removal that answers with what it removed"
     source: "`execution_manager.py` 2952"

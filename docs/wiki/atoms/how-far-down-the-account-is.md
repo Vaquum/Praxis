@@ -2,7 +2,7 @@
 row: N2-04
 baseline: 49aa659
 created: 2026-10-20 12:30 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "The account's whole value is what it started with, plus what it has made and closed, plus what open positions are up or down"
     source: "`nexus/core/domain/risk_state.py` 238-239"
@@ -51,4 +51,4 @@ What reads it is the part of Nexus deciding whether the account may trade at all
 
 ---
 
-Created 2026-10-20 12:30 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-20 12:30 UTC · Last modified 2026-10-23 07:08 UTC

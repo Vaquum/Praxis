@@ -1,8 +1,8 @@
 ---
 row: P117-02
 baseline: 49aa659
-created: 2026-11-15 03:00 UTC
-modified: 2026-11-15 03:00 UTC
+created: 2026-11-09 09:12 UTC
+modified: 2026-11-09 09:12 UTC
 evidence:
   - claim: "Every strategy the manifest declares is walked, each naming a series and a bar width, and the width kept under the series' name"
     source: "`launcher.py` 2369, then 2370, then 2381"

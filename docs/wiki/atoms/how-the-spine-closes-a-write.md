@@ -1,8 +1,8 @@
 ---
 row: P96-02
 baseline: 49aa659
-created: 2026-11-14 01:30 UTC
-modified: 2026-11-14 01:30 UTC
+created: 2026-11-09 07:38 UTC
+modified: 2026-11-09 07:38 UTC
 evidence:
   - claim: "A rollback stands inside a guard whose catch names any failure, and lets the rollback's own failure go no further"
     source: "`event_spine.py` 901-902 into 903, which raises nothing on"

@@ -1,8 +1,8 @@
 ---
 row: P91-01
 baseline: 49aa659
-created: 2026-11-13 23:00 UTC
-modified: 2026-11-13 23:00 UTC
+created: 2026-11-09 07:16 UTC
+modified: 2026-11-09 07:16 UTC
 evidence:
   - claim: "Both sockets are opened with the same heartbeat and prepared against the request before anything is read"
     source: "`praxis/binsim/server.py` 821 then 822, and 916 then 917"

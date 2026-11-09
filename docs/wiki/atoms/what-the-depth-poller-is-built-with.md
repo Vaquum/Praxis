@@ -1,8 +1,8 @@
 ---
 row: P51-01
 baseline: 49aa659
-created: 2026-11-12 08:30 UTC
-modified: 2026-11-12 08:30 UTC
+created: 2026-11-08 17:39 UTC
+modified: 2026-11-08 17:39 UTC
 evidence:
   - claim: "The interval between polls and the span a request may take are each refused at or below nought"
     source: "`praxis/binsim/feed.py` 100-101, or 103-104"

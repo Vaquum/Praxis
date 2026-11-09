@@ -1,8 +1,8 @@
 ---
 row: P64-04
 baseline: 49aa659
-created: 2026-11-12 22:30 UTC
-modified: 2026-11-12 23:00 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "The payload is built in one go and the writing of it handed to a thread, so the loop is not held while bytes go to disk"
     source: "`ledger.py` 624-631, then 633-635"

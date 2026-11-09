@@ -1,8 +1,8 @@
 ---
 row: P66-02
 baseline: 49aa659
-created: 2026-11-13 00:00 UTC
-modified: 2026-11-13 00:00 UTC
+created: 2026-11-08 19:59 UTC
+modified: 2026-11-08 19:59 UTC
 evidence:
   - claim: "The book, the ledger and the two long-lived parts are built before anything is started, and the saved state is read as the ledger is built"
     source: "`__main__.py` 183-185, then 186, then 188-204"

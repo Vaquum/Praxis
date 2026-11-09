@@ -1,8 +1,8 @@
 ---
 row: P86-02
 baseline: 49aa659
-created: 2026-11-13 20:00 UTC
-modified: 2026-11-13 20:00 UTC
+created: 2026-11-09 05:25 UTC
+modified: 2026-11-09 05:25 UTC
 evidence:
   - claim: "A fill's bar is found by searching the settle moments for its own, and taking the one before"
     source: "`build_replay_report.py` 212"

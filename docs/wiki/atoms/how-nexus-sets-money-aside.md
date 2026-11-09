@@ -2,8 +2,8 @@
 row: N1-01
 baseline: 49aa659
 created: 2026-10-16 09:10 UTC
-modified: 2026-10-22 12:00 UTC
-reviewed: 2026-10-22 12:00 UTC
+modified: 2026-10-22 08:39 UTC
+reviewed: 2026-10-22 08:39 UTC
 evidence:
   - claim: "A reservation is refused before any limit where money is deployed with no record of which strategy holds it, or where that record does not add up to the deployed total"
     source: "`nexus/core/capital_controller/capital_controller.py` 340-365 before 367"
@@ -54,4 +54,4 @@ Each reservation carries a moment it expires at, set from the life asked for as 
 
 ---
 
-Created 2026-10-16 09:10 UTC · Last modified 2026-10-22 12:00 UTC
+Created 2026-10-16 09:10 UTC · Last modified 2026-10-22 08:39 UTC

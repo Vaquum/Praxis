@@ -1,8 +1,8 @@
 ---
 row: N35-01
 baseline: 49aa659
-created: 2026-11-11 17:00 UTC
-modified: 2026-11-11 17:30 UTC
+created: 2026-11-08 16:38 UTC
+modified: 2026-11-08 16:38 UTC
 evidence:
   - claim: "The interval is refused unless it is a whole or ordinary number, with a true-or-false refused outright, and is refused at or below nought"
     source: "`nexus/core/health_loop.py` 62-68"

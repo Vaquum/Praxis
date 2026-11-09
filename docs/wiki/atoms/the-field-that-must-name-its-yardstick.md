@@ -1,8 +1,8 @@
 ---
 row: N17-05
 baseline: 49aa659
-created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+created: 2026-11-08 10:35 UTC
+modified: 2026-11-08 10:35 UTC
 evidence:
   - claim: "A reference price source may be left out, and where given must be text"
     source: "`nexus/instance_config.py` 189-193"

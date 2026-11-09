@@ -1,8 +1,8 @@
 ---
 row: N72-07
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 03:30 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "Reading the manifest sits inside one attempt naming the ordinary kind of failure, each such failure becoming one complaint naming the step and carrying the failure's words"
     source: "`nexus/startup/sequencer.py` 495, and 497, raising at 498"

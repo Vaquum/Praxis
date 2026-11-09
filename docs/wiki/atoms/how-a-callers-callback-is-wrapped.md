@@ -1,8 +1,8 @@
 ---
 row: P98-02
 baseline: 49aa659
-created: 2026-11-14 02:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 07:46 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "The shared wrapper answers at once for a callback that is absent, so what it hands back can always be awaited"
     source: "`praxis/trading.py` 143-144 into 145, handed back at 152, used at 444, or 470"

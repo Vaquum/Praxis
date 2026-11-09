@@ -1,8 +1,8 @@
 ---
 row: P172-01
 baseline: 49aa659
-created: 2026-11-16 06:30 UTC
-modified: 2026-11-16 06:30 UTC
+created: 2026-11-09 12:53 UTC
+modified: 2026-11-09 12:53 UTC
 evidence:
   - claim: "Only four kinds of news are considered at all: a fill, a call-off, an expiry and a refusal"
     source: "`execution_manager.py` 10651, then 10652"

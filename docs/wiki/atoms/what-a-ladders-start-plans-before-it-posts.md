@@ -1,8 +1,8 @@
 ---
 row: P155-02
 baseline: 49aa659
-created: 2026-11-15 22:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 12:06 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The parameters are insisted upon as a ladder's and the amount as present"
     source: "`execution_manager.py` 6085, then 6086"

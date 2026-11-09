@@ -1,8 +1,8 @@
 ---
 row: P115-01
 baseline: 49aa659
-created: 2026-11-14 11:00 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 08:48 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "The used weight is taken from a header, read only where the header is there"
     source: "`binance_adapter.py` 2425, then 2427"

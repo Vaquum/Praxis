@@ -2,7 +2,7 @@
 row: P6-04
 baseline: 49aa659
 created: 2026-11-06 15:07 UTC
-modified: 2026-11-13 18:30 UTC
+modified: 2026-11-09 04:45 UTC
 evidence:
   - claim: "The lock placed in the pair as its second half is the money's own, made once as the money is built and handed out by a reading that returns it"
     source: "`nexus/core/capital_controller/capital_controller.py` 107 returned at 127, put in the pair at `praxis/launcher.py` 2580"

@@ -1,8 +1,8 @@
 ---
 row: P111-02
 baseline: 49aa659
-created: 2026-11-14 09:00 UTC
-modified: 2026-11-14 09:00 UTC
+created: 2026-11-09 08:35 UTC
+modified: 2026-11-09 08:35 UTC
 evidence:
   - claim: "An amount is snapped onto the symbol's step before anything is weighed against it"
     source: "`binance_adapter.py` 1518, ahead of 1520"

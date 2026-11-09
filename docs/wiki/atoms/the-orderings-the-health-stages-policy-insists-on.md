@@ -1,8 +1,8 @@
 ---
 row: N57-02
 baseline: 49aa659
-created: 2026-11-12 15:00 UTC
-modified: 2026-11-12 15:00 UTC
+created: 2026-11-08 18:12 UTC
+modified: 2026-11-08 18:12 UTC
 evidence:
   - claim: "Four of the five measures are held to levels that rise: alerting no higher than acting, acting no higher than halting"
     source: "`nexus/core/validator/health_stage.py` 111-115, 116-120, 121-125 and 131-135 into 323-328, and 337-342"

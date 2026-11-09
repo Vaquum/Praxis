@@ -20,6 +20,7 @@ import unicodedata
 from collections.abc import Callable, Iterable
 import dataclasses
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -254,6 +255,7 @@ FINDING_ROW_CELLS_RE = re.compile(
 )
 MERGE_ROW_RE = re.compile(r'^\| Row (H-\d+) \|[^|]*\|([^|]*)\|', re.MULTILINE)
 SETTLING_WORDS = ('promote', 'merge', 'folds into', 'decline')
+DECLARATIONS = (ast.AnnAssign, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 UNNAMED = 'cited with no file named before it'
 LINE_COUNT_RE = re.compile(
     r'`([a-z_/]+\.py)`[,]?\s+(?:is|at)\s+(\d[\d,]*)\s+lines',
@@ -5409,12 +5411,12 @@ def _write(line: str) -> None:
 
 def _row_states() -> dict[str, str]:
 
-    """Return what each register row says about its own state.
+    '''Return what each register row says about its own state.
 
     Returns:
         dict[str, str]: Row identifier against the word in its state
             column.
-    """
+    '''
 
     if not REGISTER.exists():
         return {}
@@ -5424,7 +5426,7 @@ def _row_states() -> dict[str, str]:
 
 def _reviewed_versions() -> list[str]:
 
-    """Return where a row claiming review does not cover what is there now.
+    '''Return where a row claiming review does not cover what is there now.
 
     Review is a fact about a version, not a property a page keeps. An
     article whose row reads `reviewed` carries the stamp it was reviewed
@@ -5434,7 +5436,7 @@ def _reviewed_versions() -> list[str]:
 
     Returns:
         list[str]: One failure per row whose claim has gone stale.
-    """
+    '''
 
     reviewed = {
         row for row, state in _row_states().items() if state == 'reviewed'
@@ -5485,7 +5487,7 @@ def _reviewed_versions() -> list[str]:
 
 def _review_states() -> list[str]:
 
-    """Return where the register's review states are not states at all.
+    '''Return where the register's review states are not states at all.
 
     A row is `written` or `reviewed`, and nothing else. Reviewed means a
     reviewer re-derived the article from the source its claims cite, as
@@ -5496,7 +5498,7 @@ def _review_states() -> list[str]:
     Returns:
         list[str]: One failure per unknown state, plus one where a
             stated count disagrees with the table.
-    """
+    '''
 
     states = _row_states()
     failures = [
@@ -5541,15 +5543,20 @@ def _register_ids() -> set[str]:
     return set(ROW_OPENING.findall(REGISTER.read_text()))
 
 
-def _last_commit_date(path: Path) -> str | None:
+def _last_commit_stamp(path: Path) -> str | None:
 
-    '''Return the UTC date a path was last committed on.
+    '''Return the UTC minute a path was last committed at.
+
+    The minute rather than the day, because a stamp invented by adding
+    half an hour to the one before it lands on the same day as the
+    commit recording it and a day's granularity cannot see it. That is
+    how the stamps came to run a week ahead.
 
     Args:
-        path (Path): The file to read, at its pinned commit.
+        path (Path): The file to ask git about.
 
     Returns:
-        str | None: The date, or None where git cannot say.
+        str | None: The stamp, or None where git cannot say.
     '''
 
     if GIT is None:
@@ -5561,7 +5568,7 @@ def _last_commit_date(path: Path) -> str | None:
             'log',
             '-1',
             '--format=%cd',
-            '--date=format-local:%Y-%m-%d',
+            '--date=format-local:%Y-%m-%d %H:%M UTC',
             '--',
             str(path),
         ],
@@ -5576,7 +5583,7 @@ def _last_commit_date(path: Path) -> str | None:
 
 def _says_something(said: str) -> bool:
 
-    """Return whether a sentence makes a claim rather than carrying links.
+    '''Return whether a sentence makes a claim rather than carrying links.
 
     A trailing run of links, and a bold label with nothing after it, say
     nothing a reader could check, so neither needs an owner of its own.
@@ -5586,7 +5593,7 @@ def _says_something(said: str) -> bool:
 
     Returns:
         bool: Whether it asserts anything.
-    """
+    '''
 
     bare = LINKED_TEXT.sub(r'\1', said).replace('*', '')
 
@@ -5595,14 +5602,14 @@ def _says_something(said: str) -> bool:
 
 def _names_an_article(said: str) -> bool:
 
-    """Return whether a sentence hands off to an article.
+    '''Return whether a sentence hands off to an article.
 
     Args:
         said (str): One sentence of a step.
 
     Returns:
         bool: Whether it links one.
-    """
+    '''
 
     return any(
         target.startswith('../atoms/') for target in MD_LINK.findall(said)
@@ -5611,14 +5618,14 @@ def _names_an_article(said: str) -> bool:
 
 def _shortened(said: str) -> str:
 
-    """Return a sentence trimmed to name it in a complaint.
+    '''Return a sentence trimmed to name it in a complaint.
 
     Args:
         said (str): The sentence.
 
     Returns:
         str: Its first words.
-    """
+    '''
 
     bare = ' '.join(LINKED_TEXT.sub(r'\1', said).replace('*', '').split())
 
@@ -5627,7 +5634,7 @@ def _shortened(said: str) -> str:
 
 def _spine_steps(body: str) -> list[str]:
 
-    """Return a spine's departures from being a sequence of owned steps.
+    '''Return a spine's departures from being a sequence of owned steps.
 
     A spine sequences articles; it owns no behaviour of its own. So every
     numbered step has to hand off to at least one article, and a step
@@ -5658,7 +5665,7 @@ def _spine_steps(body: str) -> list[str]:
     Returns:
         list[str]: One complaint per step that owns what it says, plus
             one where the route is missing or misnumbered.
-    """
+    '''
 
     steps: list[tuple[str, list[str]]] = []
 
@@ -5765,7 +5772,7 @@ def _negative_definitions(body: str) -> list[str]:
 
 def _plain_words(line: str) -> str:
 
-    """Return a line with its links and emphasis taken off.
+    '''Return a line with its links and emphasis taken off.
 
     A word wrapped in emphasis is the same word, and the checks that
     read prose should see it as one: `The *first* weighs the order`
@@ -5776,7 +5783,7 @@ def _plain_words(line: str) -> str:
 
     Returns:
         str: The line, as its words alone.
-    """
+    '''
 
     said = re.sub(r'\[([^]]+)\]\([^)]+\)', r'\1', line)
 
@@ -5785,7 +5792,7 @@ def _plain_words(line: str) -> str:
 
 def _prose_blocks(body: str) -> list[list[str]]:
 
-    """Return the prose of each section, one joined block per paragraph.
+    '''Return the prose of each section, one joined block per paragraph.
 
     Both voice checks used to read a line at a time, so a sentence that
     wrapped escaped them while the same sentence on one line did not.
@@ -5808,7 +5815,7 @@ def _prose_blocks(body: str) -> list[list[str]]:
 
     Returns:
         list[list[str]]: Each section, as its paragraphs in order.
-    """
+    '''
 
     sections: list[list[str]] = [[]]
     paragraph: list[str] = []
@@ -5888,7 +5895,7 @@ def _prose_blocks(body: str) -> list[list[str]]:
 
 def _bare_ordinals(body: str) -> list[str]:
 
-    """Return the prose standing an ordinal in for a thing.
+    '''Return the prose standing an ordinal in for a thing.
 
     "The fourth goes the other way" leans on a count given in an earlier
     sentence, and that count went stale three rounds running as each
@@ -5908,7 +5915,7 @@ def _bare_ordinals(body: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per ordinal standing alone.
-    """
+    '''
 
     found: list[str] = []
 
@@ -5934,7 +5941,7 @@ def _bare_ordinals(body: str) -> list[str]:
 
 def _obliged_purpose(body: str) -> list[str]:
 
-    """Return the prose giving a purpose the code is under no obligation to serve.
+    '''Return the prose giving a purpose the code is under no obligation to serve.
 
     Four review rounds running turned up a reason attached to a true
     fact — an urgency the bypass never tests, a venue the shutdown never
@@ -5962,7 +5969,7 @@ def _obliged_purpose(body: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per sentence binding the two.
-    """
+    '''
 
     found: list[str] = []
 
@@ -6008,14 +6015,14 @@ def _lead_paragraph(body: str) -> str | None:
 
 def _term_pattern(term: str) -> str:
 
-    """Return the pattern matching a term as whole words, wrapped or not.
+    '''Return the pattern matching a term as whole words, wrapped or not.
 
     Args:
         term (str): The term another article owns.
 
     Returns:
         str: The pattern, its inner spaces matching any whitespace.
-    """
+    '''
 
     return (
         r'(?<!\w)'
@@ -6451,6 +6458,11 @@ def _edited_since(page: Path) -> str | None:
     stamp has to differ too. The committed stamp is what that is
     measured against: a file's own date would count a copy as an edit.
 
+    A page differing from it in nothing but its stamps is answered for
+    as settled. Putting a wrong stamp right is not writing, so there is
+    nothing for a new stamp to describe, and asking for one would mean
+    a correction could only be made by making a second false claim.
+
     Args:
         page (Path): The page being read.
 
@@ -6469,6 +6481,11 @@ def _edited_since(page: Path) -> str | None:
     if result.returncode != 0:
         return None
 
+    held = page.read_text(encoding='utf-8')
+
+    if ANY_STAMP.sub('', result.stdout) == ANY_STAMP.sub('', held):
+        return None
+
     meta, text = _split_front_matter(result.stdout)
     stamp = META_STAMP.search(meta) if meta else STAMP.search(text)
 
@@ -6477,7 +6494,7 @@ def _edited_since(page: Path) -> str | None:
 
 def _stamps_in_prose(body: str) -> list[str]:
 
-    """Return the prose lines carrying a moment that belongs elsewhere.
+    '''Return the prose lines carrying a moment that belongs elsewhere.
 
     Stamping an article means rewriting the line that carries its time,
     and one such rewrite landed inside a paragraph quoting the footer
@@ -6490,7 +6507,7 @@ def _stamps_in_prose(body: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per paragraph carrying one.
-    """
+    '''
 
     return [
         f'prose carries a moment, which belongs in the metadata or the '
@@ -6545,7 +6562,21 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
 
 def _stale_stamp(rel: str, page: Path, modified: str) -> list[str]:
 
-    '''Return where a page's own stamp is older than the page.
+    '''Return where a page's stamp is not a time the tree supports.
+
+    A stamp says when the writing happened, so it can fall before the
+    commit that recorded it and it cannot fall after it, and it cannot
+    fall after now. Neither bound was checked. What stood in their
+    place asked only that an edited page carry a stamp later than the
+    one it was committed with, which made an invented stamp permanent:
+    once a stamp ran ahead of the clock, every later edit had to run
+    further ahead again. Six hundred and three pages came to carry one
+    up to seven days after the work it describes, half an hour added
+    per package instead of the clock being read.
+
+    An edit still has to restamp the page. That is asked here as a
+    stamp differing from the committed one rather than one later than
+    it, so a stamp that is wrong can be put back.
 
     Args:
         rel (str): The page's path, as it is written in a complaint.
@@ -6553,24 +6584,37 @@ def _stale_stamp(rel: str, page: Path, modified: str) -> list[str]:
         modified (str): The stamp it carries.
 
     Returns:
-        list[str]: One complaint per way the stamp is behind.
+        list[str]: One complaint per way the stamp is unsupportable.
     '''
 
     failures = []
-    committed = _last_commit_date(page)
+    now = datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M UTC')
 
-    if committed is not None and modified[:len(committed)] < committed:
+    if modified > now:
         failures.append(
-            f'{rel}: last modified {modified} is older than its last '
-            f'commit, {committed}',
+            f'{rel}: last modified {modified} is a time that has not '
+            f'arrived; it is {now}',
         )
 
     committed_stamp = _edited_since(page)
 
-    if committed_stamp is not None and modified <= committed_stamp:
+    if committed_stamp is not None:
+
+        if modified == committed_stamp:
+            failures.append(
+                f'{rel}: holds an edit that is not yet committed while its '
+                f'last modified still reads {modified}, as it did when '
+                'committed',
+            )
+
+        return failures
+
+    committed = _last_commit_stamp(page)
+
+    if committed is not None and modified > committed:
         failures.append(
-            f'{rel}: holds an edit that is not yet committed while its last '
-            f'modified still reads {modified}, as it did when committed',
+            f'{rel}: last modified {modified} is after the commit that '
+            f'recorded it, {committed}',
         )
 
     return failures
@@ -7377,19 +7421,22 @@ def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
 
 def _statement_lines(path: Path) -> set[int]:
 
-    """Return the lines holding a statement inside a function body.
+    '''Return the lines holding a statement inside a function body.
 
     A declaration carries no behaviour to account for, so the lines a
     module has to have cited are the statements its functions run. A
     docstring and a bare annotation are declarations standing where a
-    statement would.
+    statement would, and so is the heading of a function or class
+    written inside another: `_signature_lines` refuses a citation to
+    that heading, so counting it leaves a line the gate asks for and
+    will not accept, which forty-four lines across three modules were.
 
     Args:
         path (Path): The module, read at its pinned commit.
 
     Returns:
         set[int]: Those line numbers.
-    """
+    '''
 
     source = _source_text(path)
     lines = source.splitlines()
@@ -7404,7 +7451,7 @@ def _statement_lines(path: Path) -> set[int]:
 
             for inner in ast.walk(statement):
 
-                if not isinstance(inner, ast.stmt) or isinstance(inner, ast.AnnAssign):
+                if not isinstance(inner, ast.stmt) or isinstance(inner, DECLARATIONS):
                     continue
 
                 if (
@@ -7424,11 +7471,20 @@ def _statement_lines(path: Path) -> set[int]:
 
 def _cited_lines() -> dict[str, set[int]]:
 
-    """Return which lines the articles cite in each file, by ledger path.
+    '''Return which lines the articles cite in each file, by ledger path.
+
+    A row may name several files, and a line number belongs to the file
+    named before it rather than to every file the row mentions. Reading
+    a row as though each number belonged to all of them credits a
+    module with lines no claim makes about it, which is how the largest
+    module came to publish three log calls among its cited statements.
+
+    A number with no file named before it is left out, the same reading
+    `_evidence_totals` gives it.
 
     Returns:
         dict[str, set[int]]: Path to the lines cited in it.
-    """
+    '''
 
     cited: dict[str, set[int]] = {}
 
@@ -7438,29 +7494,31 @@ def _cited_lines() -> dict[str, set[int]]:
 
         for whole in _evidence_rows(meta):
             source = whole.split(' | ', 1)[1] if ' | ' in whole else ''
-            numbers: set[int] = set()
+            named = _row_sources(source)
 
             for match in LINE_REF.finditer(source):
-                first, last = match.group(1), match.group(2)
-                numbers.update(
-                    range(int(first), int(last) + 1) if last else (int(first),),
-                )
+                naming = [name for pos, name in named if pos < match.start()]
 
-            for _, name in _row_sources(source):
-                path = _resolve_source(name)
+                if not naming:
+                    continue
+
+                path = _resolve_source(naming[-1])
 
                 if path is None:
                     continue
 
-                key = _identity(name) or _tree_relative(path)
-                cited.setdefault(key, set()).update(numbers)
+                first, last = match.group(1), match.group(2)
+                key = _identity(naming[-1]) or _tree_relative(path)
+                cited.setdefault(key, set()).update(
+                    range(int(first), int(last) + 1) if last else (int(first),),
+                )
 
     return cited
 
 
 def _lagging_cells(found: dict[str, set[str]]) -> list[str]:
 
-    """Check that no module read in full is left reading `partial`.
+    '''Check that no module read in full is left reading `partial`.
 
     A cell is written when a package first reaches a module and keeps
     that reading unless a later package returns to the cell, so a
@@ -7475,7 +7533,7 @@ def _lagging_cells(found: dict[str, set[str]]) -> list[str]:
 
     Returns:
         list[str]: One failure per cell left behind.
-    """
+    '''
 
     text = REGISTER.read_text(encoding='utf-8')
     hanging = _unresolved_questions(text)

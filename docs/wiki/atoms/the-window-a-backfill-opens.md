@@ -1,8 +1,8 @@
 ---
 row: P16-01
 baseline: 49aa659
-created: 2026-11-10 16:00 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:40 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "Where no mark is held, a page is asked for by whatever starting moment the asking was given, and no latest moment is ever sent with it"
     source: "`mytrades_backfill.py` 88-90, leaving `binance_adapter.py` 1911-1912 unreached, the starting moment sent only where there is one at 1908-1909"

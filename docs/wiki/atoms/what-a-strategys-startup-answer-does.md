@@ -1,8 +1,8 @@
 ---
 row: N72-01
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 04:00 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "Each strategy named in the manifest is asked in turn, and a strategy raising an ordinary failure there stops the whole starting with a complaint naming it"
     source: "`nexus/startup/sequencer.py` 719, then 727-735"

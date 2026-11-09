@@ -1,8 +1,8 @@
 ---
 row: N59-02
 baseline: 49aa659
-created: 2026-11-12 16:30 UTC
-modified: 2026-11-12 16:30 UTC
+created: 2026-11-08 18:43 UTC
+modified: 2026-11-08 18:43 UTC
 evidence:
   - claim: "Each entry must be a mapping, and its name and its file are asked only to be there"
     source: "`nexus/infrastructure/manifest.py` 451-453, then 455-458, and 460-463"

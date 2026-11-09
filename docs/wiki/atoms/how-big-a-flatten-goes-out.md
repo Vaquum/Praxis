@@ -2,7 +2,7 @@
 row: P4-45
 baseline: 49aa659
 created: 2026-10-13 09:10 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A sell is capped by the account's free coin and by what this trade owns of it"
     source: "`execution_manager.py` 7648, then 7650, and 7656-7661"
@@ -55,4 +55,4 @@ Nothing here caps the size at the largest the venue takes. Capping and rounding 
 
 ---
 
-Created 2026-10-13 09:10 UTC · Last modified 2026-10-13 09:10 UTC
+Created 2026-10-13 09:10 UTC · Last modified 2026-11-09 13:45 UTC

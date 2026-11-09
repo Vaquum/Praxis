@@ -1,8 +1,8 @@
 ---
 row: P150-01
 baseline: 49aa659
-created: 2026-11-15 19:30 UTC
-modified: 2026-11-15 19:30 UTC
+created: 2026-11-09 11:41 UTC
+modified: 2026-11-09 11:41 UTC
 evidence:
   - claim: "The parameters are insisted upon as a ladder's change before anything is weighed"
     source: "`execution_manager.py` 8877-8879, then 8880"

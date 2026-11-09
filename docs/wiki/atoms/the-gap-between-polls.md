@@ -1,8 +1,8 @@
 ---
 row: P11-02
 baseline: 49aa659
-created: 2026-11-10 07:30 UTC
-modified: 2026-11-10 07:30 UTC
+created: 2026-11-08 13:58 UTC
+modified: 2026-11-08 13:58 UTC
 evidence:
   - claim: "The gap between polls is a wait on the stop signal bounded by the interval"
     source: "`praxis/infrastructure/book_poller.py` 88-89"

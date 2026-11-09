@@ -1,8 +1,8 @@
 ---
 row: P64-06
 baseline: 49aa659
-created: 2026-11-12 22:30 UTC
-modified: 2026-11-12 22:30 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "Writing an account out names the hash of its key, its two balances and the order names it has seen, and names its fills nowhere"
     source: "`ledger.py` 754-759"

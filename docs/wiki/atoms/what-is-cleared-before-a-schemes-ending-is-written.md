@@ -1,8 +1,8 @@
 ---
 row: P170-02
 baseline: 49aa659
-created: 2026-11-16 05:30 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The next run time is forgotten, the live children cleared, and the scheme taken off the account's live schemes"
     source: "`execution_manager.py` 6498, then 6499, then 6500, then 6501"

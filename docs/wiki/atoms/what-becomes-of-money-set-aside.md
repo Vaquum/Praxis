@@ -2,7 +2,7 @@
 row: N2-05
 baseline: 49aa659
 created: 2026-10-20 14:40 UTC
-modified: 2026-10-26 23:30 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "Each reservation carries a moment it expires at, the clock read as it is granted plus the life asked for"
     source: "`nexus/core/capital_controller/capital_controller.py` 407-414"
@@ -66,4 +66,4 @@ Nexus offers a road no code there walks.
 
 ---
 
-Created 2026-10-20 14:40 UTC · Last modified 2026-10-26 23:30 UTC
+Created 2026-10-20 14:40 UTC · Last modified 2026-10-26 16:26 UTC

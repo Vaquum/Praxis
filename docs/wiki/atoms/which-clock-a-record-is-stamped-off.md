@@ -2,7 +2,7 @@
 row: N9-02
 baseline: 49aa659
 created: 2026-11-03 15:40 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Both records the store writes are stamped with the machine's own clock, read as the record is built"
     source: "`nexus/infrastructure/state_store.py` 202 and 240"

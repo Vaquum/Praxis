@@ -1,8 +1,8 @@
 ---
 row: P74-03
 baseline: 49aa659
-created: 2026-11-13 05:30 UTC
-modified: 2026-11-13 05:30 UTC
+created: 2026-11-08 21:46 UTC
+modified: 2026-11-08 21:46 UTC
 evidence:
   - claim: "A trade the venue describes must carry a moment with a zone that gives an offset, and is asked nothing else"
     source: "`venue_adapter.py` 248-250, the whole of that record's checking"

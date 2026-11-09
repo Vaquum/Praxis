@@ -1,8 +1,8 @@
 ---
 row: N41-01
 baseline: 49aa659
-created: 2026-11-11 22:30 UTC
-modified: 2026-11-13 10:00 UTC
+created: 2026-11-08 16:59 UTC
+modified: 2026-11-09 00:32 UTC
 evidence:
   - claim: "Starting under the lock returns at once where a live worker is already held"
     source: "`nexus/core/outcome_loop.py` 145-147"

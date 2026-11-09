@@ -1,8 +1,8 @@
 ---
 row: P106-01
 baseline: 49aa659
-created: 2026-11-14 06:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:12 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "An account the manager holds no state for is answered as safe without the venue being asked"
     source: "`praxis/trading.py` 928 into 929-930"

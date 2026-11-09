@@ -1,8 +1,8 @@
 ---
 row: N7-02
 baseline: 49aa659
-created: 2026-10-27 09:10 UTC
-modified: 2026-10-27 15:00 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "After the saving, the host asks the store for a checkpoint"
     source: "`nexus/startup/shutdown_sequencer.py` 893, reached at 193 after 190-191"
@@ -52,4 +52,4 @@ A raise there is logged and the stopping ends anyway. The giving back takes that
 
 ---
 
-Created 2026-10-27 09:10 UTC · Last modified 2026-10-27 15:00 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

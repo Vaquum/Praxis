@@ -1,8 +1,8 @@
 ---
 row: P68-05
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "A failure of the reading of the ordinary kind is logged and the loop carries on into its waiting, whatever that failure was"
     source: "`binance_ws.py` 336-339"

@@ -1,8 +1,8 @@
 ---
 row: P99-01
 baseline: 49aa659
-created: 2026-11-14 03:00 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 07:50 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "Two of the configuration's callbacks are wrapped as the facade is built, so an absent one becomes a thing that does nothing"
     source: "`praxis/trading.py` 205, and 206-208, into 143-145"

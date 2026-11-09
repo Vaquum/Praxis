@@ -2,7 +2,7 @@
 row: P1-12
 baseline: 49aa659
 created: 2026-10-12 07:10 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
     source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
@@ -45,4 +45,4 @@ A boot that raises instead is a cancelling: every account started so far is unre
 
 ---
 
-Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 13:29 UTC
+Created 2026-10-12 07:10 UTC · Last modified 2026-11-09 13:45 UTC

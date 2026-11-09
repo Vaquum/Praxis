@@ -1,8 +1,8 @@
 ---
 row: P138-02
 baseline: 49aa659
-created: 2026-11-15 13:30 UTC
-modified: 2026-11-15 13:30 UTC
+created: 2026-11-09 10:49 UTC
+modified: 2026-11-09 10:49 UTC
 evidence:
   - claim: "A linked pair whose legs are all done is reduced to one status by a fixed precedence: a fill, then a part fill, then an expiry, then a rejection, and a cancellation otherwise"
     source: "`execution_manager.py` 204 into 205, or 207 into 208, or 210 into 211, or 213 into 214, or 216"

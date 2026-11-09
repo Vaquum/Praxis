@@ -1,8 +1,8 @@
 ---
 row: N73-03
 baseline: 49aa659
-created: 2026-11-13 04:30 UTC
-modified: 2026-11-13 04:30 UTC
+created: 2026-11-08 21:33 UTC
+modified: 2026-11-08 21:33 UTC
 evidence:
   - claim: "A configuration that is not of its own kind is refused before anything is read off it"
     source: "`nexus/core/validator/price_stage.py` 193-195"

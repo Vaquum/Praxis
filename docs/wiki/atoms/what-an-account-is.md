@@ -2,7 +2,7 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "An account named by nothing at all is refused before any of the rest"
     source: "`execution_manager.py` 812, then 813-814"

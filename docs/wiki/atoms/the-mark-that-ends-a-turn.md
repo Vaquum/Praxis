@@ -1,8 +1,8 @@
 ---
 row: N52-02
 baseline: 49aa659
-created: 2026-11-12 09:30 UTC
-modified: 2026-11-12 10:00 UTC
+created: 2026-11-08 17:43 UTC
+modified: 2026-11-08 17:43 UTC
 evidence:
   - claim: "A turn reads the symbols it must mark inside the guard it was given, which is the positions lock where it has one and nothing where it has none"
     source: "`nexus/core/mtm_loop.py` 213-215 into 218 and 224-227"

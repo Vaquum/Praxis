@@ -1,8 +1,8 @@
 ---
 row: P75-01
 baseline: 49aa659
-created: 2026-11-13 06:30 UTC
-modified: 2026-11-13 06:30 UTC
+created: 2026-11-08 22:30 UTC
+modified: 2026-11-08 22:30 UTC
 evidence:
   - claim: "A kind of order other than a market one is refused, with a complaint naming the kind that arrived"
     source: "`replay_venue_adapter.py` 179-184"

@@ -1,8 +1,8 @@
 ---
 row: P127-02
 baseline: 49aa659
-created: 2026-11-15 08:00 UTC
-modified: 2026-11-15 08:00 UTC
+created: 2026-11-09 09:56 UTC
+modified: 2026-11-09 09:56 UTC
 evidence:
   - claim: "The predicting loop is started first, and a timer loop after it where the account has one"
     source: "`launcher.py` 4668, then 4670 into 4671"

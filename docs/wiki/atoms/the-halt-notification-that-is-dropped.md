@@ -1,8 +1,8 @@
 ---
 row: N69-05
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "A change into halted records the blame as a notification waiting to be made"
     source: "`nexus/core/mode_controller.py` 510-511"

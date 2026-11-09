@@ -1,8 +1,8 @@
 ---
 row: N15-05
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-09 14:00 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 10:13 UTC
 evidence:
   - claim: "The seconds between turns are refused where they are a true-or-false, and refused where they stand at or below nought"
     source: "`nexus/core/health_loop.py` 62-68"

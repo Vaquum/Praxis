@@ -2,7 +2,7 @@
 row: N3-08
 baseline: 49aa659
 created: 2026-10-22 19:10 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "Money set aside is refused while the strategies' own figures do not add up to the account's total deployed"
     source: "`nexus/core/capital_controller/capital_controller.py` 340-365"
@@ -52,4 +52,4 @@ Each strategy's figure is [worked out again from the positions](what-a-boot-rebu
 
 ---
 
-Created 2026-10-22 19:10 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-22 19:10 UTC · Last modified 2026-10-23 07:08 UTC

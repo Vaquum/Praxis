@@ -1,8 +1,8 @@
 ---
 row: N7-07
 baseline: 49aa659
-created: 2026-10-27 11:20 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A start reads the file named for each strategy its manifest names and hands the bytes to that strategy"
     source: "`nexus/startup/sequencer.py` 536-537 and 543-547 into 554-555"
@@ -44,4 +44,4 @@ The launcher gives the start this setting as it stands, and gives [the stopping]
 
 ---
 
-Created 2026-10-27 11:20 UTC · Last modified 2026-10-27 11:20 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-11-09 10:25 UTC

@@ -1,8 +1,8 @@
 ---
 row: N15-07
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-09 14:00 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 10:13 UTC
 evidence:
   - claim: "A hold is refused unless its flag is a true-or-false, its reason is text, and its moment, where one is given, a moment"
     source: "`nexus/core/domain/operational_mode.py` 44-46, or 48-50, or 52-54"

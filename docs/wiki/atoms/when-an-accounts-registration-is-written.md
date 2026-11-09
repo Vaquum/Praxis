@@ -1,8 +1,8 @@
 ---
 row: P161-01
 baseline: 49aa659
-created: 2026-11-16 01:00 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 12:29 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The account is looked up, and a name the manager does not hold is refused outright"
     source: "`execution_manager.py` 2148, then 2150, then 2151, then 2152"

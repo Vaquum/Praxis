@@ -1,8 +1,8 @@
 ---
 row: N6-07
 baseline: 49aa659
-created: 2026-10-26 20:10 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "The loop reading outcomes is the last of the three the stopping sequence calls a stop on, and that call comes before any strategy is asked"
     source: "`nexus/startup/shutdown_sequencer.py` 186 after 184-185 and before 187-189"
@@ -50,4 +50,4 @@ The list of positions handed to the strategies is built next, under a lock where
 
 ---
 
-Created 2026-10-26 20:10 UTC · Last modified 2026-10-26 20:10 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-11-09 04:19 UTC

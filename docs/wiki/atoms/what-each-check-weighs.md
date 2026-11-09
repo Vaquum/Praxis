@@ -2,8 +2,8 @@
 row: N2-03
 baseline: 49aa659
 created: 2026-10-20 10:20 UTC
-modified: 2026-10-22 19:00 UTC
-reviewed: 2026-10-22 19:00 UTC
+modified: 2026-10-22 08:39 UTC
+reviewed: 2026-10-22 08:39 UTC
 evidence:
   - claim: "The three loss windows are the last twenty-four hours, seven days and thirty days, each summing what was lost inside it"
     source: "`nexus/infrastructure/loss_derivation.py` 24-26 and 87-113"
@@ -62,4 +62,4 @@ The capital stage [sets money aside](how-nexus-sets-money-aside.md). It holds th
 
 ---
 
-Created 2026-10-20 10:20 UTC · Last modified 2026-10-22 19:00 UTC
+Created 2026-10-20 10:20 UTC · Last modified 2026-10-22 08:39 UTC

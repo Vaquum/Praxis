@@ -1,8 +1,8 @@
 ---
 row: P102-01
 baseline: 49aa659
-created: 2026-11-14 04:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:00 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "An account the manager holds no state for is answered as complete without anything being asked of the venue"
     source: "`praxis/trading.py` 1524 into 1525-1526"

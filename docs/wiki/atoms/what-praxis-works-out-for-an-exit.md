@@ -1,8 +1,8 @@
 ---
 row: N7-04
 baseline: 49aa659
-created: 2026-10-27 09:30 UTC
-modified: 2026-10-27 11:50 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "An exit naming a trade the record has no position for is logged and answered with nothing, before any of that position's own figures are read"
     source: "`praxis/launcher.py` 1282-1291 before 1293"
@@ -50,4 +50,4 @@ The venue is then asked to fit the size, at the position's entry price, as a mar
 
 ---
 
-Created 2026-10-27 09:30 UTC · Last modified 2026-10-27 11:50 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

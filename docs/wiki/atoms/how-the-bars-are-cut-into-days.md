@@ -1,8 +1,8 @@
 ---
 row: P12-02
 baseline: 49aa659
-created: 2026-11-10 09:30 UTC
-modified: 2026-11-10 09:30 UTC
+created: 2026-11-08 14:05 UTC
+modified: 2026-11-08 14:05 UTC
 evidence:
   - claim: "The evaluated bars are grouped by the day their moment falls in"
     source: "`praxis/metrics/limen_snapshot.py` 220"

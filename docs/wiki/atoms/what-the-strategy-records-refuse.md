@@ -1,8 +1,8 @@
 ---
 row: N60-01
 baseline: 49aa659
-created: 2026-11-12 18:00 UTC
-modified: 2026-11-12 18:00 UTC
+created: 2026-11-08 18:50 UTC
+modified: 2026-11-08 18:50 UTC
 evidence:
   - claim: "The signal's series must be text with something in it that equals itself trimmed"
     source: "`nexus/infrastructure/manifest.py` 53-59"

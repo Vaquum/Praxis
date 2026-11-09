@@ -1,8 +1,8 @@
 ---
 row: P70-06
 baseline: 49aa659
-created: 2026-11-13 02:00 UTC
-modified: 2026-11-13 02:00 UTC
+created: 2026-11-08 21:00 UTC
+modified: 2026-11-08 21:00 UTC
 evidence:
   - claim: "The refusal of money at the head of the settings run is reached only by a way of working that permits a market order"
     source: "`validate_trade_command.py` 341, reached past 170-175"

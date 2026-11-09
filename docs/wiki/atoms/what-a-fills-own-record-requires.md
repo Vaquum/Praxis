@@ -1,8 +1,8 @@
 ---
 row: P7-01
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-09 07:30 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 09:11 UTC
 evidence:
   - claim: "Seven of a fill's fields are walked by name and each handed to a shared check that refuses an empty one"
     source: "`praxis/core/domain/fill.py` 65-68 over the seven names, into 69, refused at `praxis/core/domain/_require_str.py` 28-30"

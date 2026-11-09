@@ -1,8 +1,8 @@
 ---
 row: P99-03
 baseline: 49aa659
-created: 2026-11-14 03:00 UTC
-modified: 2026-11-14 03:00 UTC
+created: 2026-11-09 07:50 UTC
+modified: 2026-11-09 07:50 UTC
 evidence:
   - claim: "Registering demands a started facade, registers the account inbound, and adds it to the managed set"
     source: "`praxis/trading.py` 1835, then 1836, then 1837"

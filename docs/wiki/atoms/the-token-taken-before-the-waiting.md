@@ -1,8 +1,8 @@
 ---
 row: P9-04
 baseline: 49aa659
-created: 2026-11-10 03:30 UTC
-modified: 2026-11-10 03:30 UTC
+created: 2026-11-08 13:35 UTC
+modified: 2026-11-08 13:35 UTC
 evidence:
   - claim: "The wait is worked out where fewer than one token is left, and is nought otherwise"
     source: "`praxis/infrastructure/token_bucket.py` 82"

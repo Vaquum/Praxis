@@ -2,7 +2,7 @@
 row: P4-53
 baseline: 49aa659
 created: 2026-10-14 10:10 UTC
-modified: 2026-11-14 11:30 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "A call marked repeatable gets three attempts, and one that is not gets a single attempt"
     source: "`binance_adapter.py` 580, the three at 96"
@@ -49,4 +49,4 @@ Each attempt takes a slot of its own from [the allowance on calls](holding-back-
 
 ---
 
-Created 2026-10-14 10:10 UTC · Last modified 2026-10-14 10:10 UTC
+Created 2026-10-14 10:10 UTC · Last modified 2026-11-09 09:06 UTC

@@ -1,8 +1,8 @@
 ---
 row: N59-04
 baseline: 49aa659
-created: 2026-11-12 17:30 UTC
-modified: 2026-11-12 17:30 UTC
+created: 2026-11-08 18:43 UTC
+modified: 2026-11-08 18:43 UTC
 evidence:
   - claim: "The file is read by the YAML reader first, which turns a bare decimal into a machine fraction before any figure is made from it"
     source: "`nexus/infrastructure/manifest.py` 387, read into the conversions at 406, 427 and 538"

@@ -1,8 +1,8 @@
 ---
 row: P8-01
 baseline: 49aa659
-created: 2026-11-10 01:30 UTC
-modified: 2026-11-10 01:30 UTC
+created: 2026-11-08 11:11 UTC
+modified: 2026-11-08 11:11 UTC
 evidence:
   - claim: "Three of the five accounts increase on the debit side and two do not"
     source: "`praxis/core/domain/chart_of_accounts.py` 27 into 43, the five at 20-24"

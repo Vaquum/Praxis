@@ -1,8 +1,8 @@
 ---
 row: P111-01
 baseline: 49aa659
-created: 2026-11-14 09:00 UTC
-modified: 2026-11-14 09:00 UTC
+created: 2026-11-09 08:35 UTC
+modified: 2026-11-09 08:35 UTC
 evidence:
   - claim: "A money-sized order takes a road of its own, chosen by that figure being given at all"
     source: "`binance_adapter.py` 1468"

@@ -1,8 +1,8 @@
 ---
 row: P155-01
 baseline: 49aa659
-created: 2026-11-15 22:00 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 12:06 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The command's amount is insisted upon, and the bracket taken out of the account's brackets before anything is weighed"
     source: "`execution_manager.py` 4586, then 4587, then 4588"

@@ -1,8 +1,8 @@
 ---
 row: P8-03
 baseline: 49aa659
-created: 2026-11-10 01:30 UTC
-modified: 2026-11-10 01:30 UTC
+created: 2026-11-08 11:11 UTC
+modified: 2026-11-08 11:11 UTC
 evidence:
   - claim: "A replay clock refuses a start carrying no zone"
     source: "`praxis/replay/replay_clock.py` 29-31"

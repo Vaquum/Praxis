@@ -1,8 +1,8 @@
 ---
 row: P178-01
 baseline: 49aa659
-created: 2026-11-16 09:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Applying a piece of outside news poisons the account where it fails, and the drain goes on"
     source: "`execution_manager.py` 3768, then 3769, then 3772, then 3773, then 3780"

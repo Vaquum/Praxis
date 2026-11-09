@@ -1,8 +1,8 @@
 ---
 row: P86-01
 baseline: 49aa659
-created: 2026-11-13 20:00 UTC
-modified: 2026-11-13 20:00 UTC
+created: 2026-11-09 05:25 UTC
+modified: 2026-11-09 05:25 UTC
 evidence:
   - claim: "Every trade handed to the ledger figures is recorded as a long one, with nothing consulted to decide it"
     source: "`build_replay_report.py` 204-206, the mark set at 205"

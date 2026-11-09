@@ -1,8 +1,8 @@
 ---
 row: N22-01
 baseline: 49aa659
-created: 2026-11-11 03:00 UTC
-modified: 2026-11-11 03:00 UTC
+created: 2026-11-08 15:43 UTC
+modified: 2026-11-08 15:43 UTC
 evidence:
   - claim: "A life-span given to the stage must be a whole number, with a true-or-false refused outright"
     source: "`nexus/core/validator/capital_stage.py` 30-33"

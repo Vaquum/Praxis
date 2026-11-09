@@ -1,8 +1,8 @@
 ---
 row: N63-07
 baseline: 49aa659
-created: 2026-11-12 21:30 UTC
-modified: 2026-11-12 21:30 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "Writing a snapshot copies the five collections it carries directly into local ones before any of the five is walked"
     source: "`nexus/infrastructure/wal_codec.py` 75-79, walked at 85, 91, 93, 94 and 95"

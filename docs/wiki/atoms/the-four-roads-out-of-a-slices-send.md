@@ -1,8 +1,8 @@
 ---
 row: P147-01
 baseline: 49aa659
-created: 2026-11-15 18:00 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 11:26 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "A slice's send is wrapped, and the moment is stamped only once the venue has answered"
     source: "`execution_manager.py` 5991, and 6218"

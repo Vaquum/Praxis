@@ -1,8 +1,8 @@
 ---
 row: P87-03
 baseline: 49aa659
-created: 2026-11-13 20:30 UTC
-modified: 2026-11-13 20:30 UTC
+created: 2026-11-09 05:30 UTC
+modified: 2026-11-09 05:30 UTC
 evidence:
   - claim: "The ledger is built holding a lock of its own"
     source: "`account_ledger.py` 81"

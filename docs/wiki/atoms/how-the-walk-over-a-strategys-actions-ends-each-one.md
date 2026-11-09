@@ -1,8 +1,8 @@
 ---
 row: N81-02
 baseline: 49aa659
-created: 2026-11-13 15:30 UTC
-modified: 2026-11-13 15:30 UTC
+created: 2026-11-09 04:07 UTC
+modified: 2026-11-09 04:07 UTC
 evidence:
   - claim: "The answers are gathered into a list made before the walk starts, one for each action the walk reaches"
     source: "`nexus/strategy/action_submit.py` 188, then 190"

@@ -1,8 +1,8 @@
 ---
 row: P183-01
 baseline: 49aa659
-created: 2026-11-16 12:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 13:31 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A long's take-profit must sit above the entry's average price and its stop below it"
     source: "`execution_manager.py` 5124, then 5125"

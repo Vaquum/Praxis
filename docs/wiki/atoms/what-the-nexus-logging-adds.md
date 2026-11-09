@@ -1,8 +1,8 @@
 ---
 row: P7-05
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-11 02:00 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 15:38 UTC
 evidence:
   - claim: "The Nexus arrangement binds context for the length of a block and puts the keys it was given back as they stood, on the way out through a raise as much as the way out through the end"
     source: "`nexus/infrastructure/observability.py` 121-122"

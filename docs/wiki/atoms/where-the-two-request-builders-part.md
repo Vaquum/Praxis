@@ -1,8 +1,8 @@
 ---
 row: P119-02
 baseline: 49aa659
-created: 2026-11-15 04:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:22 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "An entry carrying no size is reported and dropped, and an exit carrying none is dropped the same way"
     source: "`launcher.py` 1209 into 1217, and 1295 into 1303"

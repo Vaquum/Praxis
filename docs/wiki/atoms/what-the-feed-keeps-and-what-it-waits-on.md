@@ -1,8 +1,8 @@
 ---
 row: P85-02
 baseline: 49aa659
-created: 2026-11-13 19:30 UTC
-modified: 2026-11-13 19:30 UTC
+created: 2026-11-09 05:22 UTC
+modified: 2026-11-09 05:22 UTC
 evidence:
   - claim: "A feed is built holding a stop signal and three counters, every counter starting at nought"
     source: "`feed.py` 133, then 134, and 135, and 136"

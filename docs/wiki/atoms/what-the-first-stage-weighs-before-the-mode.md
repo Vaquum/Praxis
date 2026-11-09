@@ -1,8 +1,8 @@
 ---
 row: N7-03
 baseline: 49aa659
-created: 2026-10-27 09:20 UTC
-modified: 2026-10-27 20:00 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "The first stage refuses a strategy name that is not identical to itself with its surrounding whitespace stripped, before it reads anything else"
     source: "`nexus/core/validator/intake_stage.py` 404-410"
@@ -46,4 +46,4 @@ The name is settled as the host's settings are read; the budget and the sum are 
 
 ---
 
-Created 2026-10-27 09:20 UTC · Last modified 2026-10-27 20:00 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

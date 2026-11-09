@@ -1,8 +1,8 @@
 ---
 row: P75-04
 baseline: 49aa659
-created: 2026-11-13 06:30 UTC
-modified: 2026-11-13 06:30 UTC
+created: 2026-11-08 22:30 UTC
+modified: 2026-11-08 22:30 UTC
 evidence:
   - claim: "An order is looked up by the caller's own name first, and by the venue's name only where that fails"
     source: "`replay_venue_adapter.py` 295-296, then 298-301"

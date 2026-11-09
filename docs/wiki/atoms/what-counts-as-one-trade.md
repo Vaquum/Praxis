@@ -1,8 +1,8 @@
 ---
 row: P12-01
 baseline: 49aa659
-created: 2026-11-10 09:30 UTC
-modified: 2026-11-10 09:30 UTC
+created: 2026-11-08 14:05 UTC
+modified: 2026-11-08 14:05 UTC
 evidence:
   - claim: "The bars are numbered into runs by a running count of the entry marks"
     source: "`praxis/metrics/limen_snapshot.py` 194"

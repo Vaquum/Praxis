@@ -1,8 +1,8 @@
 ---
 row: P152-01
 baseline: 49aa659
-created: 2026-11-15 20:30 UTC
-modified: 2026-11-15 20:30 UTC
+created: 2026-11-09 11:51 UTC
+modified: 2026-11-09 11:51 UTC
 evidence:
   - claim: "An order the account's own state holds nothing for is reported and the re-confirming abandoned"
     source: "`execution_manager.py` 7233-7234, then 7236 into 7243"

@@ -1,8 +1,8 @@
 ---
 row: P11-03
 baseline: 49aa659
-created: 2026-11-10 07:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-08 13:58 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Stopping a poller sets the signal, cancels the task, and waits for it while swallowing the interruption that raises"
     source: "`praxis/infrastructure/book_poller.py` 63 into 65-69"

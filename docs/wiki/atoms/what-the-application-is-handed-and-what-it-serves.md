@@ -1,8 +1,8 @@
 ---
 row: P90-02
 baseline: 49aa659
-created: 2026-11-13 22:30 UTC
-modified: 2026-11-13 22:30 UTC
+created: 2026-11-09 07:12 UTC
+modified: 2026-11-09 07:12 UTC
 evidence:
   - claim: "Building the application refuses a staleness span at or below nought before anything is made"
     source: "`server.py` 180 into 181-183, ahead of 185"

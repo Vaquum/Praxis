@@ -1,8 +1,8 @@
 ---
 row: N76-01
 baseline: 49aa659
-created: 2026-11-13 07:30 UTC
-modified: 2026-11-13 07:30 UTC
+created: 2026-11-08 23:24 UTC
+modified: 2026-11-08 23:24 UTC
 evidence:
   - claim: "Each event the log held is unpacked as the records are walked and gathered into a list"
     source: "`nexus/infrastructure/state_store.py` 268-269, into the list made at 263"

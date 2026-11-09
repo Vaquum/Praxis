@@ -1,8 +1,8 @@
 ---
 row: N40-01
 baseline: 49aa659
-created: 2026-11-11 21:30 UTC
-modified: 2026-11-11 22:00 UTC
+created: 2026-11-08 16:54 UTC
+modified: 2026-11-08 16:54 UTC
 evidence:
   - claim: "The mapping of positions refuses a value that is not a position, and refuses a key differing from the trade name inside its value"
     source: "`nexus/core/domain/instance_state.py` 87-92, or 93-95"

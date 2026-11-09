@@ -1,8 +1,8 @@
 ---
 row: P65-01
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "A buy takes the whole notional out of the quote balance and puts the quantity less the fee into the base one"
     source: "`ledger.py` 706-707"

@@ -1,8 +1,8 @@
 ---
 row: N71-02
 baseline: 49aa659
-created: 2026-11-13 02:30 UTC
-modified: 2026-11-13 03:00 UTC
+created: 2026-11-08 21:14 UTC
+modified: 2026-11-08 21:14 UTC
 evidence:
   - claim: "A turn writes the signal to the log, hands it to the strategy, records the moment, and submits the answer, in that order"
     source: "`nexus/strategy/predict_loop.py` 334, then 337-342, then 344, then 346-347"

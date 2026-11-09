@@ -1,8 +1,8 @@
 ---
 row: N12-03
 baseline: 49aa659
-created: 2026-11-08 06:30 UTC
-modified: 2026-11-08 08:20 UTC
+created: 2026-11-08 02:08 UTC
+modified: 2026-11-08 02:08 UTC
 evidence:
   - claim: "A refusal must carry a reason with something left in it once trimmed"
     source: "`nexus/infrastructure/praxis_connector/trade_outcome.py` 119 into 120-122"

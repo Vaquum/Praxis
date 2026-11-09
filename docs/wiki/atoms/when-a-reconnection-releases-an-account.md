@@ -1,8 +1,8 @@
 ---
 row: P4-60
 baseline: 49aa659
-created: 2026-10-16 07:10 UTC
-modified: 2026-10-16 07:10 UTC
+created: 2026-10-16 06:03 UTC
+modified: 2026-10-16 06:03 UTC
 evidence:
   - claim: "The phase an account is in is what the gate on its work is taken from, so the two cannot disagree"
     source: "`trading.py` 1400-1407"
@@ -61,4 +61,4 @@ Nothing else asks. The round of checks that runs on a timer carries its own dete
 
 ---
 
-Created 2026-10-16 07:10 UTC · Last modified 2026-10-16 07:10 UTC
+Created 2026-10-16 06:03 UTC · Last modified 2026-10-16 06:03 UTC

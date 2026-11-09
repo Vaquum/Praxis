@@ -1,8 +1,8 @@
 ---
 row: N71-05
 baseline: 49aa659
-created: 2026-11-13 02:30 UTC
-modified: 2026-11-13 03:00 UTC
+created: 2026-11-08 21:14 UTC
+modified: 2026-11-08 21:14 UTC
 evidence:
   - claim: "The manifest is read from a fixed name under the folder predictions are mounted at, and a path leading to no file warns with the path"
     source: "`nexus/strategy/predict_loop.py` 428, then 429-431"

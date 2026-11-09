@@ -1,8 +1,8 @@
 ---
 row: P116-02
 baseline: 49aa659
-created: 2026-11-14 11:30 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 09:06 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "The adapter is built holding a lock of its own for the health figures"
     source: "`binance_adapter.py` 312"

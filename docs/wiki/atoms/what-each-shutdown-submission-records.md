@@ -1,8 +1,8 @@
 ---
 row: N83-04
 baseline: 49aa659
-created: 2026-11-13 17:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-11-09 04:19 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "Both submissions do nothing at all where either the road out or the configuration is missing"
     source: "`nexus/startup/shutdown_sequencer.py` 391 into 392, and 574 into 575"

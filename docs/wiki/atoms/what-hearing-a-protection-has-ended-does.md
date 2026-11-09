@@ -1,8 +1,8 @@
 ---
 row: P176-02
 baseline: 49aa659
-created: 2026-11-16 08:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 13:01 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The version used is the standing one or the first, whichever is greater"
     source: "`execution_manager.py` 6837-6839"

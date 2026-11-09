@@ -1,8 +1,8 @@
 ---
 row: P121-02
 baseline: 49aa659
-created: 2026-11-15 05:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:32 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "With no state or no settings to read, a strategy is told of no positions, no money and a halted mode"
     source: "`launcher.py` 2497 into 2498-2502, asked through 4166"

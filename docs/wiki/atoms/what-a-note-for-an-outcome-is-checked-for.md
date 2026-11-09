@@ -1,8 +1,8 @@
 ---
 row: N13-04
 baseline: 49aa659
-created: 2026-11-08 15:40 UTC
-modified: 2026-11-08 16:55 UTC
+created: 2026-11-08 05:22 UTC
+modified: 2026-11-08 05:22 UTC
 evidence:
   - claim: "A note is refused unless the reference of the command it belongs to and the reference of the strategy that owns it are each text with something left in them once trimmed"
     source: "`nexus/infrastructure/praxis_connector/order_context.py` 73-75, or 77-79"

@@ -1,8 +1,8 @@
 ---
 row: P127-01
 baseline: 49aa659
-created: 2026-11-15 08:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:56 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Four roads out of the trading side are set as it is started"
     source: "`launcher.py` 2997, or 3005, then 3038, then 3039, then 3040"

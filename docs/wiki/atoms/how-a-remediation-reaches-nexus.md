@@ -1,8 +1,8 @@
 ---
 row: P185-01
 baseline: 49aa659
-created: 2026-11-16 13:00 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 13:45 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "Nothing is handed on at all where the manager was built with no way of handing one on"
     source: "`execution_manager.py` 6781, then 6782"

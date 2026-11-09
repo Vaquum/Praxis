@@ -1,8 +1,8 @@
 ---
 row: P70-01
 baseline: 49aa659
-created: 2026-11-13 02:00 UTC
-modified: 2026-11-13 02:00 UTC
+created: 2026-11-08 21:00 UTC
+modified: 2026-11-08 21:00 UTC
 evidence:
   - claim: "The way of working is weighed against the kind of order first"
     source: "`validate_trade_command.py` 132"

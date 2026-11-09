@@ -1,8 +1,8 @@
 ---
 row: P171-02
 baseline: 49aa659
-created: 2026-11-16 06:00 UTC
-modified: 2026-11-16 06:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The rung's name carries its place in the grid and the generation it belongs to"
     source: "`execution_manager.py` 6185-6187"

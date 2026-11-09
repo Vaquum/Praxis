@@ -1,8 +1,8 @@
 ---
 row: P32-02
 baseline: 49aa659
-created: 2026-11-11 14:30 UTC
-modified: 2026-11-11 15:00 UTC
+created: 2026-11-08 16:29 UTC
+modified: 2026-11-08 16:29 UTC
 evidence:
   - claim: "The file road keeps what it decoded, and answers from that where it has it"
     source: "`secret_store.py` 288-289, kept at 311"

@@ -2,7 +2,7 @@
 row: P2-31
 baseline: 49aa659
 created: 2026-09-25 19:37 UTC
-modified: 2026-11-13 21:00 UTC
+modified: 2026-11-09 06:08 UTC
 evidence:
   - claim: "The amount filled and the running value grow by what the fill brought"
     source: "`trading_state.py` 430-433"

@@ -1,8 +1,8 @@
 ---
 row: N73-04
 baseline: 49aa659
-created: 2026-11-13 04:30 UTC
-modified: 2026-11-13 05:00 UTC
+created: 2026-11-08 21:33 UTC
+modified: 2026-11-08 21:33 UTC
 evidence:
   - claim: "A decision that was allowed gives nothing at all"
     source: "`nexus/core/validator/price_stage.py` 217-218"

@@ -1,8 +1,8 @@
 ---
 row: P109-01
 baseline: 49aa659
-created: 2026-11-14 08:00 UTC
-modified: 2026-11-14 08:00 UTC
+created: 2026-11-09 08:28 UTC
+modified: 2026-11-09 08:28 UTC
 evidence:
   - claim: "Signing works on a copy of what it was given, so the caller's own parameters are left as they were"
     source: "`binance_adapter.py` 528"

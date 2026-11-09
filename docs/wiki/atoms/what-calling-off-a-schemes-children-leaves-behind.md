@@ -1,8 +1,8 @@
 ---
 row: P174-01
 baseline: 49aa659
-created: 2026-11-16 07:30 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 12:57 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A copy of the live children is walked, so the set can be changed as it goes"
     source: "`execution_manager.py` 6445, then 6447"

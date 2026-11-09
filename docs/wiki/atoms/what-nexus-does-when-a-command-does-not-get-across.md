@@ -2,8 +2,8 @@
 row: N1-02
 baseline: 49aa659
 created: 2026-10-16 09:30 UTC
-modified: 2026-10-22 21:00 UTC
-reviewed: 2026-10-22 21:00 UTC
+modified: 2026-10-22 08:39 UTC
+reviewed: 2026-10-22 08:39 UTC
 evidence:
   - claim: "Money is set aside partway through the staged checks, so a later stage can refuse with it already held, and that releases it"
     source: "`nexus/strategy/action_submit.py` 242 and 260 into 273"
@@ -83,4 +83,4 @@ A timeout with a registration is reported unknown, carrying the command's name, 
 
 ---
 
-Created 2026-10-16 09:30 UTC · Last modified 2026-10-22 21:00 UTC
+Created 2026-10-16 09:30 UTC · Last modified 2026-10-22 08:39 UTC

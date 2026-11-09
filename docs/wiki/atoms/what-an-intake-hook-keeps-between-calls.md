@@ -1,8 +1,8 @@
 ---
 row: N82-02
 baseline: 49aa659
-created: 2026-11-13 17:00 UTC
-modified: 2026-11-13 17:00 UTC
+created: 2026-11-09 04:13 UTC
+modified: 2026-11-09 04:13 UTC
 evidence:
   - claim: "Each of the two counting hooks is handed a clock or makes one that reads the current moment in UTC"
     source: "`nexus/core/validator/intake_stage.py` 97, or 143"

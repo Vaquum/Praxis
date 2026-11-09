@@ -1,8 +1,8 @@
 ---
 row: P169-02
 baseline: 49aa659
-created: 2026-11-16 05:00 UTC
-modified: 2026-11-16 05:00 UTC
+created: 2026-11-09 12:47 UTC
+modified: 2026-11-09 12:47 UTC
 evidence:
   - claim: "The shown size is carried only where it falls below the whole size, and left out otherwise"
     source: "`execution_manager.py` 5295, then 5296"

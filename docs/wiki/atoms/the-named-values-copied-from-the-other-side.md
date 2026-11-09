@@ -1,8 +1,8 @@
 ---
 row: N16-06
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 10:26 UTC
 evidence:
   - claim: "The three sets hold the same words as the trading side's own, at these commits"
     source: "`nexus/core/domain/order_types.py` 18-24, 30-37 and 43-45, against `praxis/core/domain/enums.py` 119-125, 66-73 and 147-149"

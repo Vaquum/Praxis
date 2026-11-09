@@ -1,8 +1,8 @@
 ---
 row: P7-04
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-09 09:30 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 09:29 UTC
 evidence:
   - claim: "A bracket's protective exit is named by joining one letter to the entry's name with a dash"
     source: "`praxis/core/bracket_exit_command_id.py` 31, the letter at 17"

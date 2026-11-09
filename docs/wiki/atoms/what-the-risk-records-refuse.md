@@ -1,8 +1,8 @@
 ---
 row: N45-01
 baseline: 49aa659
-created: 2026-11-12 02:30 UTC
-modified: 2026-11-12 03:00 UTC
+created: 2026-11-08 17:14 UTC
+modified: 2026-11-08 17:14 UTC
 evidence:
   - claim: "A strategy's record refuses a name that is not text with something left once trimmed"
     source: "`nexus/core/domain/risk_state.py` 49-51"

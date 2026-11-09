@@ -1,8 +1,8 @@
 ---
 row: P28-01
 baseline: 49aa659
-created: 2026-11-11 11:00 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-08 16:17 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Each bar ends with a settling, after the price is set and the prediction ticked"
     source: "`run_replay.py` 252, after 246-250"

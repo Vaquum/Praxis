@@ -1,8 +1,8 @@
 ---
 row: P188-01
 baseline: 49aa659
-created: 2026-11-16 14:30 UTC
-modified: 2026-11-16 14:30 UTC
+created: 2026-11-09 14:21 UTC
+modified: 2026-11-09 14:21 UTC
 evidence:
   - claim: "A fill's commission is taken out of the holdings it adds only where the fill is a buy and the fee was charged in one named asset"
     source: "`trading_state.py` 84, then 85, the name fixed at 66"

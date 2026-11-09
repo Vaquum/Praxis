@@ -1,8 +1,8 @@
 ---
 row: N81-01
 baseline: 49aa659
-created: 2026-11-13 15:30 UTC
-modified: 2026-11-13 15:30 UTC
+created: 2026-11-09 04:07 UTC
+modified: 2026-11-09 04:07 UTC
 evidence:
   - claim: "An abort is refused where it carries no command name, and that is the only thing it is refused for"
     source: "`nexus/strategy/action_submit.py` 586 into 587-590, the routine holding no other test"

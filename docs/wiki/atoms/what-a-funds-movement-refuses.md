@@ -1,8 +1,8 @@
 ---
 row: N16-04
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-09 17:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 10:26 UTC
 evidence:
   - claim: "Two of a funds movement's names are walked and each refused unless it is text with something left in it once trimmed"
     source: "`nexus/infrastructure/praxis_connector/fund_transaction.py` 41-42 over the two names, into 43-45"

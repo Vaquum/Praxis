@@ -1,8 +1,8 @@
 ---
 row: P106-02
 baseline: 49aa659
-created: 2026-11-14 06:30 UTC
-modified: 2026-11-14 06:30 UTC
+created: 2026-11-09 08:12 UTC
+modified: 2026-11-09 08:12 UTC
 evidence:
   - claim: "The account's stored events are replayed into the manager before anything else happens"
     source: "`praxis/trading.py` 548, ahead of 549"

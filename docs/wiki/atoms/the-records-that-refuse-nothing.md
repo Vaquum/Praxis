@@ -1,8 +1,8 @@
 ---
 row: P7-06
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-09 07:30 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 09:11 UTC
 evidence:
   - claim: "The record projecting a running scheme's state refuses nothing as it is built"
     source: "`praxis/core/domain/execution_scheme.py` 50-61"

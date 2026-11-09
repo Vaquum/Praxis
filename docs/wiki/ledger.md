@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here, and all 88 are `full`, with none `uncovered` and none `partial`. The last three moved with package 188, which wrote the two questions that held them as the paths they are. `execution_manager.py`, at 10,899 lines the largest module on either side, carries the one recorded exclusion of any size: of its 2,504 statements, 2,422 are cited and the 82 that are not are the three kinds the gate refuses to let a claim name — 67 log calls, 13 insistences and 2 bare re-raises. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here, and all 88 are `full`, with none `uncovered` and none `partial`. The last three moved with package 188, which wrote the two questions that held them as the paths they are. `execution_manager.py`, at 10,899 lines the largest module on either side, carries the one recorded exclusion of any size: of its 2,504 statements, 2,419 are cited and the 85 that are not are the three kinds the gate refuses to let a claim name — 70 log calls, 13 insistences and 2 bare re-raises. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 15:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 20:14 UTC

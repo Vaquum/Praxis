@@ -1,8 +1,8 @@
 ---
 row: N84-02
 baseline: 49aa659
-created: 2026-11-13 18:30 UTC
-modified: 2026-11-13 18:30 UTC
+created: 2026-11-09 04:45 UTC
+modified: 2026-11-09 04:45 UTC
 evidence:
   - claim: "A fill's notional must be a finite figure, and must stand above nought"
     source: "`nexus/core/capital_controller/capital_controller.py` 859 into 860-861, then 863 into 864-865"

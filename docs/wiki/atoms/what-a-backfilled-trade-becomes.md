@@ -1,8 +1,8 @@
 ---
 row: P102-03
 baseline: 49aa659
-created: 2026-11-14 04:30 UTC
-modified: 2026-11-14 04:30 UTC
+created: 2026-11-09 08:00 UTC
+modified: 2026-11-09 08:00 UTC
 evidence:
   - claim: "The command the order carries is read, and the manager asked which trade it belongs to"
     source: "`praxis/trading.py` 1610, then 1611"

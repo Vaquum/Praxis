@@ -2,7 +2,7 @@
 row: N3-12
 baseline: 49aa659
 created: 2026-10-22 23:40 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "The fee figure taken off a sale's gain comes in on the report rather than being worked out where it is used"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 533"
@@ -40,4 +40,4 @@ Praxis does read what the venue charged — the commission and the asset it came
 
 ---
 
-Created 2026-10-22 23:40 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-22 23:40 UTC · Last modified 2026-10-23 07:08 UTC

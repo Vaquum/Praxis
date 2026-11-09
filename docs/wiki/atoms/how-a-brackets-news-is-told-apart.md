@@ -1,8 +1,8 @@
 ---
 row: P153-01
 baseline: 49aa659
-created: 2026-11-15 21:00 UTC
-modified: 2026-11-15 21:00 UTC
+created: 2026-11-09 11:56 UTC
+modified: 2026-11-09 11:56 UTC
 evidence:
   - claim: "News that is none of a fill, a cancellation, an expiry or a rejection is dropped"
     source: "`execution_manager.py` 4660-4662 into 4663"

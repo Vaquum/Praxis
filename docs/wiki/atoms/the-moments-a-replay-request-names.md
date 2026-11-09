@@ -1,8 +1,8 @@
 ---
 row: P14-01
 baseline: 49aa659
-created: 2026-11-10 13:00 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:25 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "A moment ending in a capital Z is rewritten to a zero offset, and any other text is handed to the reader as it stands"
     source: "`replay_api.py` 260-262"

@@ -1,8 +1,8 @@
 ---
 row: N76-03
 baseline: 49aa659
-created: 2026-11-13 07:30 UTC
-modified: 2026-11-13 07:30 UTC
+created: 2026-11-08 23:24 UTC
+modified: 2026-11-08 23:24 UTC
 evidence:
   - claim: "Every walk of the log measures the file's size before opening it"
     source: "`nexus/infrastructure/wal.py` 94, or 129, or 193"

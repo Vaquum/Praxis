@@ -2,7 +2,7 @@
 row: N8-07
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-11-13 17:00 UTC
+modified: 2026-11-09 04:13 UTC
 evidence:
   - claim: "The window keeps what it has seen per strategy and identifier, drops what has aged out, and refuses one seen inside it"
     source: "`nexus/core/validator/intake_stage.py` 170-174, 179-182, 184-194 and 196-197"
@@ -40,4 +40,4 @@ Neither is reachable from a live request. Praxis fills both in before it takes e
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 08:56 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-11-09 04:13 UTC

@@ -1,8 +1,8 @@
 ---
 row: N12-04
 baseline: 49aa659
-created: 2026-11-08 06:30 UTC
-modified: 2026-11-08 09:20 UTC
+created: 2026-11-08 02:08 UTC
+modified: 2026-11-08 03:01 UTC
 evidence:
   - claim: "Two measures are taken by name in one loop and read"
     source: "`nexus/infrastructure/praxis_connector/trade_outcome.py` 166-167"

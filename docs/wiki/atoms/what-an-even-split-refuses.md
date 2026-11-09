@@ -1,8 +1,8 @@
 ---
 row: P16-02
 baseline: 49aa659
-created: 2026-11-10 16:00 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:40 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "A total that is not a finite decimal above nought is refused, a figure of another kind among them"
     source: "`praxis/core/plan_even_slices.py` 46-48"

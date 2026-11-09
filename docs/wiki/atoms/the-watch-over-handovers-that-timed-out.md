@@ -1,8 +1,8 @@
 ---
 row: N7-05
 baseline: 49aa659
-created: 2026-10-27 09:40 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A mark is put on the record Praxis keeps of a command where its handover timed out and a record for it still stands"
     source: "`praxis/launcher.py` 1975-1978, reached from `nexus/strategy/action_submit.py` 338-341"
@@ -50,4 +50,4 @@ Only an ending drops the record, so a successful acknowledgement lifts the mark 
 
 ---
 
-Created 2026-10-27 12:00 UTC · Last modified 2026-10-27 12:00 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-11-09 10:25 UTC

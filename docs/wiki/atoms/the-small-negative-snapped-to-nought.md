@@ -1,8 +1,8 @@
 ---
 row: N63-06
 baseline: 49aa659
-created: 2026-11-12 21:00 UTC
-modified: 2026-11-12 21:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "Reading a capital record passes five of its six figures, and every per-strategy figure, through a snap that turns a small negative into nought"
     source: "`nexus/infrastructure/wal_codec.py` 199-203, and 205, with the pool read at 198 untouched"

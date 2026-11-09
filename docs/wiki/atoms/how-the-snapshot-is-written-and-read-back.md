@@ -1,8 +1,8 @@
 ---
 row: P64-05
 baseline: 49aa659
-created: 2026-11-12 22:30 UTC
-modified: 2026-11-12 22:30 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "Writing makes the state directory where it is absent, then makes a temporary file beside the saved one"
     source: "`ledger.py` 663, then 665-668"

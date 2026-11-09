@@ -1,8 +1,8 @@
 ---
 row: P10-03
 baseline: 49aa659
-created: 2026-11-10 05:30 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 13:40 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "Where no lot step is known the last slice is the total less the others"
     source: "`praxis/core/plan_even_slices.py` 56-58"

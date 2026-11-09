@@ -1,8 +1,8 @@
 ---
 row: P9-01
 baseline: 49aa659
-created: 2026-11-10 03:30 UTC
-modified: 2026-11-10 03:30 UTC
+created: 2026-11-08 13:35 UTC
+modified: 2026-11-08 13:35 UTC
 evidence:
   - claim: "Four of the report's figures are walked by name and each refused unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`praxis/core/domain/health_snapshot.py` 43-48 into 50-57"

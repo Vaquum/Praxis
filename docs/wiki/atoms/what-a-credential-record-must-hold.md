@@ -1,8 +1,8 @@
 ---
 row: P32-01
 baseline: 49aa659
-created: 2026-11-11 14:30 UTC
-modified: 2026-11-11 15:00 UTC
+created: 2026-11-08 16:29 UTC
+modified: 2026-11-08 16:29 UTC
 evidence:
   - claim: "A record read as text must be valid JSON, and text that will not parse is refused as malformed"
     source: "`secret_store.py` 130-134"

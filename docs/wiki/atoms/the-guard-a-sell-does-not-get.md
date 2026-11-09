@@ -1,8 +1,8 @@
 ---
 row: P65-03
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "A buy whose fee stands at or above the quantity received is refused, before the ledger is touched"
     source: "`ledger.py` 407-413"

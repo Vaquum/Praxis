@@ -1,8 +1,8 @@
 ---
 row: N23-01
 baseline: 49aa659
-created: 2026-11-11 05:00 UTC
-modified: 2026-11-11 05:30 UTC
+created: 2026-11-08 15:48 UTC
+modified: 2026-11-08 15:48 UTC
 evidence:
   - claim: "Starting takes the loop's lock and does nothing at all where the loop is already running"
     source: "`nexus/strategy/timer_loop.py` 68-70"

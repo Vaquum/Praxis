@@ -1,8 +1,8 @@
 ---
 row: P157-01
 baseline: 49aa659
-created: 2026-11-15 23:00 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 12:16 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "An account the manager does not hold ends the pass"
     source: "`execution_manager.py` 7357, then 7358 into 7359, or 7365"

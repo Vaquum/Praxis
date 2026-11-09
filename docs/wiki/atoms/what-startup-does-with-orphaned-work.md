@@ -2,7 +2,7 @@
 row: P4-50
 baseline: 49aa659
 created: 2026-10-14 07:55 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Work accepted with nothing afterwards to account for it is refused on the account's behalf, and so is a send with neither result nor ending"
     source: "`execution_manager.py` 2254-2258 and 2260-2263 into 2271-2275 and 2277-2281"
@@ -49,4 +49,4 @@ So an account that cannot finish this sweep does not trade at all, which is the 
 
 ---
 
-Created 2026-10-14 07:55 UTC · Last modified 2026-10-14 07:55 UTC
+Created 2026-10-14 07:55 UTC · Last modified 2026-11-09 13:28 UTC

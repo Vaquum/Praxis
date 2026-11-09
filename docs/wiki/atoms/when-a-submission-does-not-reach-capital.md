@@ -1,8 +1,8 @@
 ---
 row: N53-02
 baseline: 49aa659
-created: 2026-11-12 10:30 UTC
-modified: 2026-11-13 15:30 UTC
+created: 2026-11-08 17:48 UTC
+modified: 2026-11-09 04:07 UTC
 evidence:
   - claim: "Turning a submission into a tracked order is skipped where its status is anything but submitted"
     source: "`nexus/strategy/action_submit.py` 552-557"

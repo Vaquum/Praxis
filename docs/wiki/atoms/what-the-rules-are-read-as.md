@@ -1,8 +1,8 @@
 ---
 row: P114-02
 baseline: 49aa659
-created: 2026-11-14 10:30 UTC
-modified: 2026-11-14 10:30 UTC
+created: 2026-11-09 08:44 UTC
+modified: 2026-11-09 08:44 UTC
 evidence:
   - claim: "The rules are gathered by their own kind, and any entry that is not a mapping or names no kind is passed over"
     source: "`binance_adapter.py` 2206-2210"

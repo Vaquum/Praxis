@@ -1,8 +1,8 @@
 ---
 row: N22-02
 baseline: 49aa659
-created: 2026-11-11 03:00 UTC
-modified: 2026-11-11 03:30 UTC
+created: 2026-11-08 15:43 UTC
+modified: 2026-11-08 15:43 UTC
 evidence:
   - claim: "A strategy's name must be text, and what is kept is that text trimmed"
     source: "`nexus/strategy/base.py` 33-35, trimmed at 37 and kept at 43"

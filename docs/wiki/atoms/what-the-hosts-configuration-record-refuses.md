@@ -1,8 +1,8 @@
 ---
 row: P43-01
 baseline: 49aa659
-created: 2026-11-12 00:30 UTC
-modified: 2026-11-12 05:30 UTC
+created: 2026-11-08 17:05 UTC
+modified: 2026-11-08 17:25 UTC
 evidence:
   - claim: "The three venue addresses are each tested for truth alone, so an address of blank space is kept"
     source: "`trading_config.py` 119-121, or 123-125, or 127-129"

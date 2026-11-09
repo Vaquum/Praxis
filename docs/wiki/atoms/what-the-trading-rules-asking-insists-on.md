@@ -1,8 +1,8 @@
 ---
 row: P114-01
 baseline: 49aa659
-created: 2026-11-14 10:30 UTC
-modified: 2026-11-14 10:30 UTC
+created: 2026-11-09 08:44 UTC
+modified: 2026-11-09 08:44 UTC
 evidence:
   - claim: "The asking takes a session, waits for its turn against a budget, and sends the symbol as its only parameter"
     source: "`binance_adapter.py` 2170, then 2173, then 2174-2178"

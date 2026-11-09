@@ -1,8 +1,8 @@
 ---
 row: N44-02
 baseline: 49aa659
-created: 2026-11-12 01:30 UTC
-modified: 2026-11-12 02:00 UTC
+created: 2026-11-08 17:10 UTC
+modified: 2026-11-08 17:10 UTC
 evidence:
   - claim: "The check answers nothing for a file that is not there"
     source: "`nexus/infrastructure/wal.py` 239-240"

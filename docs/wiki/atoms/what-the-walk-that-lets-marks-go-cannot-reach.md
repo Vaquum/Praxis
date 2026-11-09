@@ -2,7 +2,7 @@
 row: P6-01
 baseline: 49aa659
 created: 2026-11-06 15:07 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A command the copy does not hold has no test run for it at all"
     source: "`praxis/launcher.py` 4459-4460 over the copy taken at 4427, the test at 4461 run for that copy's keys alone"

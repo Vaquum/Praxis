@@ -1,8 +1,8 @@
 ---
 row: N69-07
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "Two holds can ask for reduce-only alone: one for reconciling and one for protection"
     source: "`nexus/core/mode_controller.py` 540-542"

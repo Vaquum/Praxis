@@ -1,8 +1,8 @@
 ---
 row: P150-02
 baseline: 49aa659
-created: 2026-11-15 19:30 UTC
-modified: 2026-11-15 19:30 UTC
+created: 2026-11-09 11:41 UTC
+modified: 2026-11-09 11:41 UTC
 evidence:
   - claim: "The submission is written to the record and applied before the bracket is told anything about it"
     source: "`execution_manager.py` 5028, then 5029, ahead of 5031"

@@ -1,8 +1,8 @@
 ---
 row: N7-08
 baseline: 49aa659
-created: 2026-10-27 15:10 UTC
-modified: 2026-11-10 19:00 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-11-08 14:58 UTC
 evidence:
   - claim: "A checkpoint writes the state object to a temporary file, pushes it to the disk, renames it over the snapshot and pushes the directory too"
     source: "`nexus/infrastructure/state_store.py` 178-179 into `nexus/infrastructure/snapshot.py` 45-51, the directory opened and pushed at 23-30"
@@ -44,4 +44,4 @@ To a temporary file, pushed to the disk, renamed over the snapshot, and the dire
 
 ---
 
-Created 2026-10-27 15:10 UTC · Last modified 2026-11-05 11:10 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-11-08 14:58 UTC

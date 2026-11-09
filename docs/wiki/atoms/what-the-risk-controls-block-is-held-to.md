@@ -1,8 +1,8 @@
 ---
 row: N60-02
 baseline: 49aa659
-created: 2026-11-12 18:00 UTC
-modified: 2026-11-12 18:00 UTC
+created: 2026-11-08 18:50 UTC
+modified: 2026-11-08 18:50 UTC
 evidence:
   - claim: "A block left out of the manifest becomes an empty mapping, and so does one written with no value under its key, that substitution standing ahead of the test of its shape"
     source: "`nexus/infrastructure/manifest.py` 350-353, ahead of 355-357"

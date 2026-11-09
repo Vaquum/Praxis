@@ -1,8 +1,8 @@
 ---
 row: P46-02
 baseline: 49aa659
-created: 2026-11-12 03:30 UTC
-modified: 2026-11-12 04:00 UTC
+created: 2026-11-08 17:18 UTC
+modified: 2026-11-08 17:18 UTC
 evidence:
   - claim: "An interval at or below nought answers nothing"
     source: "`praxis/replay/build_replay_report.py` 409-410"

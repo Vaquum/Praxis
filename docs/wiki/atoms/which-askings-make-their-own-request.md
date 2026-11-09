@@ -1,8 +1,8 @@
 ---
 row: P116-03
 baseline: 49aa659
-created: 2026-11-14 11:30 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 09:06 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "Each of the three addresses the adapter is built with has a trailing slash taken off"
     source: "`binance_adapter.py` 294, then 295, then 296"

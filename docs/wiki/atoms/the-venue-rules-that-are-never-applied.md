@@ -1,8 +1,8 @@
 ---
 row: P70-02
 baseline: 49aa659
-created: 2026-11-13 02:00 UTC
-modified: 2026-11-13 02:00 UTC
+created: 2026-11-08 21:00 UTC
+modified: 2026-11-08 21:00 UTC
 evidence:
   - claim: "The one place that admits a request calls the checking with no venue rules, which is what both rule-weighing steps stand behind"
     source: "`execution_manager.py` 3479, against `validate_trade_command.py` 143 and 145"

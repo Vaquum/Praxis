@@ -1,8 +1,8 @@
 ---
 row: N83-03
 baseline: 49aa659
-created: 2026-11-13 17:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-11-09 04:19 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "The builder of the request answers with nothing where no trade is named, and reports it"
     source: "`nexus/startup/shutdown_sequencer.py` 536 into 537-538"

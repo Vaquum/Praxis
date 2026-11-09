@@ -1,8 +1,8 @@
 ---
 row: P97-02
 baseline: 49aa659
-created: 2026-11-14 02:00 UTC
-modified: 2026-11-14 02:00 UTC
+created: 2026-11-09 07:43 UTC
+modified: 2026-11-09 07:43 UTC
 evidence:
   - claim: "An event of a kind the registry does not hold cannot be appended at all"
     source: "`event_spine.py` 1160-1161"

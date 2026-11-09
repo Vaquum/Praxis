@@ -1,8 +1,8 @@
 ---
 row: N14-07
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "Three limits are walked by name, and a limit left out is passed over before that limit's own figure is looked at"
     source: "`nexus/core/domain/risk_breaker_thresholds.py` 32 over the three names, with 35 into 36"

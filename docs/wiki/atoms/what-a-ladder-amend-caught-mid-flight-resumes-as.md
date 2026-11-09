@@ -1,8 +1,8 @@
 ---
 row: P136-02
 baseline: 49aa659
-created: 2026-11-15 12:30 UTC
-modified: 2026-11-15 12:30 UTC
+created: 2026-11-09 10:41 UTC
+modified: 2026-11-09 10:41 UTC
 evidence:
   - claim: "An amend still in flight sends the ladder down a road of its own, with the completed amend's parameters standing as its baseline"
     source: "`execution_manager.py` 1339, then 1340 into 1341-1343, then 1345-1353"

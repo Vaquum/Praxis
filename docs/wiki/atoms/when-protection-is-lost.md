@@ -2,7 +2,7 @@
 row: P4-42
 baseline: 49aa659
 created: 2026-10-13 06:50 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "Every live scheme is frozen, each freeze written down before it takes hold in memory"
     source: "`execution_manager.py` 6626, then 6630-6638, then 6639, then 6640, the names answered at 6642"
@@ -68,4 +68,4 @@ One that lands is written down too, and only that stops a restart offering it ag
 
 ---
 
-Created 2026-10-13 06:50 UTC · Last modified 2026-10-14 13:10 UTC
+Created 2026-10-13 06:50 UTC · Last modified 2026-11-09 14:05 UTC

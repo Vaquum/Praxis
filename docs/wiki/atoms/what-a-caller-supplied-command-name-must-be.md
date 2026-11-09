@@ -1,8 +1,8 @@
 ---
 row: P149-02
 baseline: 49aa659
-created: 2026-11-15 19:00 UTC
-modified: 2026-11-15 19:00 UTC
+created: 2026-11-09 11:36 UTC
+modified: 2026-11-09 11:36 UTC
 evidence:
   - claim: "A command is refused where the account is not registered, where it has fail-stopped, and where it failed its startup and stays parked"
     source: "`execution_manager.py` 3429, then 3430 into 3431-3432, or 3434 into 3435-3436, or 3438 into 3443"

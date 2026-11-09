@@ -1,8 +1,8 @@
 ---
 row: N17-07
 baseline: 49aa659
-created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+created: 2026-11-08 10:35 UTC
+modified: 2026-11-08 10:35 UTC
 evidence:
   - claim: "A module whose loading plan cannot be made is refused"
     source: "`nexus/strategy/loader.py` 105-107"

@@ -1,8 +1,8 @@
 ---
 row: N79-03
 baseline: 49aa659
-created: 2026-11-13 13:30 UTC
-modified: 2026-11-13 13:30 UTC
+created: 2026-11-09 03:10 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "Whether the loop is running is read without the lock that every write of it takes"
     source: "`nexus/core/mtm_loop.py` 121, against 126, or 136, or 162"

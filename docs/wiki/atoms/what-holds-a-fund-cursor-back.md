@@ -1,8 +1,8 @@
 ---
 row: P104-02
 baseline: 49aa659
-created: 2026-11-14 05:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:06 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "A movement in any asset but the quote one is skipped"
     source: "`praxis/trading.py` 1158 into 1159-1160"

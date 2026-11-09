@@ -1,8 +1,8 @@
 ---
 row: P154-01
 baseline: 49aa659
-created: 2026-11-15 21:30 UTC
-modified: 2026-11-15 21:30 UTC
+created: 2026-11-09 12:01 UTC
+modified: 2026-11-09 12:01 UTC
 evidence:
   - claim: "An account the manager does not hold ends the pass"
     source: "`execution_manager.py` 7908, then 7909 into 7910"

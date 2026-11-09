@@ -1,8 +1,8 @@
 ---
 row: P118-02
 baseline: 49aa659
-created: 2026-11-15 03:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:17 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "The watch is built once per account, holding the registry it scans, the lock over it, a clock, the age that warns and the gap between scans"
     source: "`launcher.py` 4627-4633, into 2247, then 2248, then 2249, then 2250, then 2251"

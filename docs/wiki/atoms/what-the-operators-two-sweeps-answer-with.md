@@ -1,8 +1,8 @@
 ---
 row: P123-01
 baseline: 49aa659
-created: 2026-11-15 06:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:42 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Each sweep weighs the operator's credentials first and answers with whatever refusal that gives"
     source: "`launcher.py` 3570, then 3572 into 3573, and 3598, then 3600 into 3601"

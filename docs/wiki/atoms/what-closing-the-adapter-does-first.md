@@ -1,8 +1,8 @@
 ---
 row: P108-03
 baseline: 49aa659
-created: 2026-11-14 07:30 UTC
-modified: 2026-11-14 07:30 UTC
+created: 2026-11-09 08:25 UTC
+modified: 2026-11-09 08:25 UTC
 evidence:
   - claim: "Closing marks the adapter closed before it touches the session"
     source: "`binance_adapter.py` 423, ahead of 424"

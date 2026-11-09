@@ -1,8 +1,8 @@
 ---
 row: N73-01
 baseline: 49aa659
-created: 2026-11-13 04:30 UTC
-modified: 2026-11-13 04:30 UTC
+created: 2026-11-08 21:33 UTC
+modified: 2026-11-08 21:33 UTC
 evidence:
   - claim: "Each of the snapshot's two moments, where given, must be a whole number at or above nought, with a true-or-false refused by a test standing beside the one for kind"
     source: "`nexus/core/validator/price_stage.py` 43-49, and 51-57"

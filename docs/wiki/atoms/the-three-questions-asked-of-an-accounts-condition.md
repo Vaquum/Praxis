@@ -1,8 +1,8 @@
 ---
 row: P139-02
 baseline: 49aa659
-created: 2026-11-15 14:00 UTC
-modified: 2026-11-15 14:00 UTC
+created: 2026-11-09 10:54 UTC
+modified: 2026-11-09 10:54 UTC
 evidence:
   - claim: "Whether an account has fail-stopped is answered true only where the account is registered and carries that mark"
     source: "`execution_manager.py` 3324, then 3326"

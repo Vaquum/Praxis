@@ -1,8 +1,8 @@
 ---
 row: P54-01
 baseline: 49aa659
-created: 2026-11-12 11:30 UTC
-modified: 2026-11-13 20:30 UTC
+created: 2026-11-08 17:53 UTC
+modified: 2026-11-09 05:30 UTC
 evidence:
   - claim: "An event naming another account raises before the lock is taken"
     source: "`account_ledger.py` 97-99, ahead of 101"

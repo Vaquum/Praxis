@@ -1,8 +1,8 @@
 ---
 row: N76-02
 baseline: 49aa659
-created: 2026-11-13 07:30 UTC
-modified: 2026-11-13 07:30 UTC
+created: 2026-11-08 23:24 UTC
+modified: 2026-11-08 23:24 UTC
 evidence:
   - claim: "A record is packed as four named fields: its place in the order, its moment, its kind, and its payload"
     source: "`nexus/infrastructure/wal.py` 319-324"

@@ -1,8 +1,8 @@
 ---
 row: P94-02
 baseline: 49aa659
-created: 2026-11-14 00:30 UTC
-modified: 2026-11-14 00:30 UTC
+created: 2026-11-09 07:30 UTC
+modified: 2026-11-09 07:30 UTC
 evidence:
   - claim: "A file with no table of its own facts refuses outright, the identity being unverifiable without one"
     source: "`event_spine.py` 839 into 840-841"

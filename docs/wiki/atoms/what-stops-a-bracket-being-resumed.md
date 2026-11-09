@@ -1,8 +1,8 @@
 ---
 row: P137-01
 baseline: 49aa659
-created: 2026-11-15 13:00 UTC
-modified: 2026-11-15 13:00 UTC
+created: 2026-11-09 10:44 UTC
+modified: 2026-11-09 10:44 UTC
 evidence:
   - claim: "One pass gathers the bracket starts, the latest active protection, the amends under their versions, which commands have an amend unresolved and which were put right already"
     source: "`execution_manager.py` 1604-1608, then 1609, then 1610 into 1611"

@@ -1,8 +1,8 @@
 ---
 row: P68-06
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "Setting up begins by closing any socket it already holds, with a transport failure of that closing passed over and a failure of any other kind escaping"
     source: "`binance_ws.py` 153, naming the one kind it passes over"

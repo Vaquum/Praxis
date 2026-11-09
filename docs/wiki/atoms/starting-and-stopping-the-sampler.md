@@ -1,8 +1,8 @@
 ---
 row: P24-02
 baseline: 49aa659
-created: 2026-11-11 06:30 UTC
-modified: 2026-11-11 07:00 UTC
+created: 2026-11-08 15:54 UTC
+modified: 2026-11-08 15:54 UTC
 evidence:
   - claim: "Starting a sampler that holds a task still running raises"
     source: "`mark_sampler.py` 77-78, the test at 71"

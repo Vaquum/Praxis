@@ -1,8 +1,8 @@
 ---
 row: P133-01
 baseline: 49aa659
-created: 2026-11-15 11:00 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 10:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Asking which symbols an account is active in refuses where the account is not registered"
     source: "`execution_manager.py` 866, then 867 into 868-869"

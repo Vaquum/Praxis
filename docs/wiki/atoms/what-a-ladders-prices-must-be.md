@@ -1,8 +1,8 @@
 ---
 row: P10-01
 baseline: 49aa659
-created: 2026-11-10 05:30 UTC
-modified: 2026-11-10 05:30 UTC
+created: 2026-11-08 13:40 UTC
+modified: 2026-11-08 13:40 UTC
 evidence:
   - claim: "Each of a ladder's prices must be a positive finite decimal"
     source: "`praxis/core/domain/ladder_dca_params.py` 47 into 48-50"

@@ -2,7 +2,7 @@
 row: N3-04
 baseline: 49aa659
 created: 2026-10-22 15:30 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "Three running totals are each set to nought where they stand above it, and each one is logged as it goes"
     source: "`nexus/core/capital_controller/capital_controller.py` 193-212"
@@ -42,4 +42,4 @@ It asks the venue nothing — no call to it is made anywhere in the pass. The mo
 
 ---
 
-Created 2026-10-22 15:30 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-22 15:30 UTC · Last modified 2026-10-23 07:08 UTC

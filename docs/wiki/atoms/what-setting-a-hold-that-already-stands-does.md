@@ -1,8 +1,8 @@
 ---
 row: N69-03
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "Setting a hold that already stands answers from a recompute without touching the hold at all"
     source: "`nexus/core/mode_controller.py` 433-434"

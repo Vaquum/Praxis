@@ -1,8 +1,8 @@
 ---
 row: P107-01
 baseline: 49aa659
-created: 2026-11-14 07:00 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:20 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "Both submitting roads refuse while a stop is under way, each with wording of its own"
     source: "`praxis/trading.py` 1878 into 1879-1880, and 1904 into 1905-1906"

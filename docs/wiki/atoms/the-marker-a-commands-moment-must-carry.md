@@ -1,8 +1,8 @@
 ---
 row: N11-02
 baseline: 49aa659
-created: 2026-11-08 01:05 UTC
-modified: 2026-11-13 14:30 UTC
+created: 2026-11-07 19:33 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "A command refuses its moment unless that moment carries the UTC marker itself, so a zone standing at UTC is refused"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 133-135, which tests the marker rather than the offset"

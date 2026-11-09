@@ -1,8 +1,8 @@
 ---
 row: P61-06
 baseline: 49aa659
-created: 2026-11-12 19:30 UTC
-modified: 2026-11-12 19:30 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "The record of a bracket beginning builds a protective-settings record out of five of its own fields"
     source: "`events.py` 883-889"

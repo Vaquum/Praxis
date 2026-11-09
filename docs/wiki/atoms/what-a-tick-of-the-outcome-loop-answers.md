@@ -1,8 +1,8 @@
 ---
 row: N77-02
 baseline: 49aa659
-created: 2026-11-13 10:00 UTC
-modified: 2026-11-13 10:00 UTC
+created: 2026-11-09 00:32 UTC
+modified: 2026-11-09 00:32 UTC
 evidence:
   - claim: "Waiting outcomes are serviced before any new one is taken"
     source: "`nexus/core/outcome_loop.py` 209, ahead of 211"

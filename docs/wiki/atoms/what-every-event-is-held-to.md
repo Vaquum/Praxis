@@ -1,8 +1,8 @@
 ---
 row: P61-01
 baseline: 49aa659
-created: 2026-11-12 19:00 UTC
-modified: 2026-11-12 19:00 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "Every one of the forty-two event records is built on one shared record and every one of them calls that record's check before making its own"
     source: "`events.py` 96-117, each of the forty-two calling it as its own check opens, as at 185, 249, 286 and 1709"

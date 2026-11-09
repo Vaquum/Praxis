@@ -1,8 +1,8 @@
 ---
 row: P179-02
 baseline: 49aa659
-created: 2026-11-16 10:00 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "The version is lifted to the first where it stands below it"
     source: "`execution_manager.py` 6903, then 6911"

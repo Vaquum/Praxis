@@ -1,8 +1,8 @@
 ---
 row: P112-01
 baseline: 49aa659
-created: 2026-11-14 09:30 UTC
-modified: 2026-11-14 09:30 UTC
+created: 2026-11-09 08:37 UTC
+modified: 2026-11-09 08:37 UTC
 evidence:
   - claim: "All four refuse where neither name was given, three of them with the same wording"
     source: "`binance_adapter.py` 1676 into 1677-1678, or 1719 into 1720-1721, or 1761 into 1762-1763, or 1797 into 1798-1799"

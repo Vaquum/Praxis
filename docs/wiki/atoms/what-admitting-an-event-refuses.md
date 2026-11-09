@@ -1,8 +1,8 @@
 ---
 row: P140-01
 baseline: 49aa659
-created: 2026-11-15 14:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 10:57 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The refusal of a call from another thread builds its message before it raises"
     source: "`execution_manager.py` 3172-3175, then 3176"

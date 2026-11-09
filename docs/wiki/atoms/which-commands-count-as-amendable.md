@@ -1,8 +1,8 @@
 ---
 row: P133-02
 baseline: 49aa659
-created: 2026-11-15 11:00 UTC
-modified: 2026-11-15 11:00 UTC
+created: 2026-11-09 10:28 UTC
+modified: 2026-11-09 10:28 UTC
 evidence:
   - claim: "The derived names of the brackets' protective exits are worked out first, to be taken out later"
     source: "`execution_manager.py` 1028-1030"

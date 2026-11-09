@@ -1,8 +1,8 @@
 ---
 row: N13-07
 baseline: 49aa659
-created: 2026-11-08 15:40 UTC
-modified: 2026-11-08 16:20 UTC
+created: 2026-11-08 05:22 UTC
+modified: 2026-11-08 05:22 UTC
 evidence:
   - claim: "The sum a capital lock holds altogether is its two sums added, worked out on each reading rather than read from a field"
     source: "`nexus/core/capital_controller/reservation.py` 90, which adds the two"

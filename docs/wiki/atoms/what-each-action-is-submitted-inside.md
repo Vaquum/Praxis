@@ -1,8 +1,8 @@
 ---
 row: N53-01
 baseline: 49aa659
-created: 2026-11-12 10:30 UTC
-modified: 2026-11-12 10:30 UTC
+created: 2026-11-08 17:48 UTC
+modified: 2026-11-08 17:48 UTC
 evidence:
   - claim: "Each action is submitted inside a bound context naming the strategy and the kind of action"
     source: "`nexus/strategy/action_submit.py` 191-193 into 200"

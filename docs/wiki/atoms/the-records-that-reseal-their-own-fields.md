@@ -1,8 +1,8 @@
 ---
 row: P62-01
 baseline: 49aa659
-created: 2026-11-12 20:00 UTC
-modified: 2026-11-12 20:30 UTC
+created: 2026-11-08 19:13 UTC
+modified: 2026-11-08 19:13 UTC
 evidence:
   - claim: "Seven of the records reseal a run of their own as they are built, eleven fields between them, written by the means that goes round the sealing"
     source: "`events.py` 251-253, or 423, or 763, or 764, or 1155-1157, or 1368, or 1369, or 1413, or 1414, or 1415, or 1562"

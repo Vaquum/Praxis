@@ -1,8 +1,8 @@
 ---
 row: P68-01
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "Opening the stream answers at once where a socket is already open, and again where a reconnect loop is already running"
     source: "`binance_ws.py` 128-129, then 130-131"

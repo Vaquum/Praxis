@@ -1,8 +1,8 @@
 ---
 row: P145-01
 baseline: 49aa659
-created: 2026-11-15 17:00 UTC
-modified: 2026-11-15 17:00 UTC
+created: 2026-11-09 11:18 UTC
+modified: 2026-11-09 11:18 UTC
 evidence:
   - claim: "A change whose parameters are a bracket's goes straight to the bracket handler and returns, before any other test is made"
     source: "`execution_manager.py` 8616 into 8617-8619, then 8620"

@@ -1,8 +1,8 @@
 ---
 row: N57-01
 baseline: 49aa659
-created: 2026-11-12 14:30 UTC
-modified: 2026-11-12 14:30 UTC
+created: 2026-11-08 18:12 UTC
+modified: 2026-11-08 18:12 UTC
 evidence:
   - claim: "A set of thresholds for one measure passes over any level left unset"
     source: "`nexus/core/validator/health_stage.py` 53-56"

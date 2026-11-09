@@ -1,8 +1,8 @@
 ---
 row: P175-02
 baseline: 49aa659
-created: 2026-11-16 08:00 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 12:59 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "A command already marked ended is passed over"
     source: "`execution_manager.py` 4785, then 4786, then 4787"

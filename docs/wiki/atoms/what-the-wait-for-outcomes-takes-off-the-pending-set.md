@@ -1,8 +1,8 @@
 ---
 row: N83-02
 baseline: 49aa659
-created: 2026-11-13 17:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-11-09 04:19 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "A wait with no road inbound, or no span to wait for, answers with the whole set it was given"
     source: "`nexus/startup/shutdown_sequencer.py` 643 into 644"

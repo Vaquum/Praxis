@@ -1,8 +1,8 @@
 ---
 row: P177-01
 baseline: 49aa659
-created: 2026-11-16 09:00 UTC
-modified: 2026-11-16 09:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The part at the cursor is the one sent, and its size comes from the plan at that place"
     source: "`execution_manager.py` 5904, then 5905, then 5908"

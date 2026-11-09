@@ -1,8 +1,8 @@
 ---
 row: P70-05
 baseline: 49aa659
-created: 2026-11-13 02:00 UTC
-modified: 2026-11-13 02:00 UTC
+created: 2026-11-08 21:00 UTC
+modified: 2026-11-08 21:00 UTC
 evidence:
   - claim: "A slice of an evenly spread order would be weighed against the smallest size alone, the slice taken as the whole divided by the count"
     source: "`validate_trade_command.py` 416-422"

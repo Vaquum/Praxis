@@ -2,7 +2,7 @@
 row: N5-05
 baseline: 49aa659
 created: 2026-10-25 11:40 UTC
-modified: 2026-10-26 11:50 UTC
+modified: 2026-10-26 07:47 UTC
 evidence:
   - claim: "The three are worked out before the position is built, and nothing is built where the working out answers with nothing"
     source: "`nexus/startup/sequencer.py` 317-346 into 276-280, feeding the building at 282-291"
@@ -42,4 +42,4 @@ So a position the host holds under no strategy it can name is left out of Nexus'
 
 ---
 
-Created 2026-10-25 11:40 UTC · Last modified 2026-10-25 11:50 UTC
+Created 2026-10-25 11:40 UTC · Last modified 2026-10-26 07:47 UTC

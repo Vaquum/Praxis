@@ -1,8 +1,8 @@
 ---
 row: P74-01
 baseline: 49aa659
-created: 2026-11-13 05:30 UTC
-modified: 2026-11-13 05:30 UTC
+created: 2026-11-08 21:46 UTC
+modified: 2026-11-08 21:46 UTC
 evidence:
   - claim: "Both of a report's moments must carry a zone that gives an offset, each weighed in a test of its own"
     source: "`venue_adapter.py` 504-506, then 507-512"

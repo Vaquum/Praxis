@@ -1,8 +1,8 @@
 ---
 row: P185-02
 baseline: 49aa659
-created: 2026-11-16 13:00 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 13:45 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "The failure is recorded against the command, naming the order that could not be sent"
     source: "`execution_manager.py` 8278, then 8285-8291, then 8292"

@@ -1,8 +1,8 @@
 ---
 row: P108-02
 baseline: 49aa659
-created: 2026-11-14 07:30 UTC
-modified: 2026-11-14 07:30 UTC
+created: 2026-11-09 08:25 UTC
+modified: 2026-11-09 08:25 UTC
 evidence:
   - claim: "A permission flag is read only from a mapping, anything else reading as absent"
     source: "`binance_adapter.py` 139"

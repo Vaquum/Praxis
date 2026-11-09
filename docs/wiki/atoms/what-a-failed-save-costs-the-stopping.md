@@ -1,8 +1,8 @@
 ---
 row: N7-12
 baseline: 49aa659
-created: 2026-10-27 23:30 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "The directory is made where needed, and a failure to make it ends the writing for every strategy at once"
     source: "`nexus/startup/shutdown_sequencer.py` 835-836 against 837-839"
@@ -54,4 +54,4 @@ Where anything was written, the directory itself is pushed to the disk too. A fa
 
 ---
 
-Created 2026-10-27 23:30 UTC · Last modified 2026-10-27 23:30 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-11-09 04:19 UTC

@@ -2,7 +2,7 @@
 row: P5-07
 baseline: 49aa659
 created: 2026-11-05 16:22 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A checkpoint and a record of a state change enter the same guard before taking the log lock"
     source: "`nexus/infrastructure/state_store.py` 178 and 198, each entering 219 before the log lock"

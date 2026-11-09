@@ -1,8 +1,8 @@
 ---
 row: P170-01
 baseline: 49aa659
-created: 2026-11-16 05:30 UTC
-modified: 2026-11-16 05:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The count of parts and the gap between them are read from the settings first"
     source: "`execution_manager.py` 5712"

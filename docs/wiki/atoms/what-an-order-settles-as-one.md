@@ -1,8 +1,8 @@
 ---
 row: P65-04
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "An order carries a run of fills, which must hold something, and a name which is trimmed and refused where nothing is left"
     source: "`ledger.py` 495-496, then 498, then 500-501"

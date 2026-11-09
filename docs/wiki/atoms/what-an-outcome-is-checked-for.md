@@ -1,8 +1,8 @@
 ---
 row: N12-01
 baseline: 49aa659
-created: 2026-11-08 06:30 UTC
-modified: 2026-11-10 17:30 UTC
+created: 2026-11-08 02:08 UTC
+modified: 2026-11-08 14:48 UTC
 evidence:
   - claim: "An outcome is refused unless its own reference and the reference of the command it answers are each text with something left in them once trimmed"
     source: "`nexus/infrastructure/praxis_connector/trade_outcome.py` 92-94, or 96-98"

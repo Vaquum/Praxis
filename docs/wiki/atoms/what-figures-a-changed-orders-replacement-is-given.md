@@ -1,8 +1,8 @@
 ---
 row: P164-02
 baseline: 49aa659
-created: 2026-11-16 02:30 UTC
-modified: 2026-11-16 02:30 UTC
+created: 2026-11-09 12:36 UTC
+modified: 2026-11-09 12:36 UTC
 evidence:
   - claim: "A change to an order showing part of itself takes its price from the change where one is given and from the command otherwise"
     source: "`execution_manager.py` 10213, then 10215-10219"

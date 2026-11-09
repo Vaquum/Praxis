@@ -1,8 +1,8 @@
 ---
 row: P66-03
 baseline: 49aa659
-created: 2026-11-13 00:00 UTC
-modified: 2026-11-13 00:00 UTC
+created: 2026-11-08 19:59 UTC
+modified: 2026-11-08 19:59 UTC
 evidence:
   - claim: "Registering is the one named command, and it takes the account's name and its starting money as arguments, the coin balance standing at nought where it is left out"
     source: "`__main__.py` 275-278"

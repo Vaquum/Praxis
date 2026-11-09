@@ -1,8 +1,8 @@
 ---
 row: P134-01
 baseline: 49aa659
-created: 2026-11-15 11:30 UTC
-modified: 2026-11-15 11:30 UTC
+created: 2026-11-09 10:33 UTC
+modified: 2026-11-09 10:33 UTC
 evidence:
   - claim: "Reading the record back refuses where the account is not registered"
     source: "`execution_manager.py` 1108, then 1109 into 1110-1111"

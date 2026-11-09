@@ -1,8 +1,8 @@
 ---
 row: P118-01
 baseline: 49aa659
-created: 2026-11-15 03:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:17 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Four sets of limits are made as the walk is built: the risk limits empty, the price limits worked out from the account's settings, the platform caps taken from the caller where one came and made empty where none did, and the health policy empty"
     source: "`launcher.py` 964, then 965, then 966, then 967"

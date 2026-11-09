@@ -1,8 +1,8 @@
 ---
 row: P13-02
 baseline: 49aa659
-created: 2026-11-10 11:30 UTC
-modified: 2026-11-10 11:30 UTC
+created: 2026-11-08 14:17 UTC
+modified: 2026-11-08 14:17 UTC
 evidence:
   - claim: "The run of failures starts at nought and the lock is made as the tracker is"
     source: "`praxis/core/health_tracker.py` 46-47"

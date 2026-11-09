@@ -1,8 +1,8 @@
 ---
 row: P160-01
 baseline: 49aa659
-created: 2026-11-16 00:30 UTC
-modified: 2026-11-16 00:30 UTC
+created: 2026-11-09 12:26 UTC
+modified: 2026-11-09 12:26 UTC
 evidence:
   - claim: "The cancel goes out first and nothing of what it answers is kept"
     source: "`execution_manager.py` 10274, then 10275"

@@ -1,8 +1,8 @@
 ---
 row: P135-02
 baseline: 49aa659
-created: 2026-11-15 12:00 UTC
-modified: 2026-11-15 12:00 UTC
+created: 2026-11-09 10:37 UTC
+modified: 2026-11-09 10:37 UTC
 evidence:
   - claim: "The command is rebuilt as a market order carrying the rebuilt parameters and a replay timeout"
     source: "`execution_manager.py` 1942-1947"

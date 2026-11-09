@@ -1,8 +1,8 @@
 ---
 row: P50-02
 baseline: 49aa659
-created: 2026-11-12 07:30 UTC
-modified: 2026-11-12 07:30 UTC
+created: 2026-11-08 17:35 UTC
+modified: 2026-11-08 17:35 UTC
 evidence:
   - claim: "The windows are cut by truncating each step's moment to a named span"
     source: "`snapshot_metrics.py` 115-117"

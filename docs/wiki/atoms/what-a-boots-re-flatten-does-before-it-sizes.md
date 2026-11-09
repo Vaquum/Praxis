@@ -1,8 +1,8 @@
 ---
 row: P172-02
 baseline: 49aa659
-created: 2026-11-16 06:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 12:53 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "The bracket is rebuilt in memory with the entry's name worked out from the command"
     source: "`execution_manager.py` 8228-8230, then 8231-8233, then 8234"

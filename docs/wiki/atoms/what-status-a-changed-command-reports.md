@@ -1,8 +1,8 @@
 ---
 row: P168-02
 baseline: 49aa659
-created: 2026-11-16 04:30 UTC
-modified: 2026-11-16 04:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The figures are the admitted totals kept for the command"
     source: "`execution_manager.py` 10426-10428"

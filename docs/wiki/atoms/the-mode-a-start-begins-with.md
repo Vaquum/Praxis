@@ -1,8 +1,8 @@
 ---
 row: N72-04
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 04:00 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "A mode is read from the health figures where both a weigher and a reading of health were given"
     source: "`nexus/startup/sequencer.py` 671-672"

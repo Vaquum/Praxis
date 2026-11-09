@@ -1,8 +1,8 @@
 ---
 row: P61-02
 baseline: 49aa659
-created: 2026-11-12 19:00 UTC
-modified: 2026-11-12 19:00 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "A figure may be weighed on three grounds: that it be of the exact kind, that it be finite, and that it stand the right side of nought"
     source: "`events.py` 197-203, or 205-211, or 775-781, or 868-874, or 1207-1209"

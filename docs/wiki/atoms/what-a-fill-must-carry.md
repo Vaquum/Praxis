@@ -1,8 +1,8 @@
 ---
 row: N12-02
 baseline: 49aa659
-created: 2026-11-08 06:30 UTC
-modified: 2026-11-08 07:45 UTC
+created: 2026-11-08 02:08 UTC
+modified: 2026-11-08 02:08 UTC
 evidence:
   - claim: "One test on the kind sends an outcome to the list for a fill or the list for anything else, so it is held to one of the two and never to both"
     source: "`nexus/infrastructure/praxis_connector/trade_outcome.py` 114 into 115, or else 117"

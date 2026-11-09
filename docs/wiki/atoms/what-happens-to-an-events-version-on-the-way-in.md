@@ -1,8 +1,8 @@
 ---
 row: N63-08
 baseline: 49aa659
-created: 2026-11-12 22:00 UTC
-modified: 2026-11-12 22:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "An event's version is turned into a whole number before any reader is chosen, the one place in the codec where a version is converted"
     source: "`nexus/infrastructure/wal_codec.py` 616, against the snapshot's at 114"

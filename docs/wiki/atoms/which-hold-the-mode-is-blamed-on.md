@@ -1,8 +1,8 @@
 ---
 row: N69-02
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "For halted, five grounds are weighed in a fixed order and the first standing is the blame: shutting down, manual, risk, reconciling, protection"
     source: "`nexus/core/mode_controller.py` 528-537"

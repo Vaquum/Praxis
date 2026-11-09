@@ -2,7 +2,7 @@
 row: P1-13
 baseline: 49aa659
 created: 2026-10-12 14:30 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A change is deferred for as long as the hold lasts, going back on the line each pass"
     source: "`execution_manager.py` 3913-3920 and 3953-3954"
@@ -41,4 +41,4 @@ Putting the changes back is the last of the line's own work. A pass cancelled wh
 
 ---
 
-Created 2026-10-12 14:30 UTC · Last modified 2026-10-12 16:08 UTC
+Created 2026-10-12 14:30 UTC · Last modified 2026-11-09 14:05 UTC

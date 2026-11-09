@@ -1,8 +1,8 @@
 ---
 row: N14-04
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "A signal copies the mapping it was handed and seals the copy over the field it arrived in"
     source: "`nexus/strategy/signal.py` 61"

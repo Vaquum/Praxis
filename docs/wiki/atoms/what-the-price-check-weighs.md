@@ -2,8 +2,8 @@
 row: N2-07
 baseline: 49aa659
 created: 2026-10-21 18:00 UTC
-modified: 2026-10-22 19:00 UTC
-reviewed: 2026-10-22 19:00 UTC
+modified: 2026-10-22 08:39 UTC
+reviewed: 2026-10-22 08:39 UTC
 evidence:
   - claim: "The price stage weighs three things in turn: how old the book is, how wide its spread is, and how far a price sits from a reference"
     source: "`nexus/core/validator/price_stage.py` 258, 293 and 316"
@@ -57,4 +57,4 @@ So a decision can be stopped here for a figure's absence as readily as for one o
 
 ---
 
-Created 2026-10-21 18:00 UTC · Last modified 2026-10-22 19:00 UTC
+Created 2026-10-21 18:00 UTC · Last modified 2026-10-22 08:39 UTC

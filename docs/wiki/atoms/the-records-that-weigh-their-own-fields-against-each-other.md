@@ -1,8 +1,8 @@
 ---
 row: P61-03
 baseline: 49aa659
-created: 2026-11-12 19:00 UTC
-modified: 2026-11-12 19:00 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "An order's intent must carry exactly one of a size in coin and a size in money, the two tested against each other by their presence"
     source: "`events.py` 193-195"

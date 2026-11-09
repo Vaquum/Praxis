@@ -1,8 +1,8 @@
 ---
 row: P12-03
 baseline: 49aa659
-created: 2026-11-10 09:30 UTC
-modified: 2026-11-10 09:30 UTC
+created: 2026-11-08 14:05 UTC
+modified: 2026-11-08 14:05 UTC
 evidence:
   - claim: "A peak is kept that only rises, and each fall is measured against it"
     source: "`praxis/metrics/limen_snapshot.py` 256-257"

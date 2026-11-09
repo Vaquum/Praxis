@@ -1,8 +1,8 @@
 ---
 row: P188-02
 baseline: 49aa659
-created: 2026-11-16 14:30 UTC
-modified: 2026-11-16 14:30 UTC
+created: 2026-11-09 14:21 UTC
+modified: 2026-11-09 14:21 UTC
 evidence:
   - claim: "A ladder with a call-off standing against it ends before its first rung, reported as cancelled with no parts at all"
     source: "`execution_manager.py` 6074, then 6075, then 6077-6082"

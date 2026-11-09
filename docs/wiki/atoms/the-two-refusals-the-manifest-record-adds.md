@@ -1,8 +1,8 @@
 ---
 row: N59-01
 baseline: 49aa659
-created: 2026-11-12 16:30 UTC
-modified: 2026-11-12 16:30 UTC
+created: 2026-11-08 18:43 UTC
+modified: 2026-11-08 18:43 UTC
 evidence:
   - claim: "The loader requires the account's name to have something in it once trimmed, and the ceiling and the pool to convert to a figure from the value the file was read as, to be finite, and to stand above nought, with the pool at or under the ceiling"
     source: "`nexus/infrastructure/manifest.py` 393-396, then 406-419, then 427-441"

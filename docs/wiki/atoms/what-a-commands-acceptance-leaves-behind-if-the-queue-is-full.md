@@ -1,8 +1,8 @@
 ---
 row: P180-01
 baseline: 49aa659
-created: 2026-11-16 10:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 13:09 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "A place in the queue is reserved before the acceptance is built"
     source: "`execution_manager.py` 3513, then 3514, then 3515-3520"

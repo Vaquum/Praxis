@@ -1,8 +1,8 @@
 ---
 row: N72-03
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 04:00 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "The runner and the manifest must both be in hand, each missing one stopping the starting with its own complaint"
     source: "`nexus/startup/sequencer.py` 568-569, and 571-572"

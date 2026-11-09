@@ -1,8 +1,8 @@
 ---
 row: P88-01
 baseline: 49aa659
-created: 2026-11-13 21:00 UTC
-modified: 2026-11-13 21:00 UTC
+created: 2026-11-09 06:08 UTC
+modified: 2026-11-09 06:08 UTC
 evidence:
   - claim: "Three kinds of event are each weighed on their own and answer where they match, before any chain is reached"
     source: "`trading_state.py` 189-191, then 193-195, then 197-199"

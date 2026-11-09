@@ -1,8 +1,8 @@
 ---
 row: N15-01
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-09 14:00 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 10:13 UTC
 evidence:
   - claim: "Four of a health snapshot's figures are walked by name and each refused unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`nexus/core/health_evaluator.py` 40-42 over the four names, into 43-44"

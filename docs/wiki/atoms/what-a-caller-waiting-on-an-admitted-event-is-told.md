@@ -1,8 +1,8 @@
 ---
 row: P171-01
 baseline: 49aa659
-created: 2026-11-16 06:00 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "Each waiting event is taken together with the answer its caller is waiting on, and a count of those in flight raised"
     source: "`execution_manager.py` 3804, then 3805, then 3806"

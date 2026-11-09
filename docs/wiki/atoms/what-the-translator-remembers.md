@@ -1,8 +1,8 @@
 ---
 row: P26-01
 baseline: 49aa659
-created: 2026-11-11 09:00 UTC
-modified: 2026-11-11 10:30 UTC
+created: 2026-11-08 16:02 UTC
+modified: 2026-11-08 16:13 UTC
 evidence:
   - claim: "The cap on remembered finished commands must be a whole number above nought"
     source: "`outcome_translator.py` 126-128"

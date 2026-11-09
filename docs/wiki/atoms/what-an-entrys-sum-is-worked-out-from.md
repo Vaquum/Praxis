@@ -1,8 +1,8 @@
 ---
 row: N7-11
 baseline: 49aa659
-created: 2026-10-27 22:10 UTC
-modified: 2026-10-27 22:10 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "An entry asking in money has its sum written as that amount, with no price read into the working out, though the request's own price is carried along"
     source: "`praxis/launcher.py` 1174-1175 returning at 1178-1192, the price carried at 1191"
@@ -58,4 +58,4 @@ On the weighed road a sum of nought falls below any smallest value above nought,
 
 ---
 
-Created 2026-10-27 22:10 UTC · Last modified 2026-10-27 22:10 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

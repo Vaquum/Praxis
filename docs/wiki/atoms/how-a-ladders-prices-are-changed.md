@@ -2,7 +2,7 @@
 row: P4-47
 baseline: 49aa659
 created: 2026-10-14 07:10 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "Another change already under way, a ladder under any hold, and settings that are not a ladder's each turn it away first"
     source: "`execution_manager.py` 8882-8889, 8891-8897 and 8899-8904"
@@ -48,4 +48,4 @@ What is left to buy is worked out from what the old grid filled, and the new pla
 
 ---
 
-Created 2026-10-14 07:10 UTC · Last modified 2026-10-16 08:20 UTC
+Created 2026-10-14 07:10 UTC · Last modified 2026-11-09 14:05 UTC

@@ -1,8 +1,8 @@
 ---
 row: P177-02
 baseline: 49aa659
-created: 2026-11-16 09:00 UTC
-modified: 2026-11-16 09:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The call-off is recorded and applied before any report is worked out"
     source: "`execution_manager.py` 8540-8545, then 8546, then 8547, then 8549"

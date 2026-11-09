@@ -1,8 +1,8 @@
 ---
 row: N69-04
 baseline: 49aa659
-created: 2026-11-13 01:30 UTC
-modified: 2026-11-13 01:30 UTC
+created: 2026-11-08 20:50 UTC
+modified: 2026-11-08 20:50 UTC
 evidence:
   - claim: "The health tick writes the health reading, evaluates both breakers and recomputes under one hold of the lock"
     source: "`nexus/core/mode_controller.py` 118-123"

@@ -1,8 +1,8 @@
 ---
 row: P128-01
 baseline: 49aa659
-created: 2026-11-15 08:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:59 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "The build refuses where the trading stack or the host's loop is missing"
     source: "`launcher.py` 4067 into 4068-4069"

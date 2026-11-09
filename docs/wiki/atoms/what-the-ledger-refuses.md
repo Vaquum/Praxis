@@ -1,8 +1,8 @@
 ---
 row: P87-02
 baseline: 49aa659
-created: 2026-11-13 20:30 UTC
-modified: 2026-11-13 20:30 UTC
+created: 2026-11-09 05:30 UTC
+modified: 2026-11-09 05:30 UTC
 evidence:
   - claim: "A ledger refuses to be built without an account name"
     source: "`account_ledger.py` 70 into 71-72"

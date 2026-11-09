@@ -1,8 +1,8 @@
 ---
 row: P7-03
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-09 07:30 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 09:11 UTC
 evidence:
   - claim: "The refusals a fill's own record makes are reached from the tests and from nowhere in Praxis"
     source: "`praxis/core/domain/fill.py` 65-82, reached from `tests/test_domain_core.py` 35 by way of 196, and from no statement in Praxis"

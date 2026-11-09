@@ -1,8 +1,8 @@
 ---
 row: N15-06
 baseline: 49aa659
-created: 2026-11-09 14:00 UTC
-modified: 2026-11-09 14:00 UTC
+created: 2026-11-08 10:13 UTC
+modified: 2026-11-08 10:13 UTC
 evidence:
   - claim: "Where no controller was supplied the answer goes down a direct write, which does nothing at all where the mode is unchanged"
     source: "`nexus/core/health_loop.py` 179-180 into 201-202"

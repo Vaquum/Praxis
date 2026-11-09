@@ -2,7 +2,7 @@
 row: P4-08
 baseline: 49aa659
 created: 2026-10-03 14:12 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "Seven ways of working share six kinds of settings between them"
     source: "`execution_params.py` 30-38"

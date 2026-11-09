@@ -1,8 +1,8 @@
 ---
 row: N60-04
 baseline: 49aa659
-created: 2026-11-12 18:30 UTC
-modified: 2026-11-12 18:30 UTC
+created: 2026-11-08 18:50 UTC
+modified: 2026-11-08 18:50 UTC
 evidence:
   - claim: "The helper reading an optional figure words its complaint with the risk-controls block's name fixed in front of the field it was given"
     source: "`nexus/infrastructure/manifest.py` 305"

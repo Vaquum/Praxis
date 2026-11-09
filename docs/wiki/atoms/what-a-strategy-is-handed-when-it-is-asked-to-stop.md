@@ -2,7 +2,7 @@
 row: N6-02
 baseline: 49aa659
 created: 2026-10-26 16:10 UTC
-modified: 2026-10-26 18:10 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "The host lists every position it holds once, under a lock where one was supplied, and gives each strategy the ones carrying its own name"
     source: "`nexus/startup/shutdown_sequencer.py` 300-303 into 308-311"
@@ -56,4 +56,4 @@ Once every strategy has been asked, what was kept is sorted: [the exits](the-sal
 
 ---
 
-Created 2026-10-26 16:10 UTC · Last modified 2026-10-26 18:10 UTC
+Created 2026-10-26 16:10 UTC · Last modified 2026-10-26 16:26 UTC

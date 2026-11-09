@@ -2,7 +2,7 @@
 row: N5-03
 baseline: 49aa659
 created: 2026-10-25 11:20 UTC
-modified: 2026-10-26 11:20 UTC
+modified: 2026-10-26 07:47 UTC
 evidence:
   - claim: "The question is asked where an ending has arrived and something filled against it, and answered yes or no"
     source: "`praxis/core/execution_manager.py` 10801-10808 into 10878-10899"
@@ -44,4 +44,4 @@ A yes is what lets the close be written to the record — and that record, once 
 
 ---
 
-Created 2026-10-25 11:20 UTC · Last modified 2026-10-25 11:20 UTC
+Created 2026-10-25 11:20 UTC · Last modified 2026-10-26 07:47 UTC

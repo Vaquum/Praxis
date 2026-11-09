@@ -2,7 +2,7 @@
 row: N6-03
 baseline: 49aa659
 created: 2026-10-26 16:20 UTC
-modified: 2026-10-26 18:20 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "An abort goes for each one a strategy asks for as the host stops, against the command identifier that answer already carries"
     source: "`nexus/startup/shutdown_sequencer.py` 386 into 581-587"
@@ -50,4 +50,4 @@ A sale records its identifier later in its own road — after the record against
 
 ---
 
-Created 2026-10-26 16:20 UTC · Last modified 2026-10-26 18:20 UTC
+Created 2026-10-26 16:20 UTC · Last modified 2026-10-26 16:26 UTC

@@ -1,8 +1,8 @@
 ---
 row: N41-02
 baseline: 49aa659
-created: 2026-11-11 22:30 UTC
-modified: 2026-11-11 23:00 UTC
+created: 2026-11-08 16:59 UTC
+modified: 2026-11-08 16:59 UTC
 evidence:
   - claim: "A worker still alive when the wait runs out keeps its place, the stopping returning without clearing it"
     source: "`nexus/core/outcome_loop.py` 179-185"

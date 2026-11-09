@@ -2,7 +2,7 @@
 row: N6-01
 baseline: 49aa659
 created: 2026-10-26 16:00 UTC
-modified: 2026-10-26 20:00 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "The launcher calls the stop on three other Nexus loops and one watch of its own before the stopping sequence is built or run at all"
     source: "`praxis/launcher.py` 4004-4007 before 4009 and 4030, the three called at `nexus/core/health_loop.py` 98-102, `nexus/core/mtm_loop.py` 136-140 and `nexus/infrastructure/snapshot_scheduler.py` 92-96"
@@ -48,4 +48,4 @@ The setting lands before the loops stop, so an entry, an exit or a change reachi
 
 ---
 
-Created 2026-10-26 16:00 UTC · Last modified 2026-10-26 20:00 UTC
+Created 2026-10-26 16:00 UTC · Last modified 2026-10-26 16:26 UTC

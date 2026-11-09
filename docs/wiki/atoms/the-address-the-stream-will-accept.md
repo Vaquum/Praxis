@@ -1,8 +1,8 @@
 ---
 row: P68-02
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "An address beginning with the secured form is allowed outright"
     source: "`binance_ws.py` 167"

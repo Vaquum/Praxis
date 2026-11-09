@@ -1,8 +1,8 @@
 ---
 row: N6-05
 baseline: 49aa659
-created: 2026-10-26 16:40 UTC
-modified: 2026-11-13 17:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-11-09 04:19 UTC
 evidence:
   - claim: "A stopping host puts each outcome it reads on one of two roads, by whether its identifier is on the list the stopping still has outstanding"
     source: "`nexus/startup/shutdown_sequencer.py` 655-657 against 659-663, the list built at 615 and shortened at 663"
@@ -52,4 +52,4 @@ Where no handler is wired, the outcome is logged and nothing else is done with i
 
 ---
 
-Created 2026-10-26 16:40 UTC · Last modified 2026-10-26 21:30 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-11-09 04:19 UTC

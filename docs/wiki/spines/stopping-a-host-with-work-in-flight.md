@@ -2,7 +2,7 @@
 row: S-04
 baseline: 49aa659
 created: 2026-10-15 08:40 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "The host waits on the stop flag, which a signal sets and an account's own failure sets too"
     source: "`launcher.py` 2837, set at 2844 and 4040, the handlers installed at 2824-2825"
@@ -78,4 +78,4 @@ The route a host takes when it is told to stop while requests are part-way throu
 
 ---
 
-Created 2026-10-15 08:40 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-15 08:40 UTC · Last modified 2026-10-23 07:08 UTC

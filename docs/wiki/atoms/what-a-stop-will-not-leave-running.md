@@ -1,8 +1,8 @@
 ---
 row: P105-02
 baseline: 49aa659
-created: 2026-11-14 06:00 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:10 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "A stop on a facade that never started answers at once"
     source: "`praxis/trading.py` 652 into 653"

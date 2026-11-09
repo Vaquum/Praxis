@@ -1,8 +1,8 @@
 ---
 row: N67-02
 baseline: 49aa659
-created: 2026-11-13 00:30 UTC
-modified: 2026-11-13 00:30 UTC
+created: 2026-11-08 20:17 UTC
+modified: 2026-11-08 20:17 UTC
 evidence:
   - claim: "Each of the two mappings is held to being a mapping where it is given, and left alone where it is not"
     source: "`nexus/strategy/action.py` 111-114, and 121-124"

@@ -1,8 +1,8 @@
 ---
 row: P7-02
 baseline: 49aa659
-created: 2026-11-09 07:30 UTC
-modified: 2026-11-09 07:30 UTC
+created: 2026-11-08 09:11 UTC
+modified: 2026-11-08 09:11 UTC
 evidence:
   - claim: "A fill's amount and price are refused where they stand at or below nought, and its fee where it stands below nought"
     source: "`praxis/core/domain/fill.py` 74-76, or 77-79, against 80-82"

@@ -1,8 +1,8 @@
 ---
 row: N35-02
 baseline: 49aa659
-created: 2026-11-11 17:00 UTC
-modified: 2026-11-11 17:30 UTC
+created: 2026-11-08 16:38 UTC
+modified: 2026-11-08 16:38 UTC
 evidence:
   - claim: "A turn driven by hand asks the applying not to respect the mark, so it applies whether or not the loop is running"
     source: "`nexus/core/health_loop.py` 113 against 170-171"

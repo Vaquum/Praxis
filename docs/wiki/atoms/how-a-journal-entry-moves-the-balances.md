@@ -1,8 +1,8 @@
 ---
 row: P87-01
 baseline: 49aa659
-created: 2026-11-13 20:30 UTC
-modified: 2026-11-13 20:30 UTC
+created: 2026-11-09 05:30 UTC
+modified: 2026-11-09 05:30 UTC
 evidence:
   - claim: "A buy's entry is built with no realized figure, where a sell's comes back with one"
     source: "`account_ledger.py` 248 into 249-250, or 252 into 253"

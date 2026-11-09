@@ -1,8 +1,8 @@
 ---
 row: P70-03
 baseline: 49aa659
-created: 2026-11-13 02:00 UTC
-modified: 2026-11-13 02:00 UTC
+created: 2026-11-08 21:00 UTC
+modified: 2026-11-08 21:00 UTC
 evidence:
   - claim: "The check answers at once for a command sized in coin, weighing nothing"
     source: "`validate_trade_command.py` 160-161"

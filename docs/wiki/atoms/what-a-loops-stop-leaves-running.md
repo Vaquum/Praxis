@@ -1,8 +1,8 @@
 ---
 row: N6-11
 baseline: 49aa659
-created: 2026-10-27 00:30 UTC
-modified: 2026-10-27 00:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "Each of the four stops the launcher calls clears a flag and cancels the next turn, and none waits for the turn in hand to end"
     source: "`nexus/core/health_loop.py` 98-102, `nexus/core/mtm_loop.py` 136-140, `nexus/infrastructure/snapshot_scheduler.py` 93-96 and `praxis/launcher.py` 2275-2279, none of them joining"
@@ -40,4 +40,4 @@ It takes the lock its own turn holds while that turn works, so it waits on that 
 
 ---
 
-Created 2026-10-27 00:30 UTC · Last modified 2026-10-27 00:30 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-10-26 16:26 UTC

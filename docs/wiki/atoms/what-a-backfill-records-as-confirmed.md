@@ -1,8 +1,8 @@
 ---
 row: P102-02
 baseline: 49aa659
-created: 2026-11-14 04:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:00 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "A trade whose venue name will not read as a number is reported and skipped"
     source: "`praxis/trading.py` 1551 into 1552 into 1553-1558, then 1559"

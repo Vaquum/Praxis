@@ -1,8 +1,8 @@
 ---
 row: N14-05
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "A parameter set is refused unless what it was handed is a dictionary"
     source: "`nexus/strategy/params.py` 27-29"

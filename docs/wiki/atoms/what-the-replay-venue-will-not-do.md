@@ -1,8 +1,8 @@
 ---
 row: P75-06
 baseline: 49aa659
-created: 2026-11-13 06:30 UTC
-modified: 2026-11-13 06:30 UTC
+created: 2026-11-08 22:30 UTC
+modified: 2026-11-08 22:30 UTC
 evidence:
   - claim: "Registering an account opens a balance book seeded with a copy of the starting balances the venue was built with, the copy reaching the mapping and not what it holds"
     source: "`replay_venue_adapter.py` 116"

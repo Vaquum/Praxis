@@ -1,8 +1,8 @@
 ---
 row: N6-06
 baseline: 49aa659
-created: 2026-10-26 16:50 UTC
-modified: 2026-11-13 14:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "Handing a command to Praxis puts the send on another thread's loop and waits on the calling side for a name to come back"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 180-183 into 185-186"
@@ -52,4 +52,4 @@ A name coming back different from the one sent refuses the handover, and only wh
 
 ---
 
-Created 2026-10-26 16:50 UTC · Last modified 2026-10-26 20:40 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-11-09 03:10 UTC

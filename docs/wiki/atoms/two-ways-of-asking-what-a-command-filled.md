@@ -1,8 +1,8 @@
 ---
 row: P142-01
 baseline: 49aa659
-created: 2026-11-15 15:30 UTC
-modified: 2026-11-15 15:30 UTC
+created: 2026-11-09 11:05 UTC
+modified: 2026-11-09 11:05 UTC
 evidence:
   - claim: "The admitted totals for a command are read from a mapping the account keeps, and answered as they stand where any are held"
     source: "`execution_manager.py` 2588, then 2590 into 2591"

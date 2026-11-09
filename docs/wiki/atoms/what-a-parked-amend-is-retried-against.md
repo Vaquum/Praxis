@@ -1,8 +1,8 @@
 ---
 row: P151-02
 baseline: 49aa659
-created: 2026-11-15 20:00 UTC
-modified: 2026-11-15 20:00 UTC
+created: 2026-11-09 11:46 UTC
+modified: 2026-11-09 11:46 UTC
 evidence:
   - claim: "An account the manager does not hold ends the retry at once"
     source: "`execution_manager.py` 8830, then 8831 into 8832"

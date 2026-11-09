@@ -1,8 +1,8 @@
 ---
 row: N38-02
 baseline: 49aa659
-created: 2026-11-11 20:00 UTC
-modified: 2026-11-11 20:30 UTC
+created: 2026-11-08 16:49 UTC
+modified: 2026-11-08 16:49 UTC
 evidence:
   - claim: "A recovery ends by handing the realized figure back to the risk record"
     source: "`nexus/infrastructure/state_store.py` 333"

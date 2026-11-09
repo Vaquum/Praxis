@@ -1,8 +1,8 @@
 ---
 row: P156-01
 baseline: 49aa659
-created: 2026-11-15 22:30 UTC
-modified: 2026-11-15 22:30 UTC
+created: 2026-11-09 12:10 UTC
+modified: 2026-11-09 12:10 UTC
 evidence:
   - claim: "The command's amount and the shape of the change are both insisted upon"
     source: "`execution_manager.py` 10078-10079, then 10080, then 10081"

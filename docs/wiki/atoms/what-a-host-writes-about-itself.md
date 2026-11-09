@@ -2,7 +2,7 @@
 row: P4-14
 baseline: 49aa659
 created: 2026-10-03 20:04 UTC
-modified: 2026-11-15 10:30 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A line written through the arrangement itself is rendered as JSON and handed to a writer the library makes"
     source: "`praxis/infrastructure/observability.py` 59 and 62"

@@ -1,8 +1,8 @@
 ---
 row: N78-04
 baseline: 49aa659
-created: 2026-11-13 12:30 UTC
-modified: 2026-11-13 12:30 UTC
+created: 2026-11-09 02:48 UTC
+modified: 2026-11-09 02:48 UTC
 evidence:
   - claim: "Growing a position reads the five figures it works from before any lock is taken"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 473, and 474, and 475, and 476, and 477, ahead of 487"

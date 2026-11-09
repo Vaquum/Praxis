@@ -1,8 +1,8 @@
 ---
 row: P89-03
 baseline: 49aa659
-created: 2026-11-13 22:00 UTC
-modified: 2026-11-13 22:00 UTC
+created: 2026-11-09 07:07 UTC
+modified: 2026-11-09 07:07 UTC
 evidence:
   - claim: "A refusal is built as a body carrying a code and a message, in the venue's own shape"
     source: "`server.py` 738"

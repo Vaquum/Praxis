@@ -1,8 +1,8 @@
 ---
 row: P151-01
 baseline: 49aa659
-created: 2026-11-15 20:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 11:46 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A part-shown amount is carried only where it was given and stands below the remainder, and is otherwise nothing"
     source: "`execution_manager.py` 10321"

@@ -1,8 +1,8 @@
 ---
 row: P146-01
 baseline: 49aa659
-created: 2026-11-15 17:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 11:22 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "An account the manager does not hold ends the pass at once"
     source: "`execution_manager.py` 2220, then 2221 into 2222"

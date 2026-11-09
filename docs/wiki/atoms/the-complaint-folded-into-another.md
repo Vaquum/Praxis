@@ -1,8 +1,8 @@
 ---
 row: N63-09
 baseline: 49aa659
-created: 2026-11-12 22:00 UTC
-modified: 2026-11-12 22:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "The second event reader writes a careful complaint for an outcome name that is not text, that is empty, or that holds only spaces, and that complaint carries what arrived"
     source: "`nexus/infrastructure/wal_codec.py` 678-683"

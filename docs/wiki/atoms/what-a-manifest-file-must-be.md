@@ -1,8 +1,8 @@
 ---
 row: N60-03
 baseline: 49aa659
-created: 2026-11-12 18:00 UTC
-modified: 2026-11-12 18:00 UTC
+created: 2026-11-08 18:50 UTC
+modified: 2026-11-08 18:50 UTC
 evidence:
   - claim: "A path that is not a file refuses the reading with a kind of failure no refusal written here uses"
     source: "`nexus/infrastructure/manifest.py` 382-384, every refusal written here raising at 389-391 onwards"

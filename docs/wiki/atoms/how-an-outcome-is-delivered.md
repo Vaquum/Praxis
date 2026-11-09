@@ -2,7 +2,7 @@
 row: P2-38
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "On the ordinary path an ending marks the command finished and drops it from the live and aborted sets"
     source: "`execution_manager.py` 10800-10804"

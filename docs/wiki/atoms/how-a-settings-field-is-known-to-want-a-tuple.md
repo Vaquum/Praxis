@@ -1,8 +1,8 @@
 ---
 row: P36-01
 baseline: 49aa659
-created: 2026-11-11 18:00 UTC
-modified: 2026-11-11 18:00 UTC
+created: 2026-11-08 16:42 UTC
+modified: 2026-11-08 16:42 UTC
 evidence:
   - claim: "A field is taken to want a tuple where its declared kind is a tuple, bare or with its members named"
     source: "`command_translator.py` 96-97"

@@ -1,8 +1,8 @@
 ---
 row: N13-06
 baseline: 49aa659
-created: 2026-11-08 15:40 UTC
-modified: 2026-11-08 16:55 UTC
+created: 2026-11-08 05:22 UTC
+modified: 2026-11-08 05:22 UTC
 evidence:
   - claim: "A note is refused unless the flag saying the order grows a position is a yes-or-no"
     source: "`nexus/infrastructure/praxis_connector/order_context.py` 91-93"

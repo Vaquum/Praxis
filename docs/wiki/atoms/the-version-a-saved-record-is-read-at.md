@@ -1,8 +1,8 @@
 ---
 row: N63-01
 baseline: 49aa659
-created: 2026-11-12 21:00 UTC
-modified: 2026-11-12 21:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "A saved snapshot's version is read with the first version standing in where none is written, so a payload carrying no version is read as the oldest rather than turned away"
     source: "`nexus/infrastructure/wal_codec.py` 114"

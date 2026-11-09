@@ -1,8 +1,8 @@
 ---
 row: P132-01
 baseline: 49aa659
-created: 2026-11-15 10:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 10:25 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "The settings, the record or the path to one, the venue, the port, the two folders and whether permissions are enforced are each kept as handed in"
     source: "`launcher.py` 2770, then 2774, then 2776, then 2777, then 2780, then 2781, then 2783, then 2784"

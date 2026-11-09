@@ -2,7 +2,7 @@
 row: P3-26
 baseline: 49aa659
 created: 2026-10-12 01:40 UTC
-modified: 2026-11-16 13:30 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A cancel the venue does not confirm leaves the order live and places nothing, and parks no change for a later pass"
     source: "`execution_manager.py` 8717-8723, returning before the parking at 8747-8748"
@@ -43,4 +43,4 @@ The order has gone to the venue here. Where the send times out, the venue is ask
 
 ---
 
-Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 10:12 UTC
+Created 2026-10-12 01:40 UTC · Last modified 2026-11-09 14:05 UTC

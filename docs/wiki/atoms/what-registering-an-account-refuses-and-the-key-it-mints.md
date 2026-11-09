@@ -1,8 +1,8 @@
 ---
 row: P64-02
 baseline: 49aa659
-created: 2026-11-12 22:30 UTC
-modified: 2026-11-12 22:30 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "The account's name is trimmed first, with nothing at all read as emptiness, and emptiness refused"
     source: "`ledger.py` 282, then 284-285"

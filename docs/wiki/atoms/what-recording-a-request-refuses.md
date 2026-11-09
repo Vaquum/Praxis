@@ -1,8 +1,8 @@
 ---
 row: P13-01
 baseline: 49aa659
-created: 2026-11-10 11:30 UTC
-modified: 2026-11-10 20:00 UTC
+created: 2026-11-08 14:17 UTC
+modified: 2026-11-08 15:12 UTC
 evidence:
   - claim: "Recording a request refuses a latency unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`praxis/core/health_tracker.py` 61-68"

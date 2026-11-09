@@ -1,8 +1,8 @@
 ---
 row: P85-01
 baseline: 49aa659
-created: 2026-11-13 19:30 UTC
-modified: 2026-11-13 19:30 UTC
+created: 2026-11-09 05:22 UTC
+modified: 2026-11-09 05:22 UTC
 evidence:
   - claim: "A poll carries a bearer token in a header of its own, and the answer is read inside the request's own hold"
     source: "`feed.py` 188, then 190, the body read at 205"

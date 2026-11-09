@@ -1,8 +1,8 @@
 ---
 row: N79-02
 baseline: 49aa659
-created: 2026-11-13 13:30 UTC
-modified: 2026-11-13 13:30 UTC
+created: 2026-11-09 03:10 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "A position's figure is the mark less the entry price, times the size, signed by the side"
     source: "`nexus/core/mtm_loop.py` 284, then 285, then 286"

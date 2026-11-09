@@ -1,8 +1,8 @@
 ---
 row: P50-01
 baseline: 49aa659
-created: 2026-11-12 07:30 UTC
-modified: 2026-11-12 07:30 UTC
+created: 2026-11-08 17:35 UTC
+modified: 2026-11-08 17:35 UTC
 evidence:
   - claim: "A trade is a run of consecutive steps holding a position"
     source: "`snapshot_metrics.py` 73-76"

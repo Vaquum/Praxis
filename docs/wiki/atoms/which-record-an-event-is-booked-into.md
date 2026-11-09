@@ -1,8 +1,8 @@
 ---
 row: P162-01
 baseline: 49aa659
-created: 2026-11-16 01:30 UTC
-modified: 2026-11-16 01:30 UTC
+created: 2026-11-09 12:31 UTC
+modified: 2026-11-09 12:31 UTC
 evidence:
   - claim: "A registration or a movement of funds is booked into the money record and goes no further"
     source: "`execution_manager.py` 2072, then 2073, then 2075"

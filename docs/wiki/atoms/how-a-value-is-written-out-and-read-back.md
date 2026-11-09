@@ -1,8 +1,8 @@
 ---
 row: P93-01
 baseline: 49aa659
-created: 2026-11-14 00:00 UTC
-modified: 2026-11-14 00:00 UTC
+created: 2026-11-09 07:27 UTC
+modified: 2026-11-09 07:27 UTC
 evidence:
   - claim: "A figure the writer cannot write natively is written as text where it is a decimal figure"
     source: "`event_spine.py` 318 into 319"

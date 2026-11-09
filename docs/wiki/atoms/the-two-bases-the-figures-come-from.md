@@ -2,7 +2,7 @@
 row: P4-18
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-22 23:00 UTC
+modified: 2026-10-22 08:39 UTC
 evidence:
   - claim: "Both bases pass their series through the same assembler, which names the same eight measures, seven of them published as three figures each and the eighth as one"
     source: "`snapshot_result.py` 27-36 and 82-105, called at `snapshot_metrics.py` 52-61 and `limen_snapshot.py` 173-181"

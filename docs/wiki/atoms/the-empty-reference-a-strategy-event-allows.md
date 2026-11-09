@@ -1,8 +1,8 @@
 ---
 row: N14-02
 baseline: 49aa659
-created: 2026-11-08 23:20 UTC
-modified: 2026-11-08 23:20 UTC
+created: 2026-11-08 06:15 UTC
+modified: 2026-11-08 06:15 UTC
 evidence:
   - claim: "The outcome's reference on a strategy event must be text, and a text that has content but nothing left in it once trimmed is refused"
     source: "`nexus/infrastructure/strategy_event.py` 79-81, or else 83-89"

@@ -1,8 +1,8 @@
 ---
 row: P121-01
 baseline: 49aa659
-created: 2026-11-15 05:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:32 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "The protective exit's record is written as the entry is registered, before any protection has been placed"
     source: "`launcher.py` 2194-2197 into 2198-2200, reaching 1578-1588"

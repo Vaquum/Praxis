@@ -1,8 +1,8 @@
 ---
 row: N84-04
 baseline: 49aa659
-created: 2026-11-13 18:30 UTC
-modified: 2026-11-13 18:30 UTC
+created: 2026-11-09 04:45 UTC
+modified: 2026-11-09 04:45 UTC
 evidence:
   - claim: "The share allowed per trade must read as a figure at all, and a thing that does not raises a different kind of complaint from the rest"
     source: "`nexus/core/capital_controller/capital_controller.py` 86 into 87-91"

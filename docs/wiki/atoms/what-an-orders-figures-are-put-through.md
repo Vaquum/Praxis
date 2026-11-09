@@ -1,8 +1,8 @@
 ---
 row: P90-03
 baseline: 49aa659
-created: 2026-11-13 22:30 UTC
-modified: 2026-11-13 22:30 UTC
+created: 2026-11-09 07:12 UTC
+modified: 2026-11-09 07:12 UTC
 evidence:
   - claim: "Snapping an amount floors it onto the step and multiplies back, so the answer is the largest multiple of the step at or below what was asked"
     source: "`praxis/binsim/server.py` 564"

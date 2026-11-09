@@ -1,8 +1,8 @@
 ---
 row: N78-02
 baseline: 49aa659
-created: 2026-11-13 11:30 UTC
-modified: 2026-11-13 11:30 UTC
+created: 2026-11-09 02:48 UTC
+modified: 2026-11-09 02:48 UTC
 evidence:
   - claim: "An acceptance marks money as moved only for an entry, the money call standing past the answer every other order takes"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 206 into 209, reached only past 191, the call at 197"

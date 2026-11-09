@@ -1,8 +1,8 @@
 ---
 row: P98-03
 baseline: 49aa659
-created: 2026-11-14 02:30 UTC
-modified: 2026-11-14 02:30 UTC
+created: 2026-11-09 07:46 UTC
+modified: 2026-11-09 07:46 UTC
 evidence:
   - claim: "Registering a queue for an account happens under a lock of its own"
     source: "`praxis/trading.py` 312, then 313"

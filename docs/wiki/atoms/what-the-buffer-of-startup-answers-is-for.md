@@ -1,8 +1,8 @@
 ---
 row: N72-02
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 04:00 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "An answer is buffered rather than submitted where no road for submitting was given when the sequencer was built"
     source: "`nexus/startup/sequencer.py` 740, the road read at 747"

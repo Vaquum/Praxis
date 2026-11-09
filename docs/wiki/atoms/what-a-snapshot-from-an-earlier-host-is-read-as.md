@@ -1,8 +1,8 @@
 ---
 row: N63-05
 baseline: 49aa659
-created: 2026-11-12 21:00 UTC
-modified: 2026-11-12 21:00 UTC
+created: 2026-11-08 19:26 UTC
+modified: 2026-11-08 19:26 UTC
 evidence:
   - claim: "A snapshot with no health mode in it is read as the running mode, while the account's own mode and its holds are read from their own fields"
     source: "`nexus/infrastructure/wal_codec.py` 142 into 502-503, the mode read at 141 and the holds at 143"

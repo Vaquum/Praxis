@@ -1,8 +1,8 @@
 ---
 row: N73-02
 baseline: 49aa659
-created: 2026-11-13 04:30 UTC
-modified: 2026-11-13 04:30 UTC
+created: 2026-11-08 21:33 UTC
+modified: 2026-11-08 21:33 UTC
 evidence:
   - claim: "The per-strategy caps must arrive as a mapping, anything else refused before an entry is read"
     source: "`nexus/core/validator/price_stage.py` 123-128"

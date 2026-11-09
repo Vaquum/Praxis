@@ -1,8 +1,8 @@
 ---
 row: P131-01
 baseline: 49aa659
-created: 2026-11-15 10:00 UTC
-modified: 2026-11-15 10:00 UTC
+created: 2026-11-09 10:10 UTC
+modified: 2026-11-09 10:10 UTC
 evidence:
   - claim: "A list of failures is gathered, with a name added where the host's own stop has been set"
     source: "`launcher.py` 3863, then 3865 into 3866"

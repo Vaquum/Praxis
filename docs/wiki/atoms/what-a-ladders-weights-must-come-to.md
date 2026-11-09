@@ -1,8 +1,8 @@
 ---
 row: P10-02
 baseline: 49aa659
-created: 2026-11-10 05:30 UTC
-modified: 2026-11-10 05:30 UTC
+created: 2026-11-08 13:40 UTC
+modified: 2026-11-08 13:40 UTC
 evidence:
   - claim: "Weights may be left out, and the checking stops there where they are"
     source: "`praxis/core/domain/ladder_dca_params.py` 59-60"

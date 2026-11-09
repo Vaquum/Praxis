@@ -1,8 +1,8 @@
 ---
 row: P181-01
 baseline: 49aa659
-created: 2026-11-16 11:00 UTC
-modified: 2026-11-16 11:00 UTC
+created: 2026-11-09 13:14 UTC
+modified: 2026-11-09 13:14 UTC
 evidence:
   - claim: "The record of events, the epoch it writes under, the venue's adapter and the slippage cap are each kept as handed over"
     source: "`execution_manager.py` 677, then 678, then 679, then 680"

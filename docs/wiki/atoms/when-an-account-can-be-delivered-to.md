@@ -1,8 +1,8 @@
 ---
 row: P125-02
 baseline: 49aa659
-created: 2026-11-15 07:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:49 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "One thread is made per account, each a daemon named after its account, kept in a list and started at once"
     source: "`launcher.py` 3892, then 3895-3900, then 3901, then 3902"

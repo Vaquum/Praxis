@@ -1,8 +1,8 @@
 ---
 row: P148-02
 baseline: 49aa659
-created: 2026-11-15 18:30 UTC
-modified: 2026-11-15 18:30 UTC
+created: 2026-11-09 11:31 UTC
+modified: 2026-11-09 11:31 UTC
 evidence:
   - claim: "The parameters are insisted upon as a bracket's and the amount as present, before anything is written"
     source: "`execution_manager.py` 4499, then 4500"

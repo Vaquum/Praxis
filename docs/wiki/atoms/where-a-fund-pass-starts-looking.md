@@ -1,8 +1,8 @@
 ---
 row: P104-01
 baseline: 49aa659
-created: 2026-11-14 05:30 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 08:06 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "The window starts at the cursor less an overlap, or at the cutover where no cursor is held"
     source: "`praxis/trading.py` 1138-1139, then 1140"

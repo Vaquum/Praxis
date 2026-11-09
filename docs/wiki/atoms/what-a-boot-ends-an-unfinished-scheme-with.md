@@ -1,8 +1,8 @@
 ---
 row: P142-02
 baseline: 49aa659
-created: 2026-11-15 15:30 UTC
-modified: 2026-11-15 15:30 UTC
+created: 2026-11-09 11:05 UTC
+modified: 2026-11-09 11:05 UTC
 evidence:
   - claim: "The scheme's own projection is read first, and its absence is reported and the ending abandoned"
     source: "`execution_manager.py` 2701, then 2702 into 2709"

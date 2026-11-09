@@ -1,8 +1,8 @@
 ---
 row: P64-08
 baseline: 49aa659
-created: 2026-11-12 23:00 UTC
-modified: 2026-11-12 23:00 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "Reading takes the ledger's own lock before it looks at anything"
     source: "`ledger.py` 244"

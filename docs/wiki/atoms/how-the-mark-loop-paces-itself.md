@@ -1,8 +1,8 @@
 ---
 row: N79-01
 baseline: 49aa659
-created: 2026-11-13 13:30 UTC
-modified: 2026-11-13 13:30 UTC
+created: 2026-11-09 03:10 UTC
+modified: 2026-11-09 03:10 UTC
 evidence:
   - claim: "The flag saying the loop is running starts clear, and the lock guarding it is made as the loop is built"
     source: "`nexus/core/mtm_loop.py` 114, and 115"

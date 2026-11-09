@@ -2,7 +2,7 @@
 row: N1-03
 baseline: 49aa659
 created: 2026-10-16 15:00 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-10-23 07:08 UTC
 evidence:
   - claim: "The checks are a configured list walked in order, by default intake, risk, price, capital, health, then platform limits"
     source: "`nexus/core/validator/pipeline_models.py` 50-57, walked at `nexus/core/validator/pipeline_executor.py` 47"
@@ -57,4 +57,4 @@ A refusal carries it too where that stage has none, leaving [the release that fo
 
 ---
 
-Created 2026-10-16 15:00 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-10-16 15:00 UTC · Last modified 2026-10-23 07:08 UTC

@@ -1,8 +1,8 @@
 ---
 row: P66-01
 baseline: 49aa659
-created: 2026-11-13 00:00 UTC
-modified: 2026-11-13 00:00 UTC
+created: 2026-11-08 19:59 UTC
+modified: 2026-11-08 19:59 UTC
 evidence:
   - claim: "Two settings are required, each trimmed and refused where nothing is left: the token for the depth source and the directory the state lives in"
     source: "`__main__.py` 83, then 85-87, and 89, then 91-93"

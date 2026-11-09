@@ -1,8 +1,8 @@
 ---
 row: P100-02
 baseline: 49aa659
-created: 2026-11-14 03:30 UTC
-modified: 2026-11-14 03:30 UTC
+created: 2026-11-09 07:54 UTC
+modified: 2026-11-09 07:54 UTC
 evidence:
   - claim: "An idle phase takes the account out of the map rather than being stored"
     source: "`praxis/trading.py` 1400 into 1401"

@@ -1,8 +1,8 @@
 ---
 row: P134-02
 baseline: 49aa659
-created: 2026-11-15 11:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 10:33 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "One pass over the history answers what both the scheme resume and the ladder resume need"
     source: "`execution_manager.py` 1210, then 1214, read back at 1189, and 1190"

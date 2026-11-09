@@ -1,8 +1,8 @@
 ---
 row: P93-03
 baseline: 49aa659
-created: 2026-11-14 00:00 UTC
-modified: 2026-11-14 00:00 UTC
+created: 2026-11-09 07:27 UTC
+modified: 2026-11-09 07:27 UTC
 evidence:
   - claim: "An event's kind is looked up by the name stored beside it, and a name the registry does not hold raises"
     source: "`event_spine.py` 381 into 382-384"

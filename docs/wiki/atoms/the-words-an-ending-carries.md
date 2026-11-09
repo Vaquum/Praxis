@@ -1,8 +1,8 @@
 ---
 row: P26-02
 baseline: 49aa659
-created: 2026-11-11 09:00 UTC
-modified: 2026-11-11 09:30 UTC
+created: 2026-11-08 16:02 UTC
+modified: 2026-11-08 16:02 UTC
 evidence:
   - claim: "A refusal with no reason of its own, or an empty one, is given the word for being refused"
     source: "`outcome_translator.py` 329 into 336"

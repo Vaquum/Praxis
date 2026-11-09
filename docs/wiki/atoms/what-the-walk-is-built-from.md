@@ -1,8 +1,8 @@
 ---
 row: N23-02
 baseline: 49aa659
-created: 2026-11-11 05:00 UTC
-modified: 2026-11-11 05:30 UTC
+created: 2026-11-08 15:48 UTC
+modified: 2026-11-08 15:48 UTC
 evidence:
   - claim: "The order of stages must be a tuple, of the same length as the list of stages, and must hold each of them exactly once"
     source: "`nexus/core/validator/pipeline_executor.py` 84-86, or 88 into 89-93, or 95-97"

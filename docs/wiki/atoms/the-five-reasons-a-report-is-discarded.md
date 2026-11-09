@@ -1,8 +1,8 @@
 ---
 row: P101-01
 baseline: 49aa659
-created: 2026-11-14 04:00 UTC
-modified: 2026-11-14 18:00 UTC
+created: 2026-11-09 07:57 UTC
+modified: 2026-11-09 08:20 UTC
 evidence:
   - claim: "A payload whose kind is anything but an execution report is dropped without a word"
     source: "`praxis/trading.py` 1708 into 1709"

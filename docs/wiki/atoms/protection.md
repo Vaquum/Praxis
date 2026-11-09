@@ -2,7 +2,7 @@
 row: P2-21
 baseline: 49aa659
 created: 2026-09-28 06:24 UTC
-modified: 2026-11-16 12:30 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The opening order is sent as a market order"
     source: "`execution_manager.py` 4521-4523 into 5968, where that kind is named"

@@ -1,8 +1,8 @@
 ---
 row: P65-06
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "The asset is chosen by side: the base one on a buy, or the quote one on a sell"
     source: "`ledger.py` 138"

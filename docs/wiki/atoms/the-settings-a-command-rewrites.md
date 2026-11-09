@@ -1,8 +1,8 @@
 ---
 row: N11-03
 baseline: 49aa659
-created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:40 UTC
+created: 2026-11-07 19:33 UTC
+modified: 2026-11-07 21:10 UTC
 evidence:
   - claim: "Where a command is handed settings, it refuses anything that is not a mapping"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 183 into 184-186"

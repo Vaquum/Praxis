@@ -1,8 +1,8 @@
 ---
 row: N16-03
 baseline: 49aa659
-created: 2026-11-09 17:00 UTC
-modified: 2026-11-10 19:00 UTC
+created: 2026-11-08 10:26 UTC
+modified: 2026-11-08 14:58 UTC
 evidence:
   - claim: "An exit that left out its way of working is given one, and one that left out its kind of order is given that"
     source: "`nexus/infrastructure/praxis_connector/translate.py` 99 into 100-101, or 102-103"

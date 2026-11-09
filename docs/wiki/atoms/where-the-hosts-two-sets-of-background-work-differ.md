@@ -1,8 +1,8 @@
 ---
 row: P124-02
 baseline: 49aa659
-created: 2026-11-15 06:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:46 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "The samplers are built one per account, and the book pollers one per distinct symbol across those same accounts"
     source: "`launcher.py` 3731, against 3819, then 3822"

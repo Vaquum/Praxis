@@ -1,8 +1,8 @@
 ---
 row: P68-03
 baseline: 49aa659
-created: 2026-11-13 01:00 UTC
-modified: 2026-11-13 01:00 UTC
+created: 2026-11-08 20:40 UTC
+modified: 2026-11-08 20:40 UTC
 evidence:
   - claim: "The request carries the account's key, a window in milliseconds and the moment in milliseconds"
     source: "`binance_ws.py` 206, then 207-211"

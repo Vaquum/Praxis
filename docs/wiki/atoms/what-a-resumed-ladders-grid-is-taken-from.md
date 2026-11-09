@@ -1,8 +1,8 @@
 ---
 row: P173-02
 baseline: 49aa659
-created: 2026-11-16 07:00 UTC
-modified: 2026-11-16 07:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "A ladder with a change in flight is resumed through the change's own resumption"
     source: "`execution_manager.py` 1339, then 1340, then 1345-1346"

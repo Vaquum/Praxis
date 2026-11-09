@@ -1,8 +1,8 @@
 ---
 row: P20-02
 baseline: 49aa659
-created: 2026-11-11 00:00 UTC
-modified: 2026-11-11 01:00 UTC
+created: 2026-11-08 15:33 UTC
+modified: 2026-11-08 15:33 UTC
 evidence:
   - claim: "A buy's ladder change is weighed on prices and shares that are the amended ones where amended and the original ones where not"
     source: "`validate_trade_modify.py` 66-72, reached only for a buy at 97-98 before 100-107"

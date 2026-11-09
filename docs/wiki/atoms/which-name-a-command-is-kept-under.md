@@ -1,8 +1,8 @@
 ---
 row: N6-08
 baseline: 49aa659
-created: 2026-10-26 20:50 UTC
-modified: 2026-10-26 22:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "Which road is taken follows the one reading of the receiver, answered to the launcher as a yes or a no"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 134 over what 62-74 left at 105-108, read by the launcher at `praxis/launcher.py` 4253"
@@ -48,4 +48,4 @@ An [outcome](what-an-outcome-is.md) is looked up under the name the outcome itse
 
 ---
 
-Created 2026-10-26 20:50 UTC · Last modified 2026-10-26 22:30 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-10-26 16:26 UTC

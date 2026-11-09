@@ -1,8 +1,8 @@
 ---
 row: P89-01
 baseline: 49aa659
-created: 2026-11-13 22:00 UTC
-modified: 2026-11-13 22:00 UTC
+created: 2026-11-09 07:07 UTC
+modified: 2026-11-09 07:07 UTC
 evidence:
   - claim: "The health endpoint throws the request away and answers one fixed word"
     source: "`server.py` 211, then 213"

@@ -1,8 +1,8 @@
 ---
 row: N37-02
 baseline: 49aa659
-created: 2026-11-11 19:00 UTC
-modified: 2026-11-11 19:30 UTC
+created: 2026-11-08 16:46 UTC
+modified: 2026-11-08 16:46 UTC
 evidence:
   - claim: "The capital record refuses a key differing from its own trimmed form, by a test standing after the one that asks something is left"
     source: "`nexus/core/domain/capital_state.py` 78-83, after 72-77"

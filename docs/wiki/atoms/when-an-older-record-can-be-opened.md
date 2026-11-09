@@ -1,8 +1,8 @@
 ---
 row: P4-61
 baseline: 49aa659
-created: 2026-10-16 07:30 UTC
-modified: 2026-10-16 07:30 UTC
+created: 2026-10-16 06:03 UTC
+modified: 2026-10-16 06:03 UTC
 evidence:
   - claim: "A record written by a newer build is refused outright"
     source: "`praxis/infrastructure/event_spine.py` 494-499"
@@ -47,4 +47,4 @@ An entry matching nothing is refused rather than dropped, because dropping it wo
 
 ---
 
-Created 2026-10-16 07:30 UTC · Last modified 2026-10-16 07:30 UTC
+Created 2026-10-16 06:03 UTC · Last modified 2026-10-16 06:03 UTC

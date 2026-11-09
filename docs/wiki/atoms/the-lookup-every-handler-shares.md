@@ -1,8 +1,8 @@
 ---
 row: P88-03
 baseline: 49aa659
-created: 2026-11-13 21:00 UTC
-modified: 2026-11-13 21:00 UTC
+created: 2026-11-09 06:08 UTC
+modified: 2026-11-09 06:08 UTC
 evidence:
   - claim: "The shared lookup reads the live book alone"
     source: "`trading_state.py` 294"

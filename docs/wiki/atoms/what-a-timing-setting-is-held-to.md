@@ -1,8 +1,8 @@
 ---
 row: P117-01
 baseline: 49aa659
-created: 2026-11-15 03:00 UTC
-modified: 2026-11-15 03:00 UTC
+created: 2026-11-09 09:12 UTC
+modified: 2026-11-09 09:12 UTC
 evidence:
   - claim: "A timing setting is read from the environment, and a default stands in where it is absent or holds nothing"
     source: "`launcher.py` 227, then 228 into 229"

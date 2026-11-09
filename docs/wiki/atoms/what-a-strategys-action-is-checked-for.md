@@ -1,8 +1,8 @@
 ---
 row: N67-01
 baseline: 49aa659
-created: 2026-11-13 00:30 UTC
-modified: 2026-11-13 00:30 UTC
+created: 2026-11-08 20:17 UTC
+modified: 2026-11-08 20:17 UTC
 evidence:
   - claim: "The kind of action is the one field required outright, held to being one of the four named kinds"
     source: "`nexus/strategy/action.py` 77-79"

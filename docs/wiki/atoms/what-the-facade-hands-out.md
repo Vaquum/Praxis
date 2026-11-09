@@ -1,8 +1,8 @@
 ---
 row: P99-02
 baseline: 49aa659
-created: 2026-11-14 03:00 UTC
-modified: 2026-11-14 03:00 UTC
+created: 2026-11-09 07:50 UTC
+modified: 2026-11-09 07:50 UTC
 evidence:
   - claim: "The configuration, the spine, the venue and the manager are each handed out exactly as held"
     source: "`praxis/trading.py` 260, and 266, and 272, and 278"

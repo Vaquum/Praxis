@@ -1,8 +1,8 @@
 ---
 row: P168-01
 baseline: 49aa659
-created: 2026-11-16 04:30 UTC
-modified: 2026-11-16 11:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The drain takes an event at a time for as long as any remain"
     source: "`execution_manager.py` 3848, then 3849, then 3852"

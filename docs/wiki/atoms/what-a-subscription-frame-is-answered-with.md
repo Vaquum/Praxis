@@ -1,8 +1,8 @@
 ---
 row: P91-02
 baseline: 49aa659
-created: 2026-11-13 23:00 UTC
-modified: 2026-11-13 23:00 UTC
+created: 2026-11-09 07:16 UTC
+modified: 2026-11-09 07:16 UTC
 evidence:
   - claim: "A frame that will not read as JSON is dropped in silence, and so is one that reads as anything but an object"
     source: "`praxis/binsim/server.py` 840-841 into 842-843, then 845 into 846"

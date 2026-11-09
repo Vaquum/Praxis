@@ -1,8 +1,8 @@
 ---
 row: P64-03
 baseline: 49aa659
-created: 2026-11-12 22:30 UTC
-modified: 2026-11-12 22:30 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "A key is answered with nothing unless it is text, and nothing is raised for one that is not"
     source: "`ledger.py` 353-354"

@@ -1,8 +1,8 @@
 ---
 row: P98-01
 baseline: 49aa659
-created: 2026-11-14 02:30 UTC
-modified: 2026-11-14 02:30 UTC
+created: 2026-11-09 07:46 UTC
+modified: 2026-11-09 07:46 UTC
 evidence:
   - claim: "The refusal fires where the started flag is set, and equally where a loop is merely held"
     source: "`praxis/trading.py` 363 into 364-368"

@@ -1,8 +1,8 @@
 ---
 row: N72-05
 baseline: 49aa659
-created: 2026-11-13 03:30 UTC
-modified: 2026-11-13 03:30 UTC
+created: 2026-11-08 21:25 UTC
+modified: 2026-11-08 21:25 UTC
 evidence:
   - claim: "One binding is made per strategy the manifest names, carrying that strategy's name, its series, its interval and its label"
     source: "`nexus/startup/sequencer.py` 608-616"

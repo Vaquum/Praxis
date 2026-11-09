@@ -1,8 +1,8 @@
 ---
 row: P28-02
 baseline: 49aa659
-created: 2026-11-11 11:00 UTC
-modified: 2026-11-11 11:00 UTC
+created: 2026-11-08 16:17 UTC
+modified: 2026-11-08 16:17 UTC
 evidence:
   - claim: "A replay sets the account's mode to active itself, before it drives any bar"
     source: "`run_replay.py` 161 into 205-207, ahead of 163-166"

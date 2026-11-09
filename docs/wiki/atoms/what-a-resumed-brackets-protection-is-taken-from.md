@@ -1,8 +1,8 @@
 ---
 row: P137-02
 baseline: 49aa659
-created: 2026-11-15 13:00 UTC
-modified: 2026-11-15 13:00 UTC
+created: 2026-11-09 10:44 UTC
+modified: 2026-11-09 10:44 UTC
 evidence:
   - claim: "The protection's name and version come from the latest active record where there is one"
     source: "`execution_manager.py` 1654, then 1655 into 1656-1657"

@@ -1,8 +1,8 @@
 ---
 row: P112-02
 baseline: 49aa659
-created: 2026-11-14 09:30 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 08:37 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "Against the simulator the asking answers with nothing at all, before any check is made"
     source: "`binance_adapter.py` 1954 into 1955"

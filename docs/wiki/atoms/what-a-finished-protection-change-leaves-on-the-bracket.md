@@ -1,8 +1,8 @@
 ---
 row: P167-01
 baseline: 49aa659
-created: 2026-11-16 04:00 UTC
-modified: 2026-11-16 04:00 UTC
+created: 2026-11-09 12:43 UTC
+modified: 2026-11-09 12:43 UTC
 evidence:
   - claim: "The fills the venue gave as it took the pair are recorded against the closing command"
     source: "`execution_manager.py` 9769, then 9770-9785, the command named at 9777"

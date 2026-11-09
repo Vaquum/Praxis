@@ -1,8 +1,8 @@
 ---
 row: P113-02
 baseline: 49aa659
-created: 2026-11-14 10:00 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 08:42 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "An asking after no assets at all answers with nothing, before the venue is troubled"
     source: "`binance_adapter.py` 1851 into 1852"

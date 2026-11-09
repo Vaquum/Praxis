@@ -1,8 +1,8 @@
 ---
 row: N17-06
 baseline: 49aa659
-created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+created: 2026-11-08 10:35 UTC
+modified: 2026-11-08 10:35 UTC
 evidence:
   - claim: "A strategy's file must be given as a relative path"
     source: "`nexus/strategy/loader.py` 55-57"

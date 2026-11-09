@@ -1,8 +1,8 @@
 ---
 row: P178-02
 baseline: 49aa659
-created: 2026-11-16 09:30 UTC
-modified: 2026-11-16 09:30 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The pass looks the account up and ends there where the manager holds no such account"
     source: "`execution_manager.py` 7323, then 7324 into 7325"

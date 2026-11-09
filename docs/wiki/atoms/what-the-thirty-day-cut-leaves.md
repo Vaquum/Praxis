@@ -1,7 +1,7 @@
 ---
 row: N7-09
 baseline: 49aa659
-created: 2026-10-27 17:30 UTC
+created: 2026-10-27 08:14 UTC
 modified: 2026-11-05 11:10 UTC
 evidence:
   - claim: "The cutoff is read off the clock as the checkpoint runs, not off anything the log holds"
@@ -58,4 +58,4 @@ The best that strategy's trading has come to is kept at whichever is larger, the
 
 ---
 
-Created 2026-10-27 17:30 UTC · Last modified 2026-11-05 11:10 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-11-05 11:10 UTC

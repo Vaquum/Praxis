@@ -1,8 +1,8 @@
 ---
 row: N7-10
 baseline: 49aa659
-created: 2026-10-27 20:10 UTC
-modified: 2026-10-27 22:00 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "A strategy name that is not identical to itself stripped is refused as the host's settings are read"
     source: "`nexus/infrastructure/manifest.py` 136-142"
@@ -42,4 +42,4 @@ So the budget written for an entry or an exit is the pool at that strategy's sha
 
 ---
 
-Created 2026-10-27 20:10 UTC · Last modified 2026-10-27 22:00 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

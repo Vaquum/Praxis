@@ -1,8 +1,8 @@
 ---
 row: P61-05
 baseline: 49aa659
-created: 2026-11-12 19:30 UTC
-modified: 2026-11-12 19:30 UTC
+created: 2026-11-08 19:05 UTC
+modified: 2026-11-08 19:05 UTC
 evidence:
   - claim: "Twelve of the eighteen sign-alone tests compare against a nought declared as a figure"
     source: "`events.py` 75, compared against at 213, 217, 221, 585, 589, 593, 1818, 1822, 1826, 1975, 1979 and 1983"

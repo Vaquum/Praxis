@@ -1,8 +1,8 @@
 ---
 row: P108-01
 baseline: 49aa659
-created: 2026-11-14 07:30 UTC
-modified: 2026-11-14 07:30 UTC
+created: 2026-11-09 08:25 UTC
+modified: 2026-11-09 08:25 UTC
 evidence:
   - claim: "The weight counted as used is whatever the last header said, until a window has passed since that header arrived"
     source: "`binance_adapter.py` 349, then 350 into 351, or 352"

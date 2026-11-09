@@ -1,8 +1,8 @@
 ---
 row: P146-02
 baseline: 49aa659
-created: 2026-11-15 17:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 11:22 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "A flatten order already carrying fills is reported and left alone"
     source: "`execution_manager.py` 8018, then 8019 into 8026"

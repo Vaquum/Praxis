@@ -1,8 +1,8 @@
 ---
 row: N11-01
 baseline: 49aa659
-created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 08:50 UTC
+created: 2026-11-07 19:33 UTC
+modified: 2026-11-08 02:10 UTC
 evidence:
   - claim: "A command is refused unless its reference, its account, its venue and its symbol are each text with something left in them once trimmed"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 101-103, or 109-111, or 113-115, or 117-119"

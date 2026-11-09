@@ -1,8 +1,8 @@
 ---
 row: P129-01
 baseline: 49aa659
-created: 2026-11-15 09:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 10:03 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A fresh remembering is made for every call to the submitter, holding each built request under its command's name"
     source: "`launcher.py` 4220-4222, then 4228, then 4230 into 4231-4235, the batch sent at 4257"

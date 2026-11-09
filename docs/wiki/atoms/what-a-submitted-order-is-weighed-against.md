@@ -1,8 +1,8 @@
 ---
 row: P92-01
 baseline: 49aa659
-created: 2026-11-13 23:30 UTC
-modified: 2026-11-13 23:30 UTC
+created: 2026-11-09 07:21 UTC
+modified: 2026-11-09 07:21 UTC
 evidence:
   - claim: "A submitted order asks for a signed caller first, then takes the poller, the staleness span, the book and the ledger off the application"
     source: "`praxis/binsim/server.py` 325, then 326, and 327, and 328, and 329"

@@ -2,7 +2,7 @@
 row: N10-01
 baseline: 49aa659
 created: 2026-11-07 04:30 UTC
-modified: 2026-11-10 19:00 UTC
+modified: 2026-11-08 14:58 UTC
 evidence:
   - claim: "Each strategy is wrapped as the start builds it, and the wrapper makes a lock of its own"
     source: "`nexus/startup/sequencer.py` 511-512, the wrapper making that lock at `nexus/strategy/executor.py` 33"

@@ -1,8 +1,8 @@
 ---
 row: N34-01
 baseline: 49aa659
-created: 2026-11-11 16:00 UTC
-modified: 2026-11-11 16:00 UTC
+created: 2026-11-08 16:34 UTC
+modified: 2026-11-08 16:34 UTC
 evidence:
   - claim: "Each of the five ceilings may be left out, and one given must be a finite figure of the exact kind at or above nought"
     source: "`nexus/core/validator/platform_limits_stage.py` 48-62 into 63-67"

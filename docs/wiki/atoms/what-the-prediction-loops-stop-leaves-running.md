@@ -1,8 +1,8 @@
 ---
 row: N7-06
 baseline: 49aa659
-created: 2026-10-27 09:50 UTC
-modified: 2026-10-27 12:10 UTC
+created: 2026-10-27 08:14 UTC
+modified: 2026-10-27 08:14 UTC
 evidence:
   - claim: "The stop clears a flag, raises an event and empties the record of what was due next, all under one lock"
     source: "`nexus/strategy/predict_loop.py` 256-259"
@@ -54,4 +54,4 @@ The flag is read after each take, and that reading's next moment is set again on
 
 ---
 
-Created 2026-10-27 12:10 UTC · Last modified 2026-10-27 12:10 UTC
+Created 2026-10-27 08:14 UTC · Last modified 2026-10-27 08:14 UTC

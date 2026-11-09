@@ -1,8 +1,8 @@
 ---
 row: N6-09
 baseline: 49aa659
-created: 2026-10-26 22:40 UTC
-modified: 2026-10-26 23:30 UTC
+created: 2026-10-26 16:26 UTC
+modified: 2026-10-26 16:26 UTC
 evidence:
   - claim: "Where the receiver was taken as bound to the name sent, the claim on the money is made before the send"
     source: "`praxis/launcher.py` 2088-2093, built only at 4239-4254 and reached from `nexus/strategy/action_submit.py` 313-315 before 337"
@@ -40,4 +40,4 @@ Where it goes, the loop reading outcomes can no longer name the strategy behind 
 
 ---
 
-Created 2026-10-26 22:40 UTC · Last modified 2026-10-26 23:30 UTC
+Created 2026-10-26 16:26 UTC · Last modified 2026-10-26 16:26 UTC

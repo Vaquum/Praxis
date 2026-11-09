@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "The commands counted in flight for an account are its live work, its live trades, every command pointing at an order, and every command accepted for it"
     source: "`execution_manager.py` 983-992"

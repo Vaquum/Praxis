@@ -1,8 +1,8 @@
 ---
 row: P123-02
 baseline: 49aa659
-created: 2026-11-15 06:00 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:42 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "Each sweep answers an empty list where the trading stack is missing"
     source: "`launcher.py` 3631 into 3632, and 3657 into 3658"

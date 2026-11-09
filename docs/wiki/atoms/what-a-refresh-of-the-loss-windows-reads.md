@@ -1,8 +1,8 @@
 ---
 row: N76-04
 baseline: 49aa659
-created: 2026-11-13 07:30 UTC
-modified: 2026-11-13 07:30 UTC
+created: 2026-11-08 23:24 UTC
+modified: 2026-11-08 23:24 UTC
 evidence:
   - claim: "A plain reading of the log keeps only the records of a strategy event, unpacking each and passing over every record of a state change"
     source: "`nexus/infrastructure/state_store.py` 345 into 346-350"

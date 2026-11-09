@@ -1,8 +1,8 @@
 ---
 row: P65-05
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "The three readings the ledger offers each take its lock, so none of them can see a settling halfway through"
     source: "`ledger.py` 593, and 609, and 619"

@@ -1,8 +1,8 @@
 ---
 row: P95-02
 baseline: 49aa659
-created: 2026-11-14 01:00 UTC
-modified: 2026-11-14 01:00 UTC
+created: 2026-11-09 07:34 UTC
+modified: 2026-11-09 07:34 UTC
 evidence:
   - claim: "A file with no old table at all is left alone"
     source: "`event_spine.py` 670 into 671"

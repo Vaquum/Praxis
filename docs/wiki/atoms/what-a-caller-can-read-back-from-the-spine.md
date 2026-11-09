@@ -1,8 +1,8 @@
 ---
 row: P97-03
 baseline: 49aa659
-created: 2026-11-14 02:00 UTC
-modified: 2026-11-14 02:00 UTC
+created: 2026-11-09 07:43 UTC
+modified: 2026-11-09 07:43 UTC
 evidence:
   - claim: "A read takes every row of an epoch past a given sequence and rebuilds each into an event beside its own number"
     source: "`event_spine.py` 1214-1215, then 1216"

@@ -1,8 +1,8 @@
 ---
 row: N71-03
 baseline: 49aa659
-created: 2026-11-13 02:30 UTC
-modified: 2026-11-13 03:00 UTC
+created: 2026-11-08 21:14 UTC
+modified: 2026-11-08 21:14 UTC
 evidence:
   - claim: "The frame of prices is read from a fixed name under a folder named for the series, not from any path the manifest gives"
     source: "`nexus/strategy/predict_loop.py` 493"

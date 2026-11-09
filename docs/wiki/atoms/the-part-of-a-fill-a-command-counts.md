@@ -2,7 +2,7 @@
 row: P2-49
 baseline: 49aa659
 created: 2026-10-13 11:10 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-09 13:28 UTC
 evidence:
   - claim: "The whole fill goes into the order first, the part that counts is worked out next, and the money record is written after that"
     source: "`execution_manager.py` 2081 before 2084 before 2087"
@@ -53,4 +53,4 @@ Where less is counted than arrived, the difference is logged as discarded. The o
 
 ---
 
-Created 2026-10-13 11:10 UTC · Last modified 2026-10-14 08:05 UTC
+Created 2026-10-13 11:10 UTC · Last modified 2026-11-09 13:28 UTC

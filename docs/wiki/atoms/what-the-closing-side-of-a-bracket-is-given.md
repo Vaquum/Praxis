@@ -1,8 +1,8 @@
 ---
 row: P180-02
 baseline: 49aa659
-created: 2026-11-16 10:30 UTC
-modified: 2026-11-16 12:30 UTC
+created: 2026-11-09 13:09 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The bracket is marked as having had its protection placed before anything is sent"
     source: "`execution_manager.py` 4906, then 4925, then 4929-4935"

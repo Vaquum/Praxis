@@ -9,6 +9,7 @@ asserting the refusal, so a check that stops refusing fails here.
 from __future__ import annotations
 
 import ast
+import datetime
 import importlib.util
 import re
 import shutil
@@ -1190,7 +1191,7 @@ _ITALIC = re.compile(r'\*([a-z\s]+?)\*')
 
 
 def _register_terms() -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return the causes and the obligations the register names.
+    '''Return the causes and the obligations the register names.
 
     Reads the whole sentence rather than one run of italics in it, a
     word appended after the last `or` having gone unread.
@@ -1198,7 +1199,7 @@ def _register_terms() -> tuple[tuple[str, ...], tuple[str, ...]]:
     Returns:
         tuple[tuple[str, ...], tuple[str, ...]]: The causes, then the
             obligations.
-    """
+    '''
 
     said = _REGISTER_RULE.search(
         (check_wiki.WIKI / 'register.md').read_text(encoding='utf-8'),
@@ -1291,7 +1292,7 @@ def _phrases(source: str) -> tuple[str, ...]:
 
 class TestTheRegisterNamesWhatTheGateRefuses:
 
-    """The register's account of a rule and the rule itself.
+    '''The register's account of a rule and the rule itself.
 
     Two of these drifted apart at once: the register named four
     obligation words where the pattern matched eight, and a docstring
@@ -1301,7 +1302,7 @@ class TestTheRegisterNamesWhatTheGateRefuses:
     The two sides answer each other here with nothing in between: a
     list kept in this file would drift with whichever side it was
     written beside.
-    """
+    '''
 
     CAUSES = re.compile(r'\\b\(\?:([^)]*)\)\\b')
     OBLIGED = re.compile(
@@ -1367,7 +1368,7 @@ class TestTheRegisterNamesWhatTheGateRefuses:
 
 class TestEveryPageCheckIsWired:
 
-    """What `_check_page` runs for an atom and for a spine.
+    '''What `_check_page` runs for an atom and for a spine.
 
     A check was once added to this list at the wrong indentation: it
     landed in the spines branch twice and in the atoms branch not at
@@ -1376,7 +1377,7 @@ class TestEveryPageCheckIsWired:
     and it could not tell a guard that is always false from one that
     holds — so each check answers here instead, and the folder the
     page sits in is the only thing that decides who hears it.
-    """
+    '''
 
     SHARED = (
         '_check_voice',
@@ -1397,7 +1398,7 @@ class TestEveryPageCheckIsWired:
     def _times(
         monkeypatch: pytest.MonkeyPatch, folder: str, root: Path, named: str,
     ) -> int:
-        """How often `_check_page` calls one check for a page in one folder."""
+        '''How often `_check_page` calls one check for a page in one folder.'''
 
         page = root / folder / 'a-page.md'
         page.parent.mkdir(parents=True, exist_ok=True)
@@ -1841,24 +1842,28 @@ class TestLeadParagraph:
 
 
 class TestStamps:
-    def test_a_stamp_older_than_the_last_commit_is_refused(
+    def test_a_stamp_before_the_last_commit_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-10-04')
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-10-04 09:00 UTC',
+        )
         meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-02 09:00 UTC\n'
-        assert check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
+        assert not check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
 
-    def test_a_stamp_ahead_of_the_last_commit_passes(
+    def test_a_stamp_ahead_of_the_last_commit_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-10-04')
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-10-04 09:00 UTC',
+        )
         meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-05 09:00 UTC\n'
-        assert not check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
+        assert check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
 
     def test_a_page_created_after_it_was_modified_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
         meta = 'created: 2026-10-06 09:00 UTC\nmodified: 2026-10-05 09:00 UTC\n'
         assert check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
 
@@ -2561,12 +2566,12 @@ class TestWholeRanges:
 
     @staticmethod
     def _a_nexus_cell() -> tuple[str, set[str]]:
-        """Return a Nexus file the ledger names and every row it lists.
+        '''Return a Nexus file the ledger names and every row it lists.
 
         The cell carrying the most is taken: one carrying a single row
         cannot tell a check that reports every offender from one that
         reports the first.
-        """
+        '''
 
         body = check_wiki._ledger_sections(
             check_wiki.LEDGER.read_text(encoding='utf-8'),
@@ -2799,7 +2804,7 @@ class TestTheStamps:
         monkeypatch.setattr(
             check_wiki, '_edited_since', lambda _p: '2026-10-09 07:31 UTC',
         )
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
         meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:31 UTC\n'
         failures = check_wiki._check_stamps(page, meta, meta)
 
@@ -2816,10 +2821,98 @@ class TestTheStamps:
         monkeypatch.setattr(
             check_wiki, '_edited_since', lambda _p: '2026-10-09 07:31 UTC',
         )
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
         meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:41 UTC\n'
 
         assert check_wiki._check_stamps(page, meta, meta) == []
+
+    @staticmethod
+    def _at(offset: datetime.timedelta) -> str:
+        return (datetime.datetime.now(tz=datetime.UTC) + offset).strftime(
+            '%Y-%m-%d %H:%M UTC',
+        )
+
+    def test_a_stamp_put_back_on_an_edit_passes(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(
+            check_wiki, '_edited_since', lambda _p: '2026-11-16 15:30 UTC',
+        )
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-11-09 14:49 UTC\n'
+
+        assert check_wiki._check_stamps(page, meta, meta) == []
+
+    def test_a_stamp_after_now_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
+        ahead = self._at(datetime.timedelta(days=7))
+        meta = f'created: 2026-10-01 09:00 UTC\nmodified: {ahead}\n'
+        failures = check_wiki._check_stamps(page, meta, meta)
+
+        assert len(failures) == 1
+        assert 'is a time that has not arrived' in failures[0]
+
+    def test_a_stamp_at_this_minute_passes(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_last_commit_stamp', lambda _p: None)
+        meta = (
+            f'created: 2026-10-01 09:00 UTC\n'
+            f'modified: {self._at(datetime.timedelta())}\n'
+        )
+
+        assert check_wiki._check_stamps(page, meta, meta) == []
+
+    def test_a_stamp_after_the_commit_that_recorded_it_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-10-09 07:01 UTC',
+        )
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:31 UTC\n'
+        failures = check_wiki._check_stamps(page, meta, meta)
+
+        assert failures == [
+            f'{page.as_posix()}: last modified 2026-10-09 07:31 UTC is after '
+            'the commit that recorded it, 2026-10-09 07:01 UTC',
+        ]
+
+    def test_a_stamp_before_the_commit_that_recorded_it_passes(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-10-20 11:00 UTC',
+        )
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:31 UTC\n'
+
+        assert check_wiki._check_stamps(page, meta, meta) == []
+
+    def test_no_page_in_the_wiki_claims_a_time_yet_to_come(self) -> None:
+        now = self._at(datetime.timedelta())
+        ahead = [
+            f'{page.as_posix()}: {key} {when}'
+            for page in sorted(check_wiki.WIKI.rglob('*.md'))
+            for key, when in re.findall(
+                r'^(created|modified|reviewed): '
+                r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC)$',
+                page.read_text(encoding='utf-8'),
+                re.MULTILINE,
+            )
+            if when > now
+        ]
+
+        assert ahead == []
 
 
 class TestTheFinallyClause:
@@ -4861,8 +4954,7 @@ class TestOpenCandidates:
             if state == 'full':
                 return name
 
-        pytest.skip('no Praxis cell reads `full`')
-        raise AssertionError
+        raise AssertionError('no Praxis cell reads `full`')
 
     @_NEEDS_BASELINE
     def test_a_full_module_under_an_unanswered_question_is_caught(
@@ -4891,59 +4983,150 @@ class TestOpenCandidates:
         ]
 
 
+_REGISTER_HEAD = (
+    '# Register\n\n'
+    '## Package 1\n\n'
+    '| Row | Cites | Finding | Reading | Disposition |\n'
+    '| --- | --- | --- | --- | --- |\n'
+)
+_SYNTHETIC_ROW = 'H-9001'
+
+
+def _a_register(tmp_path: Path, rows: str, name: str) -> Path:
+
+    '''Write a register carrying only the rows a test needs.
+
+    A fixture that edits a copy of the real register stops working
+    once the register stops carrying the row it looks for, and one
+    that skips in that case stops testing without saying so: two such
+    fixtures left the open-candidate check unexercised while reading
+    as passing. Rows built outright keep the check exercised whatever
+    the register comes to hold.
+
+    Args:
+        tmp_path (Path): Where to write it
+        rows (str): The table rows, each ending in a newline
+        name (str): The file name to write under
+
+    Returns:
+        Path: The register written
+    '''
+
+    register = tmp_path / name
+    register.write_text(_REGISTER_HEAD + rows, encoding='utf-8')
+
+    return register
+
+
 def _an_unassigned_question(tmp_path: Path) -> tuple[Path, str]:
-    text = check_wiki.REGISTER.read_text(encoding='utf-8')
-    lines = text.split('\n')
 
-    for index, line in enumerate(lines):
-        named = check_wiki.UNRESOLVED_RE.findall(line)
+    '''Return a register leaving a question unanswered, and the row on it.
 
-        if not named or not line.startswith(('| Is ', '| Are ')):
-            continue
+    Args:
+        tmp_path (Path): Where to write the register
 
-        cells = line.rstrip().rstrip('|').split(' | ')
-        cells[-1] = 'unassigned'
-        lines[index] = ' | '.join(cells) + ' |'
-        register = tmp_path / 'asking-register.md'
-        register.write_text('\n'.join(lines), encoding='utf-8')
+    Returns:
+        tuple[Path, str]: The register, and the harvest row naming the
+            question nobody is assigned
+    '''
 
-        for row, _, disposition in check_wiki.FINDING_ROW_CELLS_RE.findall(text):
-            if named[0] in disposition:
-                return register, row
+    register = _a_register(
+        tmp_path,
+        f'| {_SYNTHETIC_ROW} | `order.py` 1 | a finding | read | held by U-99 |\n'
+        '| Is the question answered? | U-99 | nowhere | unassigned |\n',
+        'asking-register.md',
+    )
 
-    pytest.skip('no question row names a finding')
-    raise AssertionError
+    return register, _SYNTHETIC_ROW
 
 
 def _an_unsettled_candidate(tmp_path: Path) -> tuple[Path, str]:
+
+    '''Return a register whose candidate no merge table settles, and its row.
+
+    Args:
+        tmp_path (Path): Where to write the register
+
+    Returns:
+        tuple[Path, str]: The register, and the harvest row reading
+            `candidate` with no merge row over it
+    '''
+
+    register = _a_register(
+        tmp_path,
+        f'| {_SYNTHETIC_ROW} | `order.py` 1 | a finding | read | candidate |\n',
+        'open-register.md',
+    )
+
+    return register, _SYNTHETIC_ROW
+
+
+def _a_lagged_cell() -> str:
+
+    '''Return a Praxis module whose cell the ledger could lag on.
+
+    The module is found rather than named. A cell named outright stops
+    serving once it is no longer fully cited, and a cell in the Nexus
+    tree leaves the check unexercised wherever only Praxis is checked
+    out, which is how this test came to fail on a host holding one
+    tree rather than two.
+
+    Returns:
+        str: The ledger's own name for that module
+    '''
+
     text = check_wiki.REGISTER.read_text(encoding='utf-8')
-    settled = {row for row, _ in check_wiki.MERGE_ROW_RE.findall(text)}
-    lines = text.split('\n')
+    hanging = check_wiki._unresolved_questions(text)
+    open_rows = {
+        row for row, _, disposition in check_wiki.FINDING_ROW_CELLS_RE.findall(text)
+        if 'candidate' in disposition.lower()
+        or hanging & set(check_wiki.UNRESOLVED_RE.findall(disposition))
+    }
+    found = check_wiki._finding_file_citations()
+    cited = check_wiki._cited_lines()
+    body = check_wiki._ledger_sections(
+        check_wiki.LEDGER.read_text(encoding='utf-8'),
+    ).get('Praxis', '')
 
-    for index, line in enumerate(lines):
-        found = check_wiki.FINDING_ROW_CELLS_RE.match(line)
+    for name, state, cell in check_wiki.LEDGER_ROW_RE.findall(body):
 
-        if found is None or found.group(1) in settled or not line.rstrip().endswith('|'):
+        if state != 'full' or 'shape only' in cell:
             continue
 
-        cells = line.rstrip().rstrip('|').split(' | ')
-        cells[-1] = 'candidate'
-        lines[index] = ' | '.join(cells) + ' |'
-        register = tmp_path / 'open-register.md'
-        register.write_text('\n'.join(lines), encoding='utf-8')
+        path = check_wiki._resolve_source(name)
 
-        return register, found.group(1)
+        if path is None:
+            continue
 
-    pytest.skip('no harvest row stands outside every merge table')
-    raise AssertionError
+        statements = check_wiki._statement_lines(path)
+
+        if (
+            statements
+            and not statements - cited.get(name, set())
+            and not open_rows & found.get(name, set())
+        ):
+            return name
+
+    raise AssertionError('no Praxis cell reads `full` with every statement cited')
 
 
-def _lagged_ledger(tmp_path: Path) -> Path:
+def _lagged_ledger(tmp_path: Path, name: str) -> Path:
+
+    '''Write a ledger reading `partial` where the real one reads `full`.
+
+    Args:
+        tmp_path (Path): Where to write it
+        name (str): The module whose cell to put back
+
+    Returns:
+        Path: The ledger written
+    '''
+
     lagged = tmp_path / 'ledger.md'
     lagged.write_text(
         check_wiki.LEDGER.read_text(encoding='utf-8').replace(
-            '| `nexus/strategy/context.py` | full |',
-            '| `nexus/strategy/context.py` | partial |',
+            f'| `{name}` | full |',
+            f'| `{name}` | partial |',
         ),
         encoding='utf-8',
     )
@@ -4963,13 +5146,14 @@ class TestLaggingCells:
     def test_a_fully_cited_partial_cell_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        lagged = _lagged_ledger(tmp_path)
+        name = _a_lagged_cell()
+        lagged = _lagged_ledger(tmp_path, name)
         monkeypatch.setattr(check_wiki, 'LEDGER', lagged)
 
         assert check_wiki._lagging_cells(
             check_wiki._finding_file_citations(),
         ) == [
-            f'{lagged}: `nexus/strategy/context.py` is `partial` '
+            f'{lagged}: `{name}` is `partial` '
             'with every statement cited and no candidate left on it',
         ]
 
@@ -4977,13 +5161,14 @@ class TestLaggingCells:
     def test_a_partial_cell_with_a_candidate_on_it_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        lagged = _lagged_ledger(tmp_path)
+        name = _a_lagged_cell()
+        lagged = _lagged_ledger(tmp_path, name)
         monkeypatch.setattr(check_wiki, 'LEDGER', lagged)
         register, row = _an_unsettled_candidate(tmp_path)
         monkeypatch.setattr(check_wiki, 'REGISTER', register)
 
         found = check_wiki._finding_file_citations()
-        found['nexus/strategy/context.py'] = {row}
+        found[name] = {row}
 
         assert check_wiki._lagging_cells(found) == []
 
@@ -6287,7 +6472,7 @@ class TestWhatABreakLeaves:
 
 def _gate_checks() -> tuple[str, ...]:
 
-    """Return the name of every check `main` adds to its failures.
+    '''Return the name of every check `main` adds to its failures.
 
     The list of checks the wiring tests cover was written by hand, and
     three checks had been added to the gate without reaching it. Reading
@@ -6295,7 +6480,7 @@ def _gate_checks() -> tuple[str, ...]:
 
     Returns:
         tuple[str, ...]: Each name, in the order the gate runs it.
-    """
+    '''
 
     tree = ast.parse(Path(check_wiki.__file__).read_text(encoding='utf-8'))
     main = next(
@@ -6847,7 +7032,7 @@ class TestWhatManyReferencesCost:
 class TestEveryRuleThePageWalkRuns:
     _GOOD = (
         '---\nrow: P1-01\nbaseline: 49aa659\n'
-        'created: 2099-01-01 00:00 UTC\nmodified: 2099-01-01 00:00 UTC\n'
+        'created: 2026-10-01 00:00 UTC\nmodified: 2026-10-01 00:00 UTC\n'
         'evidence:\n  - claim: "A thing is so"\n'
         '    source: "`order.py` 3"\n---\n'
         '# One\n\nA thing that is so.\n'
@@ -6868,7 +7053,7 @@ class TestEveryRuleThePageWalkRuns:
             check_wiki, '_resolve_source', lambda _k: Path('order.py'),
         )
         monkeypatch.setattr(
-            check_wiki, '_last_commit_date', lambda _p: committed,
+            check_wiki, '_last_commit_stamp', lambda _p: committed,
         )
         monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
         held: list[str] = check_wiki._check_page(
@@ -6882,9 +7067,9 @@ class TestEveryRuleThePageWalkRuns:
         [
             pytest.param(
                 'one.md',
-                _GOOD.replace('2099-01-01', '2000-01-01'),
-                'older than its last commit',
-                id='stale-stamp',
+                _GOOD.replace('2026-10-01', '2099-01-01'),
+                'is a time that has not arrived',
+                id='stamp-yet-to-come',
             ),
             pytest.param(
                 'one.md',
@@ -6902,7 +7087,8 @@ class TestEveryRuleThePageWalkRuns:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         held = self._walked(
-            tmp_path, broken, monkeypatch, named=name, committed='2026-01-01',
+            tmp_path, broken, monkeypatch, named=name,
+            committed='2026-12-01 00:00 UTC',
         )
 
         assert any(wanted in note for note in held), held
@@ -6910,11 +7096,13 @@ class TestEveryRuleThePageWalkRuns:
     def test_a_page_outside_the_atoms_is_still_walked(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-01-01')
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-12-01 00:00 UTC',
+        )
         page = tmp_path / 'README.md'
         page.write_text(
             '# Index\n\nA list, said [elsewhere](nowhere-at-all.md).\n\n'
-            '---\n\nCreated 2099-01-01 00:00 UTC · Last modified 2099-01-01 00:00 UTC\n',
+            '---\n\nCreated 2026-10-01 00:00 UTC · Last modified 2026-10-01 00:00 UTC\n',
             encoding='utf-8',
         )
         monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
@@ -6925,12 +7113,14 @@ class TestEveryRuleThePageWalkRuns:
     def test_a_moment_on_a_page_outside_the_atoms_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-01-01')
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_stamp', lambda _p: '2026-12-01 00:00 UTC',
+        )
         page = tmp_path / 'register.md'
         page.write_text(
             '# Register\n\nIt asked for the `Created … Last modified '
-            '2026-10-18 11:00 UTC\n\n---\n\nCreated 2099-01-01 00:00 UTC '
-            '\u00b7 Last modified 2099-01-01 00:00 UTC\n',
+            '2026-10-18 11:00 UTC\n\n---\n\nCreated 2026-10-01 00:00 UTC '
+            '\u00b7 Last modified 2026-10-01 00:00 UTC\n',
             encoding='utf-8',
         )
         monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
@@ -7081,7 +7271,7 @@ class TestWhatAnUncommittedEditNeeds:
         atoms.mkdir(parents=True)
         page = atoms / 'one.md'
         page.write_text(
-            '---\ncreated: 2099-01-01 00:00 UTC\n'
+            '---\ncreated: 2026-10-01 00:00 UTC\n'
             f'modified: {stamp}\n---\n# One\n\nAs committed.\n',
             encoding='utf-8',
         )
@@ -7118,10 +7308,10 @@ class TestWhatAnUncommittedEditNeeds:
     def test_an_edit_left_unstamped_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+        page = self._committed(tmp_path, monkeypatch, '2026-10-01 00:00 UTC')
         page.write_text(
-            '---\ncreated: 2099-01-01 00:00 UTC\n'
-            'modified: 2099-01-01 00:00 UTC\n---\n# One\n\nEdited.\n',
+            '---\ncreated: 2026-10-01 00:00 UTC\n'
+            'modified: 2026-10-01 00:00 UTC\n---\n# One\n\nEdited.\n',
             encoding='utf-8',
         )
         check_wiki._uncommitted_pages.cache_clear()
@@ -7135,10 +7325,10 @@ class TestWhatAnUncommittedEditNeeds:
     def test_an_edit_stamped_later_stands(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+        page = self._committed(tmp_path, monkeypatch, '2026-10-01 00:00 UTC')
         page.write_text(
-            '---\ncreated: 2099-01-01 00:00 UTC\n'
-            'modified: 2099-01-02 00:00 UTC\n---\n# One\n\nEdited.\n',
+            '---\ncreated: 2026-10-01 00:00 UTC\n'
+            'modified: 2026-10-02 00:00 UTC\n---\n# One\n\nEdited.\n',
             encoding='utf-8',
         )
         check_wiki._uncommitted_pages.cache_clear()
@@ -7149,9 +7339,40 @@ class TestWhatAnUncommittedEditNeeds:
     def test_a_page_as_committed_stands(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+        page = self._committed(tmp_path, monkeypatch, '2026-10-01 00:00 UTC')
 
         assert self._complaints(page) == []
+
+    @_NEEDS_BASELINE
+    def test_a_stamp_put_right_on_its_own_is_not_an_edit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = self._committed(tmp_path, monkeypatch, '2026-10-02 00:00 UTC')
+        page.write_text(
+            '---\ncreated: 2026-10-01 00:00 UTC\n'
+            'modified: 2026-10-01 00:00 UTC\n---\n# One\n\nAs committed.\n',
+            encoding='utf-8',
+        )
+        check_wiki._uncommitted_pages.cache_clear()
+
+        assert self._complaints(page) == []
+
+    @_NEEDS_BASELINE
+    def test_a_rewritten_page_still_has_to_be_restamped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = self._committed(tmp_path, monkeypatch, '2026-10-01 00:00 UTC')
+        page.write_text(
+            '---\ncreated: 2026-10-01 00:00 UTC\n'
+            'modified: 2026-10-01 00:00 UTC\n---\n# One\n\nSaid again.\n',
+            encoding='utf-8',
+        )
+        check_wiki._uncommitted_pages.cache_clear()
+
+        assert any(
+            'holds an edit that is not yet committed' in note
+            for note in self._complaints(page)
+        )
 
 
 class TestWhatAnUnassignedRowCosts:
@@ -7268,17 +7489,17 @@ class TestLinkLabels:
 
 class TestWhenAPageWasCommitted:
     @_NEEDS_BASELINE
-    def test_a_committed_file_has_a_date(self) -> None:
-        held = check_wiki._last_commit_date(check_wiki.CHANGELOG)
+    def test_a_committed_file_has_a_stamp(self) -> None:
+        held = check_wiki._last_commit_stamp(check_wiki.CHANGELOG)
 
         assert held is not None
-        assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', held)
+        assert re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC', held)
 
     def test_a_file_outside_the_tree_has_none(self, tmp_path: Path) -> None:
         held = tmp_path / 'nowhere.md'
         held.write_text('# Nowhere\n', encoding='utf-8')
 
-        assert check_wiki._last_commit_date(held) is None
+        assert check_wiki._last_commit_stamp(held) is None
 
 
 class TestWhatARaiseWorksOut:
@@ -8822,17 +9043,24 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 class TestSettledCandidates:
 
     @staticmethod
-    def _with_disposition(tmp_path: Path, row: str, disposition: str) -> Path:
-        lines = check_wiki.REGISTER.read_text(encoding='utf-8').split('\n')
-        for index, line in enumerate(lines):
-            if line.startswith(f'| {row} |') and line.rstrip().endswith('|'):
-                cells = line.rstrip().rstrip('|').split(' | ')
-                cells[-1] = disposition
-                lines[index] = ' | '.join(cells) + ' |'
-        staled = tmp_path / 'register.md'
-        staled.write_text('\n'.join(lines), encoding='utf-8')
+    def _settled_as(tmp_path: Path, disposition: str) -> Path:
 
-        return staled
+        '''Write a register whose one candidate a merge row disposes of.
+
+        Args:
+            tmp_path (Path): Where to write the register
+            disposition (str): What the merge row says became of the row
+
+        Returns:
+            Path: The register written
+        '''
+
+        return _a_register(
+            tmp_path,
+            f'| {_SYNTHETIC_ROW} | `order.py` 1 | a finding | read | candidate |\n'
+            f'| Row {_SYNTHETIC_ROW} | P1-01 | {disposition} |\n',
+            'settled-register.md',
+        )
 
     def test_no_row_reads_candidate_after_it_was_settled(self) -> None:
         assert check_wiki._settled_candidates() == []
@@ -8840,17 +9068,29 @@ class TestSettledCandidates:
     def test_a_stale_candidate_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        staled = self._with_disposition(tmp_path, 'H-072', 'candidate')
+        staled = self._settled_as(tmp_path, 'Promote. It stands alone')
         monkeypatch.setattr(check_wiki, 'REGISTER', staled)
         failures = check_wiki._settled_candidates()
 
         assert len(failures) == 1
-        assert failures[0].startswith(f'{staled}: H-072 reads `candidate`')
+        assert failures[0].startswith(
+            f'{staled}: {_SYNTHETIC_ROW} reads `candidate`',
+        )
+
+    @pytest.mark.parametrize('settling', ['Promote.', 'Merge with H-9002.',
+                                          'Folds into H-9002.', 'Decline.'])
+    def test_every_settling_word_is_read(
+        self, settling: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        staled = self._settled_as(tmp_path, settling)
+        monkeypatch.setattr(check_wiki, 'REGISTER', staled)
+
+        assert len(check_wiki._settled_candidates()) == 1
 
     def test_a_row_queued_as_its_own_candidate_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        queued = self._with_disposition(tmp_path, 'H-075', 'candidate')
+        queued = self._settled_as(tmp_path, 'Candidate, to be seeded')
         monkeypatch.setattr(check_wiki, 'REGISTER', queued)
 
         assert check_wiki._settled_candidates() == []

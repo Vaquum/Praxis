@@ -1,8 +1,8 @@
 ---
 row: P18-02
 baseline: 49aa659
-created: 2026-11-10 20:00 UTC
-modified: 2026-11-10 21:00 UTC
+created: 2026-11-08 15:12 UTC
+modified: 2026-11-08 15:17 UTC
 evidence:
   - claim: "The weighted split makes the same two checks as the even one, its count being the number of weights"
     source: "`praxis/core/plan_weighted_slices.py` 50-52, or 54-56"

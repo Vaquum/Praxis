@@ -1,8 +1,8 @@
 ---
 row: N56-01
 baseline: 49aa659
-created: 2026-11-12 13:30 UTC
-modified: 2026-11-12 14:00 UTC
+created: 2026-11-08 18:01 UTC
+modified: 2026-11-08 18:01 UTC
 evidence:
   - claim: "The default hooks are built as the duplicate window first and the references second"
     source: "`nexus/core/validator/intake_stage.py` 63-72"

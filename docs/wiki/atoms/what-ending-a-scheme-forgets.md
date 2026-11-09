@@ -1,8 +1,8 @@
 ---
 row: P153-02
 baseline: 49aa659
-created: 2026-11-15 21:00 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 11:56 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "One moment is taken and carried by the outcome, any closing record, and the outcome written down"
     source: "`execution_manager.py` 8405, used at 8422, and 8435, and 8444"

@@ -1,8 +1,8 @@
 ---
 row: P126-02
 baseline: 49aa659
-created: 2026-11-15 07:30 UTC
-modified: 2026-11-15 10:30 UTC
+created: 2026-11-09 09:53 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "An account's working-through is built and its accounting wiring written into one mapping, from inside its build"
     source: "`launcher.py` 4341-4346, then 4355"

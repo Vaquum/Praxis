@@ -1,8 +1,8 @@
 ---
 row: N48-01
 baseline: 49aa659
-created: 2026-11-12 05:30 UTC
-modified: 2026-11-12 06:00 UTC
+created: 2026-11-08 17:25 UTC
+modified: 2026-11-08 17:25 UTC
 evidence:
   - claim: "The realized figure can be changed through one call, which refuses a figure that is not finite"
     source: "`nexus/core/domain/risk_state.py` 276-278"

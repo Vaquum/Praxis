@@ -1,8 +1,8 @@
 ---
 row: P29-01
 baseline: 49aa659
-created: 2026-11-11 12:00 UTC
-modified: 2026-11-11 12:00 UTC
+created: 2026-11-08 16:19 UTC
+modified: 2026-11-08 16:19 UTC
 evidence:
   - claim: "An empty account name is refused, the name tested for its truth alone"
     source: "`trading_inbound.py` 119-121"

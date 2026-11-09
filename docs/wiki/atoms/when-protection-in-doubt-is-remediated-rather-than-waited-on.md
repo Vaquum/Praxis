@@ -1,8 +1,8 @@
 ---
 row: P166-01
 baseline: 49aa659
-created: 2026-11-16 03:30 UTC
-modified: 2026-11-16 13:00 UTC
+created: 2026-11-09 13:28 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A bracket carrying no moment the doubt began at is left alone"
     source: "`execution_manager.py` 7508, then 7509"

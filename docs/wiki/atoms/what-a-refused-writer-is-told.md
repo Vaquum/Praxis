@@ -1,8 +1,8 @@
 ---
 row: P64-07
 baseline: 49aa659
-created: 2026-11-12 23:00 UTC
-modified: 2026-11-12 23:00 UTC
+created: 2026-11-08 19:39 UTC
+modified: 2026-11-08 19:39 UTC
 evidence:
   - claim: "Every failure the asking for the lock can report becomes one refusal, with nothing read off the failure to tell one from another"
     source: "`ledger.py` 77, catching one kind and reading no more of it than the raising needs"

@@ -1,8 +1,8 @@
 ---
 row: P100-01
 baseline: 49aa659
-created: 2026-11-14 03:30 UTC
-modified: 2026-11-14 03:30 UTC
+created: 2026-11-09 07:54 UTC
+modified: 2026-11-09 07:54 UTC
 evidence:
   - claim: "The loop runs while the stopping flag is clear"
     source: "`praxis/trading.py` 1351"

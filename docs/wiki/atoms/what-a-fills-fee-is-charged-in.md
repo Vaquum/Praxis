@@ -1,8 +1,8 @@
 ---
 row: P92-02
 baseline: 49aa659
-created: 2026-11-13 23:30 UTC
-modified: 2026-11-13 23:30 UTC
+created: 2026-11-09 07:21 UTC
+modified: 2026-11-09 07:21 UTC
 evidence:
   - claim: "The amount filled is summed from the walk the book gave back"
     source: "`praxis/binsim/server.py` 474"

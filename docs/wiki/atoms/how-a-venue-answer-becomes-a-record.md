@@ -1,8 +1,8 @@
 ---
 row: P116-01
 baseline: 49aa659
-created: 2026-11-14 11:30 UTC
-modified: 2026-11-14 11:30 UTC
+created: 2026-11-09 09:06 UTC
+modified: 2026-11-09 09:06 UTC
 evidence:
   - claim: "A venue trade is built from fields each read by name, so one the venue leaves out stops the reading"
     source: "`binance_adapter.py` 1090-1104"

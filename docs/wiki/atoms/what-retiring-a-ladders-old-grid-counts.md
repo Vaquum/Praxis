@@ -1,8 +1,8 @@
 ---
 row: P152-02
 baseline: 49aa659
-created: 2026-11-15 20:30 UTC
-modified: 2026-11-16 13:30 UTC
+created: 2026-11-09 11:51 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "Each rung of the old grid is reached by working its name out again from the mode, the command, the rung's place and the old generation"
     source: "`execution_manager.py` 9125, then 9126-9129, then 9130"

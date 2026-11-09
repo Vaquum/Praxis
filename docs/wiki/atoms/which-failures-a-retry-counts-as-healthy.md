@@ -1,8 +1,8 @@
 ---
 row: P110-02
 baseline: 49aa659
-created: 2026-11-14 08:30 UTC
-modified: 2026-11-14 08:30 UTC
+created: 2026-11-09 08:31 UTC
+modified: 2026-11-09 08:31 UTC
 evidence:
   - claim: "A rate limiting is retried only where attempts remain and the status was the one that means too many"
     source: "`binance_adapter.py` 605 into 606"

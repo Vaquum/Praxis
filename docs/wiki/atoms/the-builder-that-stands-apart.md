@@ -1,8 +1,8 @@
 ---
 row: P49-02
 baseline: 49aa659
-created: 2026-11-12 06:30 UTC
-modified: 2026-11-12 07:00 UTC
+created: 2026-11-08 17:29 UTC
+modified: 2026-11-08 17:29 UTC
 evidence:
   - claim: "The plain single order's settings have a builder of their own, reached before the table"
     source: "`command_translator.py` 378-379, ahead of 381"

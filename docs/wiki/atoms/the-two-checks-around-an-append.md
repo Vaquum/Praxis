@@ -1,8 +1,8 @@
 ---
 row: P140-02
 baseline: 49aa659
-created: 2026-11-15 14:30 UTC
-modified: 2026-11-15 14:30 UTC
+created: 2026-11-09 10:57 UTC
+modified: 2026-11-09 10:57 UTC
 evidence:
   - claim: "Whether the account has fail-stopped is checked before the append"
     source: "`execution_manager.py` 3229 into 3230-3231"

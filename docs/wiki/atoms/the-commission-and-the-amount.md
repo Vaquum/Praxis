@@ -1,7 +1,7 @@
 ---
 row: P2-30
 baseline: 49aa659
-created: 2026-09-26 06:05 UTC
+created: 2026-09-25 20:33 UTC
 modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "A buy whose fee asset is BTC delivers the amount less the commission"

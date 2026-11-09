@@ -1,8 +1,8 @@
 ---
 row: P101-02
 baseline: 49aa659
-created: 2026-11-14 04:00 UTC
-modified: 2026-11-14 04:00 UTC
+created: 2026-11-09 07:57 UTC
+modified: 2026-11-09 07:57 UTC
 evidence:
   - claim: "Every event built from a report carries the report's own moment"
     source: "`praxis/trading.py` 1777, used at 1789, or 1807, or 1816, or 1825"

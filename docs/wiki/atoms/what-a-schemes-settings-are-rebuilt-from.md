@@ -1,8 +1,8 @@
 ---
 row: P175-01
 baseline: 49aa659
-created: 2026-11-16 08:00 UTC
-modified: 2026-11-16 08:00 UTC
+created: 2026-11-09 12:59 UTC
+modified: 2026-11-09 12:59 UTC
 evidence:
   - claim: "An equal-slice scheme's settings are rebuilt from the count of parts and the gap between them"
     source: "`execution_manager.py` 539, then 540-542"

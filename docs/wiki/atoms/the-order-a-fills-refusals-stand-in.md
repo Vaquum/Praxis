@@ -1,8 +1,8 @@
 ---
 row: P65-02
 baseline: 49aa659
-created: 2026-11-12 23:30 UTC
-modified: 2026-11-12 23:30 UTC
+created: 2026-11-08 19:50 UTC
+modified: 2026-11-08 19:50 UTC
 evidence:
   - claim: "The quantity, the price and the fee are held to being finite in one test naming all three, and only then each to its own sign"
     source: "`ledger.py` 393-396, then 398-399, then 401-402, then 404-405"

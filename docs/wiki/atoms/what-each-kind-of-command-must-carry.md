@@ -1,8 +1,8 @@
 ---
 row: N11-04
 baseline: 49aa659
-created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:40 UTC
+created: 2026-11-07 19:33 UTC
+modified: 2026-11-07 21:10 UTC
 evidence:
   - claim: "The checks each kind makes are reached only once the checks every command makes have passed"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 221, standing after the last of them at 215-219"

@@ -1,8 +1,8 @@
 ---
 row: P8-04
 baseline: 49aa659
-created: 2026-11-10 01:30 UTC
-modified: 2026-11-10 01:30 UTC
+created: 2026-11-08 11:11 UTC
+modified: 2026-11-08 11:11 UTC
 evidence:
   - claim: "An alert gives back the severity it actually used"
     source: "`praxis/infrastructure/alert_sink.py` 53"

@@ -2,7 +2,7 @@
 row: P4-44
 baseline: 49aa659
 created: 2026-10-13 07:20 UTC
-modified: 2026-11-16 13:00 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A long is closed by selling and a short by buying"
     source: "`execution_manager.py` 7607, then 7609-7611"
@@ -50,4 +50,4 @@ What is left is also [cut down](how-big-a-flatten-goes-out.md) to what the accou
 
 ---
 
-Created 2026-10-13 07:20 UTC · Last modified 2026-10-13 07:20 UTC
+Created 2026-10-13 07:20 UTC · Last modified 2026-11-09 13:45 UTC
