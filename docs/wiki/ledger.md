@@ -31,7 +31,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/journal_entry.py` | full | P3-11 |
 | `praxis/core/domain/trade_pnl.py` | full | P3-11 |
 | `praxis/core/domain/events.py` | full | P2-15, P2-33, P4-06, P4-12, P4-33, P4-42, P4-52, P7-01, P7-03, P61-01, P61-02, P61-03, P61-04, P61-05, P61-06, P61-07, P62-01, P62-02, P62-03, P62-04 |
-| `praxis/core/trading_state.py` | partial | N3-10, N4-04, N5-03, P1-01, P1-07, P2-12, P2-16, P2-19, P2-29, P2-30, P2-31, P2-33, P2-49, P3-07, P4-11, P4-12, P4-33, P4-36 |
+| `praxis/core/trading_state.py` | partial | N3-10, N4-04, N5-03, P1-01, P1-07, P2-12, P2-16, P2-19, P2-29, P2-30, P2-31, P2-33, P2-49, P3-07, P4-11, P4-12, P4-33, P4-36, P88-01, P88-02, P88-03, P88-04 |
 | `praxis/core/validate_trade_abort.py` | full | P1-04, P4-10 |
 | `praxis/core/domain/trade_outcome.py` | partial | P1-04, P2-18, P2-40, P2-42, P2-43 |
 | `praxis/infrastructure/binance_adapter.py` | partial | N3-01, N3-12, N5-03, N5-06, N7-11, P1-02, P1-04, P1-07, P1-09, P1-10, P16-01, P2-11, P2-12, P2-13, P2-14, P2-17, P2-21, P2-22, P2-25, P2-27, P2-28, P2-45, P2-46, P3-14, P3-15, P3-17, P3-18, P3-19, P3-21, P3-26, P4-13, P4-45, P4-53, S-01 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 23:00 UTC

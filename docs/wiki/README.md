@@ -127,6 +127,10 @@ the others where it appears.
 
 - [What a fill changes](atoms/what-a-fill-changes.md) — a fill updates the order's record and then the money's, so a failure on the first leaves the second alone.
 - [Fills and the order](atoms/fills-and-the-order.md) — how a fill moves an order's totals and status, including one arriving too late.
+- [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
+- [What closing an order moves it to](atoms/what-closing-an-order-moves-it-to.md) — the order is moved out of the live book and into the closed one under the same name, so it stays readable afterwards and a reader looking in only one book can mistake a closed order for one that never existed.
+- [The lookup every handler shares](atoms/the-lookup-every-handler-shares.md) — one routine finds an order for every handler, logs a warning when it finds none, and hands back what it found for the caller to judge; a single handler checks the closed book first and so stays quiet on a repeat.
+- [What the projection copies under its lock](atoms/what-the-projection-copies-under-its-lock.md) — one lock guards the holdings alone and a reading of them returns a copy of each, while the orders and the schemes beside them are read with no lock at all.
 - [When an update fails](atoms/when-an-update-fails.md) — failing to update the order's own totals stops the account; failing to update the money record is logged and passed over.
 - [How an outside event enters the record](atoms/how-an-outside-event-enters-the-record.md) — news from outside is written by the account's own writer, and the caller waits to be told how it went.
 - [Where duplicates stop](atoms/where-duplicates-stop.md) — the same fill can arrive from the send, from the live feed and from a later query — it is written down once, and only that copy is acted on.
@@ -602,7 +606,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 505
+Both sides are the subject, and Praxis is the side that has been written. 509
 articles exist. Of Praxis's own source files 80 are accounted for in full and 8 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -613,4 +617,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 22:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 23:00 UTC

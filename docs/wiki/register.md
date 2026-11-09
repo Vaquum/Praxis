@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 504 not.**
+**6 of them reviewed, 508 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 88 — how the projection routes an event and closes an order
+
+Scope: the projection of an account's trading state, which the ledger marks
+`partial` with seventy-four of its hundred and fifty statements uncited. Articles
+have fills and the order, the position Praxis keeps, what an account is and the
+commission and the amount. How an event finds its way through it, what closing an
+order moves it to, the lookup every handler shares, and what it copies under its
+lock are in no article.
+
+### Merge and promote, package 88
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-936 | Three kinds of event answer on their own before any chain, every other kind is weighed in one chain of alternatives, and four kinds go to the one closing routine with two of them handing it the same final standing. | Promote. How an event is routed is in no article, and two unlike endings sharing one standing is what a reader of a closed order would get wrong |
+| Row H-937 | One kind is noted at the quietest level and nothing else, a listed set is passed over in silence, and anything the chain does not name is reported as a warning. | Merge with H-936. The three kinds of nothing are part of the same routing |
+| Row H-938 | A closing takes the venue's name off the event by asking rather than naming the field, sets the standing and the moment, then moves the order from the live book to the closed one under the same name. | Promote. What closing does is in no article, and the order staying readable under its old name is what makes a missing order ambiguous |
+| Row H-939 | The shared lookup reads the live book alone, warns on a miss, and hands back whatever it found; one handler looks in the closed book first and so answers a repeat in silence where every other kind leaves a warning. | Promote. The lookup is in no article, and one handler being quiet on a repeat while the rest are noisy is a difference a reader chasing warnings needs |
+| Row H-940 | The projection refuses to be built without an account name, holds one lock guarding the positions alone, and hands back a copy of each position under that lock. | Promote. What it copies is in no article, and the orders and schemes being read with no lock at all is the other half of that |
+| Row H-941 | A scheme already known makes its setting-up a warning and a scheme not known makes a change of its standing a warning, both events dropped. | Merge with H-940 |
+
+Four subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P88-01 | How an event finds its way through the projection | written | [how-an-event-finds-its-way-through-the-projection.md](atoms/how-an-event-finds-its-way-through-the-projection.md) |
+| P88-02 | What closing an order moves it to | written | [what-closing-an-order-moves-it-to.md](atoms/what-closing-an-order-moves-it-to.md) |
+| P88-03 | The lookup every handler shares | written | [the-lookup-every-handler-shares.md](atoms/the-lookup-every-handler-shares.md) |
+| P88-04 | What the projection copies under its lock | written | [what-the-projection-copies-under-its-lock.md](atoms/what-the-projection-copies-under-its-lock.md) |
+
+### Re-seed, after writing package 88
+
+The module is left with nothing uncited, the fourth in this run. One claim rests on
+an absence, and it is the kind worth being careful about.
+
+| What it found | What came of it |
+|---|---|
+| Nothing in the closing touches the mapping from a leg to its parent, which is why a leg's fill arriving after its parent has closed still finds the parent. | Stated as an absence, citing the whole of the routine rather than a line. A docstring says the same thing; the claim rests on the body having no statement that touches the mapping |
+| One handler checks the closed book before the shared lookup, so a repeat of its kind is silent where a repeat of every other kind leaves a warning. | Stated, with both halves cited. Neither half means anything alone |
+| Two kinds of event hand the closing routine the same final standing, so the standing does not say which happened; the name that does reaches the log alone. | Stated |
+| The cell cannot move to `full`: row H-045 leaves a question on this module, raised as U-04, about a commission netted only where the fee asset matches one hardcoded symbol. | The cell stays `partial`, which is what the ledger's own legend means by a module with a question hanging over it. Every statement of the module is cited; what is outstanding is an answer, not an article |
+
+The absence claim is the one to watch. A docstring asserts it, which is not
+evidence, and the body cannot prove a negative by any single line — so the citation
+names the whole routine and the claim says what is missing from it. That is honest
+only because the routine is six lines long. The same claim about a long routine
+would need a different kind of evidence, and the register should say so rather than
+let the form spread.
 
 ## Package 87 — how the ledger posts and what it hands back
 
@@ -7351,8 +7399,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-933 | Each line moves its account by the debit less the credit where that account is debit-normal and by the credit less the debit otherwise, and posting also adds the realized figure and the fee to the trade's own record. | `account_ledger.py` 408 applied at 409, and 413 then 415 then 416-417 | package eighty-seven | folds into P87-01 |
 | H-934 | A ledger refuses to be built without an account name, refuses a fill in any symbol but the one it books, and refuses a sell larger than the lots left open. | `account_ledger.py` 70 into 71-72, and 244 into 245-246, and 376-377 reached where 364 runs out | package eighty-seven | is P87-02 |
 | H-935 | Every way of reading the ledger takes its lock and hands back something freshly made, the trade records copied one by one rather than the mapping alone. | `account_ledger.py` 81, and 154 then 155, and 187 then 188, and 172 then 173-174, and 130 then 131 | package eighty-seven | is P87-03 |
+| H-936 | Three kinds of event answer on their own before any chain, every other kind is weighed in one chain of alternatives, and four kinds go to the one closing routine with two handing it the same final standing. | `trading_state.py` 189-191, then 193-195, then 197-199, against 201, or 203, or 205, or 207, or 209, or 211, or 213, or 215, or 217, or 219, or 226 | package eighty-eight | is P88-01 |
+| H-937 | One kind is noted at the quietest level and nothing else, a listed set is passed over in silence, and anything the chain does not name is reported as a warning. | `trading_state.py` 219, or 226-227, or 228 into 229-233 | package eighty-eight | folds into P88-01 |
+| H-938 | A closing takes the venue's name off the event by asking rather than naming the field, sets the standing and the moment, then moves the order from the live book to the closed one under the same name. | `trading_state.py` 369 into 370-371, and 373, and 374, ahead of 375, then 630 into 631-637, and 639 | package eighty-eight | is P88-02 |
+| H-939 | The shared lookup reads the live book alone, warns on a miss, and hands back whatever it found; one handler looks in the closed book first. | `trading_state.py` 294, and 295, and 303, against 606 into 607 | package eighty-eight | is P88-03 |
+| H-940 | The projection refuses to be built without an account name, holds one lock guarding the positions alone, and hands back a copy of each position under that lock. | `trading_state.py` 149 into 150-151, and 161, and 174 into 175-176 | package eighty-eight | is P88-04 |
+| H-941 | A scheme already known makes its setting-up a warning and a scheme not known makes a change of its standing a warning, both events dropped. | `trading_state.py` 243 into 244-249, against 265 into 267-273 | package eighty-eight | folds into P88-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 23:00 UTC
