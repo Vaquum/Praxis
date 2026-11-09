@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 699 not.**
+**6 of them reviewed, 701 not.**
 
 ## Package 1
 
@@ -856,6 +856,62 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 181 — what the manager is built holding, and what an account's runtime is built holding
+
+Scope: the two constructors of the module the ledger marks `partial`, and the first
+package of the sweep that will close it. After the package before this one, three
+hundred and sixteen of its two thousand four hundred and eighty-seven statements were
+uncited; sixty-seven of those are log calls, thirteen are insistences, twelve are bare
+endings and six are raises, which leaves two hundred and eighteen that can be cited.
+This package takes twenty-three of them, every one in the first thousand lines.
+
+### What the sweep is for
+
+The ledger's bar for `full` is that local review accounts for a module's domain
+behaviour through reviewed rows or recorded exclusions. The manager's remaining
+statements fall into two kinds: the ones a claim can name, and the ones no claim may
+name because the gate refuses them — a log call, an insistence, a bare ending, a raise
+already covered by the claim above it. The sweep writes the first kind and records the
+second as an exclusion, package by package, until the cell can move.
+
+### Merge and promote, package 181
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1631 | The manager keeps ten things handed in, the host hands in all ten, and two of them can be replaced afterwards. | Promote. The constructor is cited in fragments by seven articles and is the subject of none |
+| Row H-1632 | The modes are kept with the plain single order always added, and nothing kept where none are named. | Merge with H-1631 |
+| Row H-1633 | Nine stores are made empty beside them and the remembered loop thread starts absent. | Merge with H-1631 |
+| Row H-1634 | A helper of the module's own answers the current moment in universal time. | Merge with H-1631 |
+| Row H-1635 | An account's runtime is built with six things handed over and two queues made fresh. | Promote. The same shape one level down, and in no article |
+| Row H-1636 | Four marks about where the account stands all start false. | Merge with H-1635 |
+| Row H-1637 | Two counts start at nothing, a wake-up starts unset, and a request for a protection scan starts unmade. | Merge with H-1635 |
+| Row H-1638 | The live work, the live trades, the amend counts and the amends still owing all start empty. | Merge with H-1635 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P181-01 | What the manager is built holding | written | [what-the-manager-is-built-holding.md](atoms/what-the-manager-is-built-holding.md) |
+| P181-02 | What an account's runtime is built holding | written | [what-an-accounts-runtime-is-built-holding.md](atoms/what-an-accounts-runtime-is-built-holding.md) |
+
+### Re-seed, after writing package 181
+
+The first draft cited the parameters rather than the keeps, and the gate refused every
+one: a signature line is not a statement. What the parameters carry — the stand-in
+clock, the five-minute deadline — cannot be cited at all, and the host hands in all ten
+anyway, so the article says that instead.
+
+| What it found | What came of it |
+|---|---|
+| A default on a signature line is uncitable. | The article drops the defaults and says what the host hands in, which is a stronger fact about the running system |
+| Two of the ten can be replaced after building. | Stated. A host can be built before the thing that listens to it is ready |
+| The modes are the one thing not kept as handed over. | Stated. The plain single order is always added, and naming none keeps nothing |
+| An account's runtime divides into handed-over, made-fresh, empty, and false. | Stated as those four groups, which is the whole of the constructor |
+
+Worth recording: the sweep's first two subjects were not widenings but articles. A
+constructor cited in fragments by seven articles is a subject none of them has, and
+writing it covered twenty-three statements that no widening would have reached honestly.
 
 ## Package 180 — what a command's acceptance leaves behind if the queue is full, and what the closing side of a bracket is given
 
@@ -12380,7 +12436,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1628 | The bracket is marked as having had its protection placed before anything is sent, and that mark is what the boot's pass reads to pass one over. | `execution_manager.py` 4906, then 4929-4935, against 4739, then 4740 | package one hundred and eighty | folds into P180-02 |
 | H-1629 | The protective side is the opposite of the entry's and the three prices come from the entry's average. | `execution_manager.py` 4909-4911, then 4912-4914 | package one hundred and eighty | folds into P180-02 |
 | H-1630 | The intent names the closing command rather than the entry's. | `execution_manager.py` 4929-4935, the command named at 4932 | package one hundred and eighty | folds into P180-02 |
+| H-1631 | The manager keeps ten things handed in, the host hands in all ten, and two of them can be replaced afterwards. | `execution_manager.py` 677, then 678, then 679, then 680, then 686, then 687, then 688, then 689, then 690, against `trading.py` 224-235, replaced at `execution_manager.py` 724, and 738 | package one hundred and eighty-one | is P181-01 |
+| H-1632 | The modes are kept with the plain single order always added, and nothing kept where none are named. | `execution_manager.py` 681-685 | package one hundred and eighty-one | folds into P181-01 |
+| H-1633 | Nine stores are made empty beside them and the remembered loop thread starts absent. | `execution_manager.py` 691, and 692, and 693, and 694, and 695, and 696, and 697, and 698, and 699, then 700 | package one hundred and eighty-one | folds into P181-01 |
+| H-1634 | A helper of the module's own answers the current moment in universal time. | `execution_manager.py` 222 | package one hundred and eighty-one | folds into P181-01 |
+| H-1635 | An account's runtime is built with six things handed over and two queues made fresh. | `execution_manager.py` 577, then 578, then 579, then 580, then 587, then 588, then 581, then 582-584 | package one hundred and eighty-one | is P181-02 |
+| H-1636 | Four marks about where the account stands all start false. | `execution_manager.py` 596, and 597, and 598, and 601 | package one hundred and eighty-one | folds into P181-02 |
+| H-1637 | Two counts start at nothing, a wake-up starts unset, and a request for a protection scan starts unmade. | `execution_manager.py` 585, then 586, then 595, then 602 | package one hundred and eighty-one | folds into P181-02 |
+| H-1638 | The live work, the live trades, the amend counts and the amends still owing all start empty. | `execution_manager.py` 591, and 592, and 593, and 594 | package one hundred and eighty-one | folds into P181-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 11:00 UTC
