@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 499 not.**
+**6 of them reviewed, 501 not.**
 
 ## Package 1
 
@@ -856,6 +856,47 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 86 — what a replay's report counts
+
+Scope: the building of a replay's report, which the ledger marks `partial` with
+twenty-seven of its hundred and twenty-five statements uncited. Articles have what
+a replay reports, the worst fall it reports, how a fall from a peak is recorded and
+the falls that never ended. What it counts a trade as, and how it places a fill in
+a bar, are in no article.
+
+### Merge and promote, package 86
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-928 | Every trade handed to the ledger figures is recorded as a long one with nothing consulted to decide it, and a bar counts as one spent holding something only where the position stands above nought. | Promote. What the report counts a trade as is in no article, and both marks reading the replay as long-only is the thing a reader of the figures has to know |
+| Row H-929 | A win is a trade whose net stands above nought and a loss one below, both strictly, so a trade landing exactly on nought falls into neither group while still counting in the net. | Merge with H-928. The net being summed over a different set from the two beside it follows from it |
+| Row H-930 | A fill's bar is found by searching the settle moments for its own and taking the one before, held at nought at the least, so a fill earlier than the first settle lands in the first bar. | Promote. How a fill is placed is in no article, and a fill moved forward rather than dropped, with nothing saying so, is what would mislead a reader of a bar's figures |
+| Row H-931 | Both walks start their cash at the capital pool and their position at nought, each bar's worth being the cash standing plus the position priced at that bar's close. | Merge with H-930 |
+
+Two subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P86-01 | What the replay report counts a trade as | written | [what-the-replay-report-counts-a-trade-as.md](atoms/what-the-replay-report-counts-a-trade-as.md) |
+| P86-02 | How the replay report places a fill in a bar | written | [how-the-replay-report-places-a-fill-in-a-bar.md](atoms/how-the-replay-report-places-a-fill-in-a-bar.md) |
+
+### Re-seed, after writing package 86
+
+The module is left with nothing uncited at all — the second in this run, and for
+the same reason as the first: it holds no log call inside a claimable statement.
+
+| What it found | What came of it |
+|---|---|
+| Every trade is marked long with no condition anywhere near the mark. | Stated flatly. It is the kind of thing that reads as an error and may well be one, and the article's job is to say what the code does and let a reader of the figures decide what it costs them |
+| Both the win and the loss tests compare strictly against nought, so a trade at exactly nought is in neither group while the net counts it. | Stated, with the consequence: the net is summed over a different set from the two totals beside it, and they agree only while no trade lands on nought |
+| A fill earlier than the first settle is moved into the first bar rather than dropped, and nothing records that it was moved. | Stated |
+
+Worth recording: the long-only mark was tempting to soften. The code sets it with
+no condition, and whether that is wrong depends on things outside this module — so
+the article says what the line does and what it means for the figures, and makes no
+guess about intent. A reader who knows the replay can short now has what they need
+to find the bug; a reader who does not has learned nothing false.
 
 ## Package 85 — what binsim's feed asks for and what it keeps
 
@@ -7257,8 +7298,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-925 | Every price and quantity goes through one check that raises where the figure will not read as finite, and each entry of either side must unpack into exactly a pair. | `feed.py` 364-365 into 383 into 384, then 386 | package eighty-five | folds into P85-01 |
 | H-926 | A feed is built holding a stop signal and three counters all starting at nought, and counts as running where a task exists and has not finished. | `feed.py` 133, then 134, and 135, and 136, and 146 | package eighty-five | is P85-02 |
 | H-927 | Between polls the feed waits on the stop signal with the interval as the longest it will wait, and the wait running out is what sends it round again. | `feed.py` 329, then 330-331 | package eighty-five | folds into P85-02 |
+| H-928 | Every trade handed to the ledger figures is recorded as a long one with nothing consulted to decide it, and a bar counts as one spent holding something only where the position stands above nought. | `build_replay_report.py` 204-206 with the mark at 205, and 337 into 338 | package eighty-six | is P86-01 |
+| H-929 | A win is a trade whose net stands above nought and a loss one below, both strictly, so a trade landing exactly on nought falls into neither group. | `build_replay_report.py` 357, and 358, against 359, and 360, and 361 | package eighty-six | folds into P86-01 |
+| H-930 | A fill's bar is found by searching the settle moments for its own and taking the one before, held at nought at the least. | `build_replay_report.py` 212 | package eighty-six | is P86-02 |
+| H-931 | Both walks start their cash at the capital pool and their position at nought, each bar's worth being the cash standing plus the position priced at that bar's close. | `build_replay_report.py` 162-167, or 318-321, and 335, answered at 340 | package eighty-six | folds into P86-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 20:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 21:00 UTC

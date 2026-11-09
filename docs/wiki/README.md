@@ -404,6 +404,8 @@ the others where it appears.
 - [What the risk records refuse](atoms/what-the-risk-records-refuse.md) — each record sorts its figures in two: high-water marks, drawdowns and the starting capital must be finite and non-negative, while realized and unrealized P&L and the account's equity need only be finite, and the per-strategy mapping rejects a key disagreeing with the id inside its value.
 - [The figures the account does not store](atoms/the-figures-the-account-does-not-store.md) — the day, week and month rolling-loss totals and the realized total are summed across the per-strategy records on each read rather than held, each reading one field so a change moves one total, and the sums shift when a strategy is added or dropped with no record having changed.
 - [The worst fall a replay reports](atoms/the-worst-fall-a-replay-reports.md) — the peak is seeded from the series' own first value rather than from the stake, so a run starting below its stake reports nothing of that; the worst drop is kept as a fraction of the running peak, a peak at or below zero is skipped instead of divided by, and an empty series answers zero.
+- [What the replay report counts a trade as](atoms/what-the-replay-report-counts-a-trade-as.md) — every trade is filed as a buy-and-hold one with nothing checked to decide it, and a trade that finished exactly even is left out of both the winners and the losers while still counting in the overall figure.
+- [How the replay report places a fill in a bar](atoms/how-the-replay-report-places-a-fill-in-a-bar.md) — a fill is assigned to a bar by looking up its time among the bars' end times and stepping back, never below the earliest, so a fill from before the first bar is moved into it and nothing records the move.
 - [When the risk-adjusted figure is absent](atoms/when-the-risk-adjusted-figure-is-absent.md) — it is left empty for a non-positive interval, for fewer than two returns, and for a zero variance; a step whose previous equity is at or below zero forms no return at all, which can starve the count, and otherwise the answer is the mean over the standard deviation, annualised by a square root.
 - [How a call across the seam is made](atoms/how-a-call-across-the-seam-is-made.md) — each call is refused outright if its function was never wired, four are bridged onto Praxis's event loop and awaited for one shared span after which the pending call is asked to stop, without that asking being waited for or checked, and registering an account and pulling its positions cross directly with no span at all.
 - [The two ways the signed figures change](atoms/the-two-ways-the-signed-figures-change.md) — each signed P&L figure has a setter that rejects a non-finite value and recomputes the drawdowns, but the record is a plain mutable dataclass, so a restore from the log writes both fields directly and leaves the drawdowns answering to the last setter call instead.
@@ -597,8 +599,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 500
-articles exist. Of Praxis's own source files 78 are accounted for in full and 10 in
+Both sides are the subject, and Praxis is the side that has been written. 502
+articles exist. Of Praxis's own source files 79 are accounted for in full and 9 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -608,4 +610,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 20:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 21:00 UTC
