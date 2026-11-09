@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 516 not.**
+**6 of them reviewed, 518 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 92 — what binsim does with a submitted order
+
+Scope: the submitting of an order to binsim, the last cluster of a module the three
+packages before this one took from a hundred and forty-five uncited statements to
+twenty-six. What an order is weighed against, and what a fill's fee is charged in,
+are in no article. The cell moves to `full`.
+
+### Merge and promote, package 92
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-959 | A submitted order asks for a signed caller first, measures the book's age from the poller's last good poll rather than from when the book changed, and refuses a name that comes to nothing. | Promote. What an order is weighed against is in no article, and an age measured from a poll rather than from a change is what a reader of a staleness refusal needs |
+| Row H-960 | A money-sized order walks the book and then weighs the lot rules, where an amount-sized one weighs them first and walks after. | Merge with H-959. The lot rules standing on either side of the walk is the difference between the two roads |
+| Row H-964 | A book with nothing in it refuses either sizing road alike, under a code saying the book is stale. | Merge with H-959 |
+| Row H-961 | A buy's fee at a level is the amount times the rate and every other side's is the amount times the price times the rate, so a buyer pays in coin and a seller in money. | Promote. What a fee is charged in is in no article for this venue, and a round trip's two fees being in different assets is what makes them uncomparable |
+| Row H-962 | The check against the smallest worth is made on the amount filled against a price read off the book, and an account the ledger has no entry for is refused as an order turned away rather than as a bad signature. | Merge with H-961 |
+| Row H-963 | The money the order came to is summed from the same levels, price times amount at each. | Merge with H-961 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P92-01 | What a submitted order is weighed against | written | [what-a-submitted-order-is-weighed-against.md](atoms/what-a-submitted-order-is-weighed-against.md) |
+| P92-02 | What a fill's fee is charged in | written | [what-a-fills-fee-is-charged-in.md](atoms/what-a-fills-fee-is-charged-in.md) |
+
+### Re-seed, after writing package 92
+
+Four packages took this module from a hundred and forty-five uncited statements to
+three, and the cell moves to `full`.
+
+| What it found | What came of it |
+|---|---|
+| The lot rules are weighed after the walk on the money-sized road and before it on the amount-sized one. | Stated, with what it means: a money-sized order can only fail them once the book has said what it would get |
+| The book's age is measured from the poller's last good poll, not from when the book last changed. | Stated. A book that stopped changing while polls kept succeeding reads as fresh |
+| A buy's fee is charged in the coin and every other side's in the money, at every level. | Stated, and it is the same shape as the contrast package seventy-five drew between this venue and the replay one — which is why this article links the row that owns the asset question rather than restating it |
+| An account whose signature resolved but whose ledger entry is missing is refused as an order turned away. | Stated, with what the caller learns: nothing about the account |
+
+Worth recording about splitting a module across four packages: each package's scope
+was a cluster the gap map showed, and each left the cell `partial` until the last.
+The cost was four register sections for one module; the gain was that no article
+covers two subjects, and the one cell that moved did so because every statement was
+read, not because a package needed to end. A module this size cannot be done any
+other way without one of those two things giving.
+
+Three statements of the module are left uncited and are an exclusion rather than
+work outstanding: all three are log calls, which the gate refuses as evidence for a
+claim.
 
 ## Package 91 — the sockets binsim accepts
 
@@ -7556,8 +7604,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-956 | A frame that will not read as JSON is dropped in silence and so is one that reads as anything but an object, while a wrong method, an empty value and an unmatched key are each answered with a refusal. | `server.py` 840-841 into 842-843, then 845 into 846, against 851 into 852-859 then 861, or 870 into 871-878 then 880, or 882 into 883-890 then 892 | package ninety-one | is P91-02 |
 | H-957 | The parameters are read only where they came as an object and each value is trimmed only where it is text. | `server.py` 863, then 864, and 865, then 867, and 868 | package ninety-one | folds into P91-02 |
 | H-958 | A frame that passed everything is answered with a number taken from the shared counter, and the frame's own identifier is read with an empty one standing in. | `server.py` 894 then 896-900, and 848 | package ninety-one | folds into P91-02 |
+| H-959 | A submitted order asks for a signed caller first, measures the book's age from the poller's last good poll, and refuses a name that comes to nothing. | `server.py` 325 then 326-329, and 331 then 332, and 387 then 389 into 390-393 | package ninety-two | is P92-01 |
+| H-960 | A money-sized order walks the book and then weighs the lot rules, where an amount-sized one weighs them first and walks after. | `server.py` 419 then 440 then 441 then 442, or 444 then 446 into 447-450 then 452 then 455 | package ninety-two | folds into P92-01 |
+| H-964 | A book with nothing in it refuses either sizing road alike, under a code saying the book is stale. | `server.py` 420 into 425-426, or 456 into 458-460 | package ninety-two | folds into P92-01 |
+| H-961 | A buy's fee at a level is the amount times the rate and every other side's is the amount times the price times the rate. | `server.py` 478-487, the two at 482-483, against 484 | package ninety-two | is P92-02 |
+| H-962 | The check against the smallest worth is made on the amount filled, and an account the ledger has no entry for is refused as an order turned away. | `server.py` 474 then 489, and 491 into 492-495, then 496 into 501-502 | package ninety-two | folds into P92-02 |
+| H-963 | The money the order came to is summed from the same levels, price times amount at each. | `server.py` 520, answered at 522-524 | package ninety-two | folds into P92-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 03:00 UTC

@@ -422,6 +422,8 @@ the others where it appears.
 - [What binsim's read endpoints answer](atoms/what-binsims-read-endpoints-answer.md) — health and time ignore the request entirely, the trading-rules endpoint checks a symbol only when one is supplied, and the order-book endpoint insists on one, reporting a missing symbol under a different code from an unrecognised one.
 - [What binsim's server holds and when](atoms/what-binsims-server-holds-and-when.md) — it is built with its web application already made, and takes hold of the pieces that serve requests only once a start has succeeded, so a failed start leaves it holding neither of them and reading as stopped.
 - [The two sockets binsim accepts](atoms/the-two-sockets-binsim-accepts.md) — one connection reads what arrives and replies, the other reads what arrives and throws it away, and both stay up on the same keepalive, so a caller cannot tell a discarded message from one that was acted on.
+- [What a submitted order is weighed against](atoms/what-a-submitted-order-is-weighed-against.md) — the book's staleness is measured from the last successful price fetch rather than from the last time the book changed, and the lot rules are applied after the book walk on one sizing road and before it on the other.
+- [What a fill's fee is charged in](atoms/what-a-fills-fee-is-charged-in.md) — at every price level a buy is charged in coin and a sale in cash, so a round trip is charged in two different assets and its fees cannot be added together, and an account with no balance record is told its order was rejected rather than its key refused.
 - [What a subscription frame is answered with](atoms/what-a-subscription-frame-is-answered-with.md) — a message the simulator cannot parse is dropped without reply while anything it can parse always gets one, and a value sent as the wrong type reaches the emptiness test as empty.
 - [What the application is handed and what it serves](atoms/what-the-application-is-handed-and-what-it-serves.md) — the book, the balances, the price feed and the staleness limit are each attached to the application under their own key, every handler reaching them through it, and one path answers about an order or submits one depending on the method used.
 - [What an order's figures are put through](atoms/what-an-orders-figures-are-put-through.md) — rounding an amount only ever lowers it, and the smallest-value check returns immediately when the book has no price to measure against, so such an order passes it unmeasured.
@@ -614,8 +616,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 517
-articles exist. Of Praxis's own source files 80 are accounted for in full and 8 in
+Both sides are the subject, and Praxis is the side that has been written. 519
+articles exist. Of Praxis's own source files 81 are accounted for in full and 7 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -625,4 +627,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 02:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 03:00 UTC
