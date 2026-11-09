@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 540 not.**
+**6 of them reviewed, 543 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 102 — what a backfill asks for, records and admits
+
+Scope: the backfill that asks the venue for trades the host may have missed, part of
+a module the ledger marks `partial`. After the package before this one, a hundred
+and twenty of its five hundred and twenty-five statements were uncited. What a
+backfill asks for, what it records as confirmed, and what a backfilled trade becomes
+are in no article. The starting, the stopping and the other reconciliation passes
+are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 102
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1026 | The symbols asked about are the account's active ones together with the ones a bootstrap filters on, walked in sorted order, each asking beginning from the cursor the spine holds or a window back from the clock. | Promote. What a backfill asks is in no article, and a symbol the account is no longer active in still being asked about is what the union buys |
+| Row H-1027 | An account the manager holds no state for is answered as complete with nothing asked of the venue. | Merge with H-1026 |
+| Row H-1028 | A symbol whose pages ran out unfinished turns the whole answer to incomplete, and the walk goes on regardless. | Merge with H-1026 |
+| Row H-1029 | The highest venue name seen is tracked with the trade that carried it, and the cursor moves only where the symbol's pages finished and some trade was seen. | Promote. What is recorded is in no article, and a cursor stopping short of a skipped trade is what makes the next backfill ask again |
+| Row H-1030 | A trade whose venue name will not read as a number is reported and skipped. | Merge with H-1029 |
+| Row H-1031 | A backfilled trade with no trade name the manager can give is dropped with nothing said, where the socket road drops the same absence with a warning. | Promote. The asymmetry is in no article, and the silent road being the one more likely to meet the condition is the finding |
+| Row H-1032 | The fill is built from the venue trade's own fields and admitted marked as coming from a recovery. | Merge with H-1031 |
+
+Three subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P102-01 | What a backfill asks the venue for | written | [what-a-backfill-asks-the-venue-for.md](atoms/what-a-backfill-asks-the-venue-for.md) |
+| P102-02 | What a backfill records as confirmed | written | [what-a-backfill-records-as-confirmed.md](atoms/what-a-backfill-records-as-confirmed.md) |
+| P102-03 | What a backfilled trade becomes | written | [what-a-backfilled-trade-becomes.md](atoms/what-a-backfilled-trade-becomes.md) |
+
+### Re-seed, after writing package 102
+
+One finding crossed two roads in the module, and it was only visible because the
+package before this one had just read the other road.
+
+| What it found | What came of it |
+|---|---|
+| A backfilled trade whose command has no trade name is dropped silently, where the socket road warns on the identical condition. | Stated, with both cited and with which road is likelier to meet it: the backfill asks about trades from before the process started |
+| A skipped trade cannot be the highest seen, so the cursor stops short of it and the next backfill asks from before it again. | Stated. It follows from two claims rather than from one line, and it is the reason an unreadable name costs only that trade |
+| A truncated symbol leaves its cursor where it was, so the same question is asked again rather than skipping what was never read. | Stated |
+| The union of active and bootstrap symbols means a symbol the account has left is still asked about. | Stated |
+
+Worth recording: the silent-versus-warning asymmetry would have been invisible a
+package earlier. It was found because the socket road had just been read closely
+enough that the warning was still in mind when the backfill's silent return came up.
+Reading two roads that do the same thing in consecutive packages is worth doing on
+purpose, and the register should say so: the second reading is where the pair shows.
 
 ## Package 101 — what the venue's socket reports, and what becomes of it
 
@@ -8070,6 +8117,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1023 | A cancelling, a refusal and an expiry each become their own event, two of them inventing a reason where the venue gave none. | `praxis/trading.py` 1804 into 1805-1811, or 1813 into 1814-1819, or 1822 into 1823-1828 | package one hundred and one | folds into P101-02 |
 | H-1024 | Every event built from a report carries the report's own moment, read once before the kinds are weighed. | `praxis/trading.py` 1777, used at 1789, or 1807, or 1816, or 1825 | package one hundred and one | folds into P101-02 |
 | H-1025 | Any other kind of report becomes nothing. | `praxis/trading.py` 1830 | package one hundred and one | folds into P101-02 |
+| H-1026 | The symbols asked about are the account's active ones together with the ones a bootstrap filters on, walked in sorted order, each asking beginning from the cursor the spine holds or a window back from the clock. | `praxis/trading.py` 1529-1532, then 1533, then 1534 handed on at 1543, against 1535-1538 handed on at 1544 | package one hundred and two | is P102-01 |
+| H-1027 | An account the manager holds no state for is answered as complete with nothing asked of the venue. | `praxis/trading.py` 1524 into 1525-1526 | package one hundred and two | folds into P102-01 |
+| H-1028 | A symbol whose pages ran out unfinished turns the whole answer to incomplete, and the walk goes on regardless. | `praxis/trading.py` 1546 into 1547, against 1528 | package one hundred and two | folds into P102-01 |
+| H-1029 | The highest venue name seen is tracked with the trade that carried it, and the cursor moves only where the symbol's pages finished and some trade was seen. | `praxis/trading.py` 1572 into 1573-1574, then 1576, then 1577 then 1578-1585 | package one hundred and two | is P102-02 |
+| H-1030 | A trade whose venue name will not read as a number is reported and skipped. | `praxis/trading.py` 1552 into 1553-1558, then 1559 | package one hundred and two | folds into P102-02 |
+| H-1031 | A backfilled trade with no trade name the manager can give is dropped with nothing said, where the socket road drops the same absence with a warning. | `praxis/trading.py` 1610 then 1611, then 1612 into 1613, against 1781 into 1782-1786 | package one hundred and two | is P102-03 |
+| H-1032 | The fill is built from the venue trade's own fields and admitted marked as coming from a recovery. | `praxis/trading.py` 1615 through 1617-1629, then 1632-1633 | package one hundred and two | folds into P102-03 |
 | H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
@@ -8085,4 +8139,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 13:00 UTC

@@ -135,6 +135,9 @@ the others where it appears.
 - [What the phase map and the gate agree on](atoms/what-the-phase-map-and-the-gate-agree-on.md) — an account partway through reconciliation is in the map and an idle one is absent, and the switch that holds its orders back is computed from that same value in the same call, so neither can be moved without the other following.
 - [The five reasons a report is discarded](atoms/the-five-reasons-a-report-is-discarded.md) — a venue update can be thrown away for several reasons and how loudly it is logged is the only thing that says which were expected, from silence for a payload of another kind to a complaint for one that would not parse.
 - [What a report becomes](atoms/what-a-report-becomes.md) — a venue update turns into a fill, a cancel, a refusal or an expiry, and only the fill can fail to convert, because it needs something about the original order that this side may no longer hold.
+- [What a backfill asks the venue for](atoms/what-a-backfill-asks-the-venue-for.md) — it asks about the coins the account is trading plus the ones the startup filter names, each from where the saved marker left off or a fixed window back when there is no marker, and one truncated coin makes the whole answer incomplete.
+- [What a backfill records as confirmed](atoms/what-a-backfill-records-as-confirmed.md) — the marker moves only when a coin's pages finished and lands on a trade actually read, so a trade skipped for an unreadable identifier keeps the marker behind it.
+- [What a backfilled trade becomes](atoms/what-a-backfilled-trade-becomes.md) — it becomes a fill marked as recovered rather than live, and when the link to the original request is missing it is discarded in silence where the live path logs a warning.
 - [How a caller's callback is wrapped](atoms/how-a-callers-callback-is-wrapped.md) — a supplied callback is wrapped so it can always be awaited whether it is plain or not, and one setter deliberately passes an absent callback through unwrapped because its far side reads absence as nobody listening.
 - [What routing an outcome drops](atoms/what-routing-an-outcome-drops.md) — the lock covers finding the queue and not handing anything to it, so a queue removed in between still receives, and a full queue raises into the router rather than slowing it.
 - [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
@@ -638,7 +641,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 541
+Both sides are the subject, and Praxis is the side that has been written. 544
 articles exist. Of Praxis's own source files 82 are accounted for in full and 6 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -649,4 +652,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 13:00 UTC
