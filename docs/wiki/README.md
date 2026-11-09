@@ -140,6 +140,8 @@ the others where it appears.
 - [What a backfilled trade becomes](atoms/what-a-backfilled-trade-becomes.md) — it becomes a fill marked as recovered rather than live, and when the link to the original request is missing it is discarded in silence where the live path logs a warning.
 - [What a balance comparison weighs](atoms/what-a-balance-comparison-weighs.md) — it reports only a shortage past that coin's tolerance and never a surplus, and abandons the round when the expected figures moved while the venue was being asked, so a delay is not mistaken for a difference.
 - [What becomes of a mismatch nobody took](atoms/what-becomes-of-a-mismatch-nobody-took.md) — the discrepancy is recorded before anyone is told and a failed hand-off is reported back rather than thrown, so a record in the log is no evidence that anybody heard about it.
+- [Where a fund pass starts looking](atoms/where-a-fund-pass-starts-looking.md) — each round asks the venue from slightly before where the last one finished, on purpose, with a floor that stops the overlap reaching into history the account should not be asked about.
+- [What holds a fund cursor back](atoms/what-holds-a-fund-cursor-back.md) — the marker advances past movements it ignored and stops behind ones it handled, because what it records is the round rather than the movements.
 - [How a caller's callback is wrapped](atoms/how-a-callers-callback-is-wrapped.md) — a supplied callback is wrapped so it can always be awaited whether it is plain or not, and one setter deliberately passes an absent callback through unwrapped because its far side reads absence as nobody listening.
 - [What routing an outcome drops](atoms/what-routing-an-outcome-drops.md) — the lock covers finding the queue and not handing anything to it, so a queue removed in between still receives, and a full queue raises into the router rather than slowing it.
 - [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
@@ -643,7 +645,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 546
+Both sides are the subject, and Praxis is the side that has been written. 548
 articles exist. Of Praxis's own source files 82 are accounted for in full and 6 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -654,4 +656,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 14:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 15:00 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 545 not.**
+**6 of them reviewed, 547 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 104 — where a fund pass starts, and what holds its cursor back
+
+Scope: the pass over an account's money movements and the two moments that bound it,
+part of a module the ledger marks `partial`. After the package before this one,
+ninety-three of its five hundred and twenty-five statements were uncited. Where a
+fund pass starts looking, and what holds its cursor back, are in no article. The
+starting, the stopping and the fill pass are left for packages of their own, and the
+cell stays `partial`.
+
+### Merge and promote, package 104
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1041 | The window starts at the cursor less an overlap or at the cutover where no cursor is held, and a start that would fall before the cutover is pulled forward to it. | Promote. The window is in no article, and the overlap being deliberate while the cutover is a floor on it is the shape of the pair |
+| Row H-1042 | The cutover is seeded from the moment the account was registered as the spine recorded it, with the clock standing in where the spine holds no such registering. | Merge with H-1041. An account with no recorded registering being treated as beginning now is what the fallback means |
+| Row H-1043 | The cursor is seeded from the latest fund movement the spine holds, and left unset where it holds none. | Merge with H-1041 |
+| Row H-1044 | A movement in any asset but the quote one is skipped, and each of the rest is admitted to the manager whose answer says whether it was new. | Promote. What holds the cursor is in no article, and the skipped movements still advancing it is the finding |
+| Row H-1045 | A failed delivery marks the pass undelivered and leaves the walk at once, so the movements after it are not attempted. | Merge with H-1044 |
+| Row H-1046 | The cursor moves only where something was found and all of it was delivered, and moves to the latest moment among everything fetched. | Merge with H-1044 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P104-01 | Where a fund pass starts looking | written | [where-a-fund-pass-starts-looking.md](atoms/where-a-fund-pass-starts-looking.md) |
+| P104-02 | What holds a fund cursor back | written | [what-holds-a-fund-cursor-back.md](atoms/what-holds-a-fund-cursor-back.md) |
+
+### Re-seed, after writing package 104
+
+Two findings about the cursor, and they pull in opposite directions.
+
+| What it found | What came of it |
+|---|---|
+| The cursor moves to the latest moment among everything fetched, including movements skipped for being in another asset. | Stated. A window of movements all in other assets still advances the cursor past them, which is right and is not what "delivered" suggests |
+| A single delivery failure leaves the cursor behind every movement in the window, including the ones already delivered. | Stated beside it. The two together say what the cursor means: not "everything up to here was handled" but "the last window was handled whole" |
+| The overlap deliberately re-fetches movements already seen, and the cutover is the floor that stops it reaching into history. | Stated as a pair, since the overlap alone reads as a bug and the cutover alone reads as unnecessary |
+| A movement in another asset is skipped after being fetched, so the pass reads everything and acts on one asset's worth. | Stated |
+
+Worth recording: the cursor's two behaviours look contradictory and are not. It
+advances past things it ignored and stops behind things it handled, because what it
+records is the window rather than the movements. Writing either without the other
+would leave a reader with a wrong model of it, and the pair is why both articles
+name the cursor in their titles.
 
 ## Package 103 — what a balance comparison weighs, and what becomes of a mismatch
 
@@ -8176,6 +8220,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1037 | Delivery hands it to the callback inside a guard naming any failure, and answers that it failed rather than raising. | `praxis/trading.py` 1325-1326 into 1327, then 1333, against 1335 | package one hundred and three | folds into P103-02 |
 | H-1038 | A delivered mismatch has its shortfall remembered as seen and any waiting copy cleared, where an undelivered one is kept instead. | `praxis/trading.py` 1286 into 1287 then 1288, against 1290 | package one hundred and three | folds into P103-02 |
 | H-1040 | The kept mismatches are tried again at the start of the next comparison. | `praxis/trading.py` 1251 | package one hundred and three | folds into P103-02 |
+| H-1041 | The window starts at the cursor less an overlap or at the cutover where no cursor is held, and a start that would fall before the cutover is pulled forward to it. | `praxis/trading.py` 1138-1139 then 1140, then 1142 into 1143 | package one hundred and four | is P104-01 |
+| H-1042 | The cutover is seeded from the moment the account was registered as the spine recorded it, with the clock standing in where the spine holds no such registering. | `praxis/trading.py` 1104 into 1105, then 1111-1113, the fallback at 1112 | package one hundred and four | folds into P104-01 |
+| H-1043 | The cursor is seeded from the latest fund movement the spine holds, and left unset where it holds none. | `praxis/trading.py` 1106-1109, then 1115 into 1116 | package one hundred and four | folds into P104-01 |
+| H-1047 | A venue that refuses the asking ends the pass with a warning, leaving both moments where they were. | `praxis/trading.py` 1145-1148 into 1149, then 1154 | package one hundred and four | folds into P104-01 |
+| H-1044 | A movement in any asset but the quote one is skipped, and each of the rest is admitted to the manager whose answer says whether it was new. | `praxis/trading.py` 1158 into 1159-1160, then 1170 weighed at 1171 | package one hundred and four | is P104-02 |
+| H-1045 | A failed delivery marks the pass undelivered and leaves the walk at once. | `praxis/trading.py` 1179-1180 into 1181, then 1187, then 1188 | package one hundred and four | folds into P104-02 |
+| H-1046 | The cursor moves only where something was found and all of it was delivered, and moves to the latest moment among everything fetched. | `praxis/trading.py` 1190, then 1191-1193 | package one hundred and four | folds into P104-02 |
 | H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
@@ -8191,4 +8242,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 15:00 UTC
