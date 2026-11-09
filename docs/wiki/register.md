@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 581 not.**
+**6 of them reviewed, 583 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 121 — what a bracket's protective exit is registered as, and what a strategy is told about the account
+
+Scope: the record written for a bracket's protective exit before any protection
+exists, and the answer a strategy is given about its own account, part of a module
+the ledger marks `partial`. After the package before this one, three hundred and
+ninety-eight of its twelve hundred and one statements were uncited. The exit's name
+is in an article and what the record says is in none; the answer a strategy gets is
+in none. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 121
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1166 | The protective exit's record is written as the entry is registered, its side the opposite of the entry's and its figures the entry's planned ones. | Promote. What the record says is in no article, and the figures being planned rather than filled is what a resting entry would break |
+| Row H-1167 | It is marked as not an entry and as meaning the whole remainder whatever the entry was. | Merge with H-1166 |
+| Row H-1168 | Its in-memory write replaces whatever stood under its name, where the entry's own write fills a gap. | Merge with H-1166. The two writes of the same registry differing is worth stating |
+| Row H-1169 | A rollback drops the entry's registration only where that pass put one in, and the exit's wherever a bracket name was recorded. | Merge with H-1166 |
+| Row H-1170 | An entry that ends leaving no position has the exit's registration dropped by name, a drop that asks nothing about brackets. | Merge with H-1166 |
+| Row H-1171 | With no state, no settings, or a strategy the settings do not name, a strategy is told of no positions, no money and a halted mode. | Promote. The answer is in no article, and a removed strategy getting the halted answer rather than a refusal follows from it |
+| Row H-1172 | Its money is the pool at its share less what it has deployed, held at nothing at the least. | Merge with H-1171 |
+| Row H-1173 | Every position the account holds is copied under the lock, and only then narrowed to the strategy's own. | Merge with H-1171. The lock covering the copy and not the narrowing is the finding |
+| Row H-1174 | The mode is the strategy's own where it has one, and the account's where it has none. | Merge with H-1171 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P121-01 | What a bracket's protective exit is registered as | written | [what-a-brackets-protective-exit-is-registered-as.md](atoms/what-a-brackets-protective-exit-is-registered-as.md) |
+| P121-02 | What a strategy is told about the account | written | [what-a-strategy-is-told-about-the-account.md](atoms/what-a-strategy-is-told-about-the-account.md) |
+
+### Re-seed, after writing package 121
+
+Both articles turned on a comparison with a second write of the same thing.
+
+| What it found | What came of it |
+|---|---|
+| The protective exit's registration is assigned outright where the entry's is inserted only into a gap, and the undoing is conditional for the entry and unconditional for the exit. | Stated as the pair. Neither routine mentions the other, and the two writes are forty lines and five hundred lines apart |
+| The exit's figures are the entry's planned ones rather than what it filled. | Stated plainly. It is exact only while a bracket entry fills whole, which this module cannot show, so the article says which figures are used and stops |
+| The side is settled by testing the entry for a buy, so anything that is not a buy is protected by a buy. | Stated. There are two sides in Praxis, so the test is adequate and still worth naming as a test rather than a mapping |
+| The lock over the positions covers the copy and not the narrowing, so an account answers about one strategy by copying every position it holds. | Stated |
+
+Worth recording: the first article's findings all came from reading the two writes of
+one registry side by side — the entry's and the exit's. Neither is wrong, and the
+pair is what has content: a reader who has seen only one would assume the other
+behaves the same way, and in both the writing and the undoing it does not.
 
 ## Package 120 — the empty position an entry is given first, and what rebuilding an order's record is given
 
@@ -9100,7 +9147,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1163 | The caller that hands over the ready request has just raised the position's pending amount, which is the figure a full close is worked out against. | `launcher.py` 2161-2164 before 2179-2184, with 1307, then 1308 | package one hundred and twenty | folds into P120-02 |
 | H-1164 | A request carrying no side is reported and nothing is built. | `launcher.py` 1503 into 1508 | package one hundred and twenty | folds into P120-02 |
 | H-1165 | Whether the record counts as an entry is settled from the action's kind, and a request carrying no size refuses only where it is not one. | `launcher.py` 1510, then 1512 into 1517 | package one hundred and twenty | folds into P120-02 |
+| H-1166 | The protective exit's record is written as the entry is registered, its side the opposite of the entry's and its figures the entry's planned ones. | `launcher.py` 2194-2197 into 2198-2200, reaching 1575-1577, then 1583-1585 | package one hundred and twenty-one | is P121-01 |
+| H-1167 | It is marked as not an entry and as meaning the whole remainder whatever the entry was. | `launcher.py` 1586, then 1587 | package one hundred and twenty-one | folds into P121-01 |
+| H-1168 | Its in-memory write replaces whatever stood under its name, where the entry's own write fills a gap. | `launcher.py` 1589, then 1590 into 1591-1593, against 2083 into 2085-2087 | package one hundred and twenty-one | folds into P121-01 |
+| H-1169 | A rollback drops the entry's registration only where that pass put one in, and the exit's wherever a bracket name was recorded. | `launcher.py` 2006 into 2007, against 2008 into 2009 | package one hundred and twenty-one | folds into P121-01 |
+| H-1170 | An entry that ends leaving no position has the exit's registration dropped by name, a drop that asks nothing about brackets. | `launcher.py` 4393 into 4394-4398, reaching 1620, then 1621 into 1622 | package one hundred and twenty-one | folds into P121-01 |
+| H-1171 | With no state, no settings, or a strategy the settings do not name, a strategy is told of no positions, no money and a halted mode. | `launcher.py` 2497 into 2498-2502, or 2504, then 2509 into 2510-2514 | package one hundred and twenty-one | is P121-02 |
+| H-1172 | Its money is the pool at its share less what it has deployed, held at nothing at the least. | `launcher.py` 2516, then 2517, then 2518 | package one hundred and twenty-one | folds into P121-02 |
+| H-1173 | Every position the account holds is copied under the lock, and only then narrowed to the strategy's own. | `launcher.py` 2520 into 2521-2522, or 2524, then 2526-2528 | package one hundred and twenty-one | folds into P121-02 |
+| H-1174 | The mode is the strategy's own where it has one, and the account's where it has none. | `launcher.py` 2530, then 2531 | package one hundred and twenty-one | folds into P121-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 04:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 05:00 UTC
