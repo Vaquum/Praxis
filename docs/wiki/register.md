@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 667 not.**
+**6 of them reviewed, 669 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 165 — which thread the manager will take work from, and what a second budget offered for a command does
+
+Scope: the one thread two ways in will accept a call from and where it is learned, and
+the writing of a command's budget, part of a module the ledger marks `partial`. After
+the package before this one, five hundred and nineteen of its two thousand four hundred
+and eighty-seven statements were uncited. The refusals are named by two articles on what
+each way in refuses and the rule behind them is in none; the budget's writing is in no
+article. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 165
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1503 | The thread is remembered the first time an account is registered, and only the first time. | Promote. Two articles name the refusal and neither says where the thread comes from |
+| Row H-1504 | Handing news to an account and admitting an event both refuse a call from any other thread. | Merge with H-1503 |
+| Row H-1505 | Before any account is registered the remembered thread is absent and neither refusal can fire. | Merge with H-1503 |
+| Row H-1506 | News that passes both readings is put on the account's own queue without waiting. | Merge with H-1503 |
+| Row H-1507 | Where a budget is already held for the command, the one offered is dropped and the first kept. | Promote. The writing is in no article, and the silence of three of its four roads is the finding |
+| Row H-1508 | A budget naming neither a size nor a spend is not recorded at all. | Merge with H-1507 |
+| Row H-1509 | A second budget differing from the first is reported only where the caller asked for conflicts. | Merge with H-1507 |
+| Row H-1510 | One road of the four asks for conflicts, the one installing a command. | Merge with H-1507 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P165-01 | Which thread the manager will take work from | written | [which-thread-the-manager-will-take-work-from.md](atoms/which-thread-the-manager-will-take-work-from.md) |
+| P165-02 | What a second budget offered for a command does | written | [what-a-second-budget-offered-for-a-command-does.md](atoms/what-a-second-budget-offered-for-a-command-does.md) |
+
+### Re-seed, after writing package 165
+
+The second subject nearly went in from its own log line, which explains at length why
+the first budget is kept. The explanation is a claim about code elsewhere, and the
+article says instead what can be read: the budget caps a fill before it is counted, and
+the recording revises no total.
+
+| What it found | What came of it |
+|---|---|
+| The remembered thread is absent until the first account is registered. | Stated as a window: both ways in are open to any thread until that registration closes them |
+| The queue is safe to put to from one thread only. | Stated as the reason the rule exists, from the line that puts to it |
+| Three of the four roads that offer a budget offer it silently. | Stated. A replay offering a second budget keeps the first without a word |
+| The budget is read back by the figure that caps a fill. | Stated in place of the log's explanation, which is a claim rather than a behaviour |
+
+Worth recording: a log message that argues its case is a tempting source and an
+unciteable one. The argument may be sound and still describe code that has since
+changed; what the article can say is what the lines around it do.
 
 ## Package 164 — which way a ladder's change is given up, and what figures a changed order's replacement is given
 
@@ -11515,7 +11563,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1500 | A change to a plain resting order takes its price the same way and answers with no shown size at all. | `execution_manager.py` 10228-10230, then 10231 | package one hundred and sixty-four | folds into P164-02 |
 | H-1501 | Each road insists the command's own settings are of the kind the change is. | `execution_manager.py` 10214, or 10227 | package one hundred and sixty-four | folds into P164-02 |
 | H-1502 | The commitment the first subject turns on is marked the moment a resting rung is found, before any cancel is sent. | `execution_manager.py` 9143 into 9144 | package one hundred and sixty-four | folds into P164-01 |
+| H-1503 | The thread is remembered the first time an account is registered, and only the first time. | `execution_manager.py` 820 into 821 | package one hundred and sixty-five | is P165-01 |
+| H-1504 | Handing news to an account and admitting an event both refuse a call from any other thread, and both refuse an account the manager does not hold. | `execution_manager.py` 3101-3104, then 3109, and 3168-3171, then 3176, and 3111, then 3112 into 3114, and 3178, then 3179 into 3181 | package one hundred and sixty-five | folds into P165-01 |
+| H-1505 | Before any account is registered the remembered thread is absent and neither refusal can fire. | `execution_manager.py` 820, against 3102 | package one hundred and sixty-five | folds into P165-01 |
+| H-1506 | News that passes both readings is put on the account's own queue without waiting. | `execution_manager.py` 3116 | package one hundred and sixty-five | folds into P165-01 |
+| H-1507 | Where a budget is already held for the command, the one offered is dropped and the first kept. | `execution_manager.py` 2386, then 2388, then 2407 | package one hundred and sixty-five | is P165-02 |
+| H-1508 | A budget naming neither a size nor a spend is not recorded at all, and one offered where none is held is written under the command's name. | `execution_manager.py` 2383, then 2384, or 2409 | package one hundred and sixty-five | folds into P165-02 |
+| H-1509 | A second budget differing from the first is reported only where the caller asked for conflicts, and the budget is read back by the figure that caps a fill. | `execution_manager.py` 2389-2391, against 2477, read from 2428 | package one hundred and sixty-five | folds into P165-02 |
+| H-1510 | One road of the four asks for conflicts, the one installing a command. | `execution_manager.py` 2346, then 2350, against 1129, and 1158, and 4927 | package one hundred and sixty-five | folds into P165-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 02:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 03:00 UTC
