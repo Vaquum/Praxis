@@ -2,10 +2,10 @@
 row: P175-02
 baseline: 49aa659
 created: 2026-11-16 08:00 UTC
-modified: 2026-11-16 08:00 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "A command already marked ended is passed over"
-    source: "`execution_manager.py` 4786, then 4787"
+    source: "`execution_manager.py` 4785, then 4786, then 4787"
   - claim: "The figures are the admitted totals kept for the command"
     source: "`execution_manager.py` 4790-4792"
   - claim: "The status is filled where the target is reached and part-filled otherwise"

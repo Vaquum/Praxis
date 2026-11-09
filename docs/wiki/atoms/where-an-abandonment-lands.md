@@ -2,12 +2,12 @@
 row: P4-24
 baseline: 49aa659
 created: 2026-10-01 18:14 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "An abandonment for a command already ended does nothing"
     source: "`execution_manager.py` 8482-8487"
   - claim: "One for work fed out in slices or laddered stops the rest being scheduled and attempts a cancel for the children already out"
-    source: "`execution_manager.py` 8489-8491 into 6545-6551, 6557-6558 and 6595-6597"
+    source: "`execution_manager.py` 8489-8491 into 6534, then 6535 into 6536, or 6545-6551, 6557-6558 and the draining recorded at 6583-6593 before 6595-6597"
   - claim: "A child the venue refuses or cannot find is left active, the rest still attempted"
     source: "`execution_manager.py` 6447-6468"
   - claim: "A ladder caught mid-change takes another path, which gives up on the first child it fails to cancel"

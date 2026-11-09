@@ -2,7 +2,7 @@
 row: P147-01
 baseline: 49aa659
 created: 2026-11-15 18:00 UTC
-modified: 2026-11-15 18:00 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "A slice's send is wrapped, and the moment is stamped only once the venue has answered"
     source: "`execution_manager.py` 5991, and 6218"
@@ -19,7 +19,7 @@ evidence:
   - claim: "Past all four the submission is recorded under the answer's own moment and applied"
     source: "`execution_manager.py` 6015-6021, then 6022, then 6023, and 6248, then 6249"
   - claim: "Each fill the answer already carries is then written as a fill of its own, under that same moment"
-    source: "`execution_manager.py` 6025, then 6026-6037, and 6251, then 6252-6266"
+    source: "`execution_manager.py` 6025, then 6026-6037, each fill recorded at 6042, then 6043 into 6044, the name answered at 6054, and 6251, then 6252-6266"
 ---
 # The four roads out of a slice's send
 

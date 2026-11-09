@@ -2,10 +2,10 @@
 row: P180-02
 baseline: 49aa659
 created: 2026-11-16 10:30 UTC
-modified: 2026-11-16 10:30 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "The bracket is marked as having had its protection placed before anything is sent"
-    source: "`execution_manager.py` 4906, then 4929-4935"
+    source: "`execution_manager.py` 4906, then 4925, then 4929-4935"
   - claim: "That mark is what the boot's own pass over brackets reads to pass one over"
     source: "`execution_manager.py` 4906, against 4739, then 4740"
   - claim: "The protective side is the opposite of the entry's"

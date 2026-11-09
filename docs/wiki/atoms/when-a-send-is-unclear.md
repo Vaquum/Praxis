@@ -2,7 +2,7 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-11-14 11:30 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout, where the send carried a name of its own"
     source: "`binance_adapter.py` 1633-1636 under the wrap at 1637-1643, past the test at 1628, taking what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
@@ -15,7 +15,7 @@ evidence:
   - claim: "Either wrap triggers a lookup before the send is called failed"
     source: "`execution_manager.py` 4282-4290"
   - claim: "The lookup asks the venue about the name Praxis used"
-    source: "`execution_manager.py` 5518-5523, or for an OCO leaving instead at 5513-5516 for the list lookup at 5582"
+    source: "`execution_manager.py` 5518-5523, the answer built at 5553-5557, or for an OCO leaving instead at 5513-5516 for the list lookup at 5582"
   - claim: "A venue that has no such order makes the send a failure"
     source: "`execution_manager.py` 5524-5532"
   - claim: "A first lookup failing with a venue error makes the send a failure"

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 704 not.**
+**6 of them reviewed, 705 not.**
 
 ## Package 1
 
@@ -856,6 +856,59 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 184 — what target the closing command is given, and the sweep over the next two and a half thousand lines
+
+Scope: the target figure a hand-placed close's command carries, and the third package of
+the sweep. One subject promotes; everything else is a widening. After this package no
+statement in the module's first six thousand six hundred lines is uncited that a claim
+may name.
+
+### What the widenings were
+
+| What was uncited | What accounts for it now |
+|---|---|
+| The lines that hand a built thing back — an outcome, a rescue's answer, an order's name | The claim covering each road, widened to what it answers with. Four statements |
+| The lines that open a guard around a report, an advance or a send | The claim covering each failure, widened to where the guard opens. Three statements |
+| The moment taken before a protective send, and the command read off the trade before it | The claim covering each writing, widened to what it reads first. Six statements |
+| The fills a slice's send is given at placement, recorded and carried into the figures | The claim covering the send's four roads, widened to the fills it writes. Three statements |
+| The applying that follows each recording, in the entry's settlement and the refusal's | The claim covering each record, widened past the append. Three statements |
+| The reading that decides a quote-sized order's status | The claim covering the status, widened to the reading above it. One statement |
+| The settling attempted at the end of a ladder's start | The claim covering the start, widened to its last line. One statement |
+| A call-off naming work the account no longer holds, and the draining recorded before the marks | The claim covering where an abandonment lands, widened to both. Four statements |
+| The rest — the figures read before a report, the clock read before a pass over due work | The claim covering each, widened in place. Four statements |
+
+### Merge and promote, package 184
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1649 | The closing command's target is the whole position, because an outcome whose filled figure stands above its target is refused outright. | Promote. The target is in no article, and the refusal that forces it is two modules away |
+| Row H-1650 | The budget already recorded for that command is taken as its target where one stands, and the size being closed where none does. | Merge with H-1649 |
+| Row H-1651 | Both the protective pair's fills and the hand-placed close's are counted under that one command. | Merge with H-1649 |
+| Row H-1652 | The command built for the closing side is a plain market order carrying the entry's trade and timeout. | Merge with H-1649 |
+
+One subject promotes, three rows merge into it, and the rest of the package is widening.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P184-01 | What target the closing command is given | written | [what-target-the-closing-command-is-given.md](atoms/what-target-the-closing-command-is-given.md) |
+
+### Re-seed, after writing package 184
+
+The subject could not be written from this module. Why the target is the whole position
+and not the remainder is a rule in the outcome's own type, which refuses a filled figure
+standing above its target; without that line the choice reads as an oddity.
+
+| What it found | What came of it |
+|---|---|
+| An outcome whose filled figure exceeds its target is refused outright. | Cited from the type that refuses it, which is what makes the target choice legible |
+| The target is the figure the admitted totals were measured against all along. | Stated. It is read from the recorded budget rather than worked out afresh |
+| The closing command is a plain market order, carrying nothing of the entry's way of working. | Stated |
+| A docstring in this module gives the same reason in its own words. | Left where it is. The article cites the refusing line instead |
+
+Worth recording: three packages of sweeping have now each turned up one subject worth an
+article of its own, found by asking what a line nobody had cited was for. The sweep is
+not only bookkeeping.
 
 ## Package 183 — the test both protective prices must pass, and what the venue's tick does to one
 
@@ -12553,7 +12606,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1646 | A price named outright is used as named, where one given as an offset is worked out from the entry's average and snapped. | `execution_manager.py` 5208, then 5209, or 5211, then 5212-5216, and 5218, then 5219, or 5221, then 5222-5226 | package one hundred and eighty-three | folds into P183-02 |
 | H-1647 | The direction an offset is applied in turns on the side of the entry. | `execution_manager.py` 5206 | package one hundred and eighty-three | folds into P183-02 |
 | H-1648 | The stop's own limit price is passed through as given at first placement, and snapped on a change. | `execution_manager.py` 5228, against 9873, and 9884, and 9895 | package one hundred and eighty-three | folds into P183-02 |
+| H-1649 | The closing command's target is the whole position, because an outcome whose filled figure stands above its target is refused outright. | `praxis/core/domain/trade_outcome.py` 130, then 131-132, against `execution_manager.py` 7735-7750, the target set at 7741 | package one hundred and eighty-four | is P184-01 |
+| H-1650 | The budget already recorded for that command is taken as its target where one stands, and the size being closed where none does. | `execution_manager.py` 7728, then 7729-7733, the fallback at 7732 | package one hundred and eighty-four | folds into P184-01 |
+| H-1651 | Both the protective pair's fills and the hand-placed close's are counted under that one command. | `execution_manager.py` 4927, and 7815, against 7865 | package one hundred and eighty-four | folds into P184-01 |
+| H-1652 | The command built for the closing side is a plain market order carrying the entry's trade and timeout. | `execution_manager.py` 7735-7750 | package one hundred and eighty-four | folds into P184-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 12:30 UTC

@@ -2,7 +2,7 @@
 row: P1-02
 baseline: 49aa659
 created: 2026-09-20 16:25 UTC
-modified: 2026-10-04 16:24 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "any of the arms at `execution_manager.py` 3994-4007, with a defensive refusal for anything that still arrives at 4170-4188"
@@ -25,7 +25,7 @@ evidence:
   - claim: "No figure at all turns it back too"
     source: "the reason given at `execution_manager.py` 4067-4079, whether the book request failed at 4222-4228 or the book it returned could not be priced, from either sizing at 4200-4202 or 4204-4205, logged at 4207-4212"
   - claim: "Only an order left pending or partly filled is measured against its deadline"
-    source: "`execution_manager.py` 4411-4414, the status assigned just above by either the quote arm at 4395-4400 or the quantity arm at 4401-4408"
+    source: "`execution_manager.py` 4411-4414, the status assigned just above by the reading at 4393 taking either the quote arm at 4395-4400 or the quantity arm at 4401-4408, the guard around the reporting opening at 4418"
   - claim: "A deadline already past then cancels the order and reports it expired"
     source: "the moment stored at either `execution_manager.py` 4281 or 4291 and compared at 4414, marked at 4415-4417, cancelled by either 4419-4424 or 4426-4430, reported at 4446-4448"
   - claim: "The order is named and the intent written down before the order is sent"

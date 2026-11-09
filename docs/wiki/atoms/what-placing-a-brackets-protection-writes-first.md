@@ -2,7 +2,7 @@
 row: P145-02
 baseline: 49aa659
 created: 2026-11-15 17:00 UTC
-modified: 2026-11-15 17:00 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "An entry holding nothing has its bracket registered all the same, with no protection placed and the skip reported"
     source: "`execution_manager.py` 4887 into 4898, then 4904"
@@ -21,7 +21,7 @@ evidence:
   - claim: "Only past that is the pair sent to the venue"
     source: "`execution_manager.py` 4967-4975"
   - claim: "The exit command is installed, given the entry's trade name and mapped to its order only after the send has answered"
-    source: "`execution_manager.py` 5017, then 5018, then 5019, past 5015"
+    source: "`execution_manager.py` 5017, then 5018, then 5019, past 5015, the send recorded at 5021-5026"
 ---
 # What placing a bracket's protection writes first
 

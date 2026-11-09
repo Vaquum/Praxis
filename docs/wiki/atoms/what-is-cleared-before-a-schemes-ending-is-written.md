@@ -2,10 +2,10 @@
 row: P170-02
 baseline: 49aa659
 created: 2026-11-16 05:30 UTC
-modified: 2026-11-16 05:30 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "The next run time is forgotten, the live children cleared, and the scheme taken off the account's live schemes"
-    source: "`execution_manager.py` 6499, then 6500, then 6501"
+    source: "`execution_manager.py` 6498, then 6499, then 6500, then 6501"
   - claim: "All three happen before the ending is recorded"
     source: "`execution_manager.py` 6501, then 6503"
   - claim: "The figures are then gathered from the admitted totals and the terminal report made"

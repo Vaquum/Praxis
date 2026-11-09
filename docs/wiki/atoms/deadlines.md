@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "A deadline counts as passed where the moment given stands at or past it"
     source: "`execution_manager.py` 2939"
@@ -27,7 +27,7 @@ evidence:
   - claim: "The gap is refused on the way in by comparison alone, so one comparing neither way is taken and breaks the pass that measures it"
     source: "`praxis/core/domain/trade_command.py` 106-108, measured at either `execution_manager.py` 3995 or 4004 by way of 2925, logged at 4012"
   - claim: "The same pass begins winding either of them up against that clock"
-    source: "`execution_manager.py` 5816-5824, which skips one already draining or mid-change at 5817-5821"
+    source: "`execution_manager.py` 5814, then 5816-5824, which skips one already draining or mid-change at 5817-5821"
   - claim: "Winding up cancels children and leaves the run on the books until they settle"
     source: "`execution_manager.py` 8375-8383, held open at 6355-6356 while a child remains"
   - claim: "Protection whose state the venue could not settle waits on a clock of its own"

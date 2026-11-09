@@ -2,7 +2,7 @@
 row: P2-43
 baseline: 49aa659
 created: 2026-09-27 07:37 UTC
-modified: 2026-10-11 20:17 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "On the ordinary path the figure moves on as each slice is sent"
     source: "`execution_manager.py` 5923, set past the still-active child at 5920-5921"
@@ -19,7 +19,7 @@ evidence:
   - claim: "Every piece actually handed over is built without slice counts"
     source: "`outcome_translator.py` 265-270, 289-301, 314-325, 331-340 and 354-366"
   - claim: "The progress itself is kept elsewhere and restored"
-    source: "`execution_manager.py` 6311-6322, restored at 1970-1979"
+    source: "`execution_manager.py` 6308, then 6309, then 6311-6322, restored at 1970-1979"
   - claim: "How far along it is cannot be given where no target was"
     source: "`praxis/core/domain/trade_outcome.py` 182-185"
   - claim: "The plain builder takes the target from the command's amount of coin, leaving it absent for one sized in money"

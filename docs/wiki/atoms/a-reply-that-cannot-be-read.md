@@ -2,7 +2,7 @@
 row: P1-10
 baseline: 49aa659
 created: 2026-09-23 20:04 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "On a send, a body that will not parse as JSON is wrapped as a transport failure"
     source: "`binance_adapter.py` 592 caught at 660-662, leaving at 680, wrapped at 1637-1643"
@@ -25,7 +25,7 @@ evidence:
   - claim: "The same failure on a lookup from a plain send leaves it neither adopted nor written off"
     source: "raised in `binance_adapter.py` 1027-1039, escaping `execution_manager.py` 5533-5542"
   - claim: "The same lookup failure under a slice ends the run rejected instead"
-    source: "escaping the arm at `execution_manager.py` 6008, finalized at 5866-5882"
+    source: "escaping the arm at `execution_manager.py` 6008, the guard opening at 5862 around the advance at 5863, finalized at 5866-5882"
   - claim: "On a slice it ends the whole run instead"
     source: "escaping the handler at `execution_manager.py` 6008, finalized at 5866-5882"
   - claim: "On a protective order it can stop the account"

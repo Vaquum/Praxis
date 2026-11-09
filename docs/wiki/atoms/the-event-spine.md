@@ -2,7 +2,7 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-10-11 19:29 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "Each event kept carries its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"
@@ -17,9 +17,9 @@ evidence:
   - claim: "A send writes down the intention before the venue is asked"
     source: "`execution_manager.py` 4264-4265, ahead of the call at 4268-4272"
   - claim: "An answer that could be read is written down after"
-    source: "`execution_manager.py` 4301-4308"
+    source: "`execution_manager.py` 4301-4308, then 4309"
   - claim: "A failure of a kind looked for is written down instead"
-    source: "reached at `execution_manager.py` 4296-4299, delegated at 5420-5422, built and appended at 5457-5465"
+    source: "reached at `execution_manager.py` 4296-4299, delegated at 5420-5422, answered at 5424, built and appended at 5457-5465, applied at 5466"
   - claim: "A reply malformed past what is looked for escapes both and leaves only a line in the log"
     source: "raised at `binance_adapter.py` 940, caught by none of the alternatives — either `execution_manager.py` 4282, or 4292, or 4296 — and logged at 4012-4019"
   - claim: "One lock serves the writers sharing one spine object, and belongs to that object alone"

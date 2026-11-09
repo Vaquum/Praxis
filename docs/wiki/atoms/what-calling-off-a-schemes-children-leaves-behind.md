@@ -2,10 +2,10 @@
 row: P174-01
 baseline: 49aa659
 created: 2026-11-16 07:30 UTC
-modified: 2026-11-16 07:30 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "A copy of the live children is walked, so the set can be changed as it goes"
-    source: "`execution_manager.py` 6447"
+    source: "`execution_manager.py` 6445, then 6447"
   - claim: "A name the record holds no order for is dropped from the live set"
     source: "`execution_manager.py` 6448, then 6449, then 6450, then 6451"
   - claim: "A name the venue does not know is left in the live set"

@@ -85,6 +85,7 @@ the others where it appears.
 
 - [Order placement](atoms/how-an-order-is-placed.md) — placing happens in two stages: recording the work and returning, then reaching the venue on a later pass.
 - [What a command's acceptance leaves behind if the queue is full](atoms/what-a-commands-acceptance-leaves-behind-if-the-queue-is-full.md) — the acceptance is written before the instruction reaches the queue, so a queue found full has a record to undo.
+- [What target the closing command is given](atoms/what-target-the-closing-command-is-given.md) — the instruction a hand-placed close settles under targets the whole position, which is what lets both it and the protective pair count under one name.
 - [What the closing side of a bracket is given](atoms/what-the-closing-side-of-a-bracket-is-given.md) — the protective pair gets its own instruction, name and budget, which keeps what it fills apart from the entry.
 - [What a queue reservation is for](atoms/what-a-queue-reservation-is-for.md) — a place in the queue is held before the command is put there, so that two commands admitted at the same moment cannot both be told there is room.
 - [What a caller-supplied command name must be](atoms/what-a-caller-supplied-command-name-must-be.md) — a name the caller chooses is held to three demands a made-up name never has to meet, being trusted instead by the way it is made.
@@ -802,7 +803,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 705
+Both sides are the subject, and Praxis is the side that has been written. 706
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -813,4 +814,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 12:30 UTC

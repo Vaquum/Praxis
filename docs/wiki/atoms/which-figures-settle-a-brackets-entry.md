@@ -2,7 +2,7 @@
 row: P155-01
 baseline: 49aa659
 created: 2026-11-15 22:00 UTC
-modified: 2026-11-15 22:00 UTC
+modified: 2026-11-16 12:30 UTC
 evidence:
   - claim: "The command's amount is insisted upon, and the bracket taken out of the account's brackets before anything is weighed"
     source: "`execution_manager.py` 4586, then 4587, then 4588"
@@ -19,7 +19,7 @@ evidence:
   - claim: "The outcome carries the admitted figures, with its average price worked out from those"
     source: "`execution_manager.py` 4621-4632"
   - claim: "The protection is placed only after that outcome has been built"
-    source: "`execution_manager.py` 4635-4637, past 4621"
+    source: "`execution_manager.py` 4635-4637, past 4621, the outcome answered at 4644"
 ---
 # Which figures settle a bracket's entry
 
