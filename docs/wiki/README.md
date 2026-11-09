@@ -128,6 +128,9 @@ the others where it appears.
 - [What a fill changes](atoms/what-a-fill-changes.md) — a fill updates the order's record and then the money's, so a failure on the first leaves the second alone.
 - [Fills and the order](atoms/fills-and-the-order.md) — how a fill moves an order's totals and status, including one arriving too late.
 - [What the facade refuses once a start has begun](atoms/what-the-facade-refuses-once-a-start-has-begun.md) — the callback setters stop accepting changes partway through starting rather than at the end of it, and the refusal names the setter that arrived too late.
+- [What the facade is built with](atoms/what-the-facade-is-built-with.md) — callbacks supplied in the settings are wrapped as it is built while ones supplied later are wrapped as they arrive, a filter list is copied so the caller cannot alter it, and every field it keeps starts empty.
+- [What the facade hands out](atoms/what-the-facade-hands-out.md) — the pieces it holds are handed back exactly as held so a caller can reach through them, and asking for the event loop before starting throws rather than answering with nothing.
+- [What registering an account touches](atoms/what-registering-an-account-touches.md) — adding an account fills one collection while removing it closes a connection and clears three, because most of what accumulates was not put there by the adding.
 - [How a caller's callback is wrapped](atoms/how-a-callers-callback-is-wrapped.md) — a supplied callback is wrapped so it can always be awaited whether it is plain or not, and one setter deliberately passes an absent callback through unwrapped because its far side reads absence as nobody listening.
 - [What routing an outcome drops](atoms/what-routing-an-outcome-drops.md) — the lock covers finding the queue and not handing anything to it, so a queue removed in between still receives, and a full queue raises into the router rather than slowing it.
 - [How an event finds its way through the projection](atoms/how-an-event-finds-its-way-through-the-projection.md) — some kinds are handled and answered before the rest are tried in a single chain, and several kinds share one closing routine where a refused send and a refusal from the venue leave the order in the same final state, so the state alone does not say which happened.
@@ -631,7 +634,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 534
+Both sides are the subject, and Praxis is the side that has been written. 537
 articles exist. Of Praxis's own source files 82 are accounted for in full and 6 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -642,4 +645,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 09:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-14 10:00 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 533 not.**
+**6 of them reviewed, 536 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 99 — what the facade is built with, hands out and registers
+
+Scope: the building of the facade, the things it hands out, and what registering an
+account touches, part of a module the ledger marks `partial`. After the package
+before this one, a hundred and eighty-five of its five hundred and twenty-five
+statements were uncited. What it is built with, what it hands out, and what
+registering touches are in no article. The starting, the stopping and the
+reconciliation are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 99
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1008 | Two of the configuration's callbacks are wrapped as the facade is built, where the ones given through a setter are wrapped when they are set. | Promote. What the building does is in no article, and two roads to the same place with only one letting an absence survive is the pair worth drawing |
+| Row H-1009 | The symbols a bootstrap filters on are frozen into a set that cannot be changed, a venue is built where none was handed in, and fourteen fields start empty. | Merge with H-1008. A facade built and not started holding nothing about any account is what the fourteen mean |
+| Row H-1010 | Five things are handed out exactly as held, while asking for the loop before a start has set it raises. | Promote. What it hands out is in no article, and two kinds of not-yet-ready — a flag that reports and a loop that refuses — is the distinction |
+| Row H-1011 | Registering demands a started facade, registers inbound and adds to the managed set, where unregistering closes the stream and clears three collections. | Promote. The pair is in no article, and the undoing reaching further than the doing is because the doing is not what put most of it there |
+| Row H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | Merge with H-1011 |
+
+Three subjects promote and two rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P99-01 | What the facade is built with | written | [what-the-facade-is-built-with.md](atoms/what-the-facade-is-built-with.md) |
+| P99-02 | What the facade hands out | written | [what-the-facade-hands-out.md](atoms/what-the-facade-hands-out.md) |
+| P99-03 | What registering an account touches | written | [what-registering-an-account-touches.md](atoms/what-registering-an-account-touches.md) |
+
+### Re-seed, after writing package 99
+
+Three findings, and one of them links back to the package before.
+
+| What it found | What came of it |
+|---|---|
+| Two callbacks are wrapped at building where five are wrapped at setting, and only the setting road lets an absence survive. | Stated in the building article, linking the package before this one, since the pair is what makes the earlier finding legible |
+| Five things are handed out exactly as held, with no copy, so a caller can reach through any of them. | Stated. It is the ordinary thing for a facade to do and worth saying because the frozen set two paragraphs earlier shows the file knows the alternative |
+| Unregistering clears three collections where registering filled one. | Stated, with the reason: the doing is not what put most of it there |
+| Settling a queue is the one delegation that demands nothing of the facade's state. | Stated, with what is left open: whatever happens on an unstarted facade is the manager's to decide, and this module does not say |
+
+Worth recording: the second row nearly went unwritten for being obvious. What made
+it worth a sentence is eight lines above it, where a caller's set is copied into a
+frozen one — the same file, the same building, one input defended and four handed
+out bare. Obvious becomes worth stating when the file itself shows the alternative.
 
 ## Package 98 — what the facade refuses, wraps and drops
 
@@ -7919,6 +7962,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1005 | Routing looks the queue up under the lock and lets the lock go before anything is put. | `praxis/trading.py` 335, then 336, ahead of 345 | package ninety-eight | is P98-03 |
 | H-1006 | An account with no queue has its outcome dropped with a warning naming the account and the command. | `praxis/trading.py` 338 into 339-341, then 343 | package ninety-eight | folds into P98-03 |
 | H-1007 | Registering takes a lock of its own and unregistering takes the same lock, tolerating an account that has none. | `praxis/trading.py` 312 then 313, and 322 then 323 | package ninety-eight | folds into P98-03 |
+| H-1008 | Two of the configuration's callbacks are wrapped as the facade is built, where the ones given through a setter are wrapped when they are set. | `praxis/trading.py` 205, and 206-208, into 143-145 | package ninety-nine | is P99-01 |
+| H-1009 | The symbols a bootstrap filters on are frozen into a set that cannot be changed, a venue is built where none was handed in, and fourteen fields start empty. | `praxis/trading.py` 211, and 212 into 213-215, and 236 into 237-240, and 241 through 254 | package ninety-nine | folds into P99-01 |
+| H-1010 | Five things are handed out exactly as held, while asking for the loop before a start has set it raises. | `praxis/trading.py` 260, and 266, and 272, and 278, and 284, against 294 into 295-296 | package ninety-nine | is P99-02 |
+| H-1011 | Registering demands a started facade, registers inbound and adds to the managed set, where unregistering closes the stream and clears three collections. | `praxis/trading.py` 1835 then 1836 then 1837, against 1842, and 1844 then 1845 into 1846-1847, then 1851 then 1852 and 1853 and 1854 | package ninety-nine | is P99-03 |
+| H-1013 | A failure of that stream's closing is caught and reported rather than stopping the rest. | `praxis/trading.py` 1848-1849 | package ninety-nine | folds into P99-03 |
+| H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
 | H-989 | The rollback a failed commit asks for is the same guarded one. | `event_spine.py` 924, into 901-904 | package ninety-six | folds into P96-02 |
@@ -7933,4 +7982,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 10:00 UTC
