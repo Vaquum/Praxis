@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 536 not.**
+**6 of them reviewed, 538 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 100 — how the reconciliation loop stops, and what its phase map agrees with
+
+Scope: the loop that reconciles each account and the map recording how far each has
+got, part of a module the ledger marks `partial`. After the package before this one,
+a hundred and fifty-eight of its five hundred and twenty-five statements were
+uncited. How the loop is stopped, and what the phase map and the gate agree on, are
+in no article. The starting, the stopping and the reconciliation passes themselves
+are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 100
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1014 | The stopping flag is weighed before each cycle and again before each account, so a stop lands before the next account rather than after the cycle. | Promote. The loop's stopping is in no article, and the second weighing being what makes a stop quick is the whole of why it is there |
+| Row H-1015 | The wait between cycles stands inside a guard naming the cancelling alone, which answers rather than carrying on. | Merge with H-1014. A cancelling arriving mid-account is not caught here, which is the other half of the stopping |
+| Row H-1016 | The ready accounts are walked in sorted order and each turn is awaited one at a time. | Merge with H-1014 |
+| Row H-1017 | An idle phase takes the account out of the map rather than being stored, so an account's absence from the map means idle. | Promote. The map is in no article, and one representation of idle rather than two is what makes the gate derivable |
+| Row H-1018 | The manager's gate is worked out from whether the phase is idle, where it is set rather than passed in, so the two cannot be made to disagree. | Merge with H-1017 |
+| Row H-1019 | Setting the gate for an account the manager does not hold takes that account out of the map too. | Merge with H-1017. It is a second road to a clearing the unregistering also does |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P100-01 | How the reconciliation loop is stopped | written | [how-the-reconciliation-loop-is-stopped.md](atoms/how-the-reconciliation-loop-is-stopped.md) |
+| P100-02 | What the phase map and the gate agree on | written | [what-the-phase-map-and-the-gate-agree-on.md](atoms/what-the-phase-map-and-the-gate-agree-on.md) |
+
+### Re-seed, after writing package 100
+
+One draft sentence contradicted an article written in the package before this one.
+
+| What it found | What came of it |
+|---|---|
+| The draft said the failure path is how an unregistered account's phase is forgotten, "rather than something the unregistering does". The package before this one states that unregistering clears the phase, citing the line that does it. | Corrected. The failure path is a second road to the same clearing, for an account the manager lost without the facade being told, and the article now says so and links the other |
+| The stopping flag is weighed twice, which is what makes a stop land before the next account rather than after the cycle. | Stated, with what the second weighing buys |
+| A cancelling arriving while an account is being reconciled is not caught by the loop's guard. | Stated. The guard names the cancelling and sits only around the wait, so where the cancelling lands decides whether the loop ends tidily |
+| The gate is derived from the phase in the one call, so neither can be set without the other following. | Stated |
+
+Worth recording: the contradiction is the first in this run between two articles one
+package apart, and it was caught by reading the line numbers of the article I had
+just linked. Writing the link is what found it — had the draft not reached for
+"rather than something the unregistering does", nothing would have sent me to the
+other article, and both sentences would have shipped. A claim that distinguishes
+itself from another article has to be checked against that article, not against the
+code alone.
 
 ## Package 99 — what the facade is built with, hands out and registers
 
@@ -7967,6 +8013,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1010 | Five things are handed out exactly as held, while asking for the loop before a start has set it raises. | `praxis/trading.py` 260, and 266, and 272, and 278, and 284, against 294 into 295-296 | package ninety-nine | is P99-02 |
 | H-1011 | Registering demands a started facade, registers inbound and adds to the managed set, where unregistering closes the stream and clears three collections. | `praxis/trading.py` 1835 then 1836 then 1837, against 1842, and 1844 then 1845 into 1846-1847, then 1851 then 1852 and 1853 and 1854 | package ninety-nine | is P99-03 |
 | H-1013 | A failure of that stream's closing is caught and reported rather than stopping the rest. | `praxis/trading.py` 1848-1849 | package ninety-nine | folds into P99-03 |
+| H-1014 | The stopping flag is weighed before each cycle and again before each account. | `praxis/trading.py` 1351, and 1358 into 1359 | package one hundred | is P100-01 |
+| H-1015 | The wait between cycles stands inside a guard naming the cancelling alone, which answers rather than carrying on. | `praxis/trading.py` 1352-1353 into 1354, then 1355 | package one hundred | folds into P100-01 |
+| H-1016 | The ready accounts are walked in sorted order and each turn is awaited one at a time. | `praxis/trading.py` 1357, then 1361 | package one hundred | folds into P100-01 |
+| H-1017 | An idle phase takes the account out of the map rather than being stored, and any other phase is stored against it. | `praxis/trading.py` 1400 into 1401, against 1402-1403 | package one hundred | is P100-02 |
+| H-1018 | The manager's gate is worked out from whether the phase is idle, where it is set rather than passed in. | `praxis/trading.py` 1406-1408 | package one hundred | folds into P100-02 |
+| H-1019 | Setting the gate for an account the manager does not hold takes that account out of the map too. | `praxis/trading.py` 1409 into 1410 | package one hundred | folds into P100-02 |
 | H-1012 | Pulling positions demands a started facade and hands the asking on, where settling a queue hands it on and demands nothing. | `praxis/trading.py` 1988 then 1989, against 1930 | package ninety-nine | folds into P99-03 |
 | H-987 | A rollback stands inside a guard that reports its own failure and lets it go no further. | `event_spine.py` 901-902 into 903, which raises nothing on | package ninety-six | is P96-02 |
 | H-988 | A commit stands inside its own guard, which rolls back, reports, and raises the commit's failure on. | `event_spine.py` 921-922 into 923, then 924, then 926 | package ninety-six | folds into P96-02 |
@@ -7982,4 +8034,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 10:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 11:00 UTC
