@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 603 not.**
+**6 of them reviewed, 604 not.**
 
 ## Package 1
 
@@ -856,6 +856,76 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 132 — the host swept, and what a host keeps as it is built
+
+Scope: the whole of the host, which the ledger marked `partial` with two hundred and
+two of its twelve hundred and one statements uncited after the package before this
+one. One subject promotes; everything else is a widening. A hundred and three of
+those statements were citable and every one of them is now cited, leaving
+forty-five that are an exclusion. The cell moves to `full`.
+
+### What the hundred and three were
+
+| What was uncited | What accounts for it now |
+|---|---|
+| The lines that hand a built thing back — a settings object, a provider, a request, a record, a plan, a runner, a list of names | The claim covering each building, widened to say the thing is handed back. Nineteen statements |
+| The lines that open a wrapping around a send, a walk, a wait or a write | The claim covering each failure, widened to say where the wrapping begins. Nine statements |
+| The lines that insist a runtime is there, past a refusal that would have answered | The claim covering each refusal, widened to say what follows it. Six statements |
+| The fields the watch and the host are built holding | A claim of its own in each case: the watch's five, and the host's own, which outgrew its article and became one | 
+| The guards and the reads that each background set makes before building or stopping | The shared-pattern article, widened to name what each build takes off the host and what each stop reads back |
+| The reading of the registration and the context inside the synchronous accounting, and its answer on a reported failure | The road an arriving report takes, widened with both |
+| The two settings that fix how the host reports about itself | What a host writes about itself, widened to name them |
+| The rest — the per-account settings built from the caps, the strategies folder resolved to text, the two folders and the reader over them, the epoch read beside the figures road, the batch sent to the checks, the moment read off the clock | The claim covering each, widened in place. Thirty-one statements |
+
+Four of the widenings were placed a second time. Three articles carrying a `reviewed`
+row were edited first, which un-reviews them; rather than spend three reviews on
+citations that say a thing is handed back, those articles were read back from the
+commit and the statements re-homed in articles that carry no review — the two
+providers into what each check is built holding, and the registering's handle into
+what a submission remembers between its halves. A review costs a reviewer a pass over
+an article; a widening costs a line. Where the two meet, the widening moves.
+
+### Merge and promote, package 132
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1248 | The settings, the record or the path to one, the venue, the port, the two folders and whether permissions are enforced are kept as handed in; the accounts alone are copied; and a stop, a book cache and an alert sink are built rather than handed in. | Promote. What a host keeps decides what can change afterwards, and the article it grew inside was about refusals |
+| Row H-1249 | The alert sink reads the address to post to from the environment as it is built, and a posting opens a session of its own under a total deadline and raises on an answer that is not a success. | Merge with H-1248. Where an alert goes is settled at build time and not when one is raised |
+| Row H-1250 | The watch is built once per account, holding the registry it scans, the lock over it, a clock, the age that warns and the gap between scans. | Folds into P124-01 by widening, the fields having had no claim |
+| Row H-1251 | Each background set takes what it needs off the host and does nothing where it is missing or where a set already stands. | Folds into P124-02 by widening |
+| Row H-1253 | Each records its set only once every one of them is built, and reads its set back before stopping. | Folds into P124-02 by widening |
+| Row H-1252 | The synchronous accounting reads the registration under the registry's lock and takes the context off it, and returns on a reported failure with the figures where they stood. | Folds into P5-05 by widening |
+
+One subject promotes, one row merges into it, and four fold into articles already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P132-01 | What a host keeps as it is built | written | [what-a-host-keeps-as-it-is-built.md](atoms/what-a-host-keeps-as-it-is-built.md) |
+
+### Re-seed, after writing package 132
+
+Two things went wrong in this package before anything went right, and both are worth
+the record.
+
+| What it found | What came of it |
+|---|---|
+| A sweep was attempted as a script that widened citation ranges outward over uncited lines. It had no notion of statement boundaries, so it attached a citation to a line beginning a different statement, and it dropped the front matter's closing newline in twenty articles. | Reverted by reading each file back from the commit, and done again by hand. The second attempt, with a statement-boundary rule, found nothing at all to widen |
+| The reason it found nothing: the gate counts only the first line of each statement, so an uncited line is never a continuation line. There are no plumbing lines to absorb — every one is a statement needing a claim that names it | Recorded. The whole premise of a mechanical sweep over this module was wrong, and the work was a hundred and three small claim extensions by hand |
+| What a host keeps as it is built outgrew the article it was written into. | Split out, which is what the cap is for. The subject that made it grow — what is kept, copied, or built — is a different question from what is refused |
+| What a scan reads outgrew the watch's scheduling article. | Moved to the article about what a pass finds, where it belongs, rather than split into a stub |
+
+Forty-five statements of the module are left uncited and are an exclusion rather than
+work outstanding: sixteen are the signature lines of routines declared inside other
+routines, and twenty-nine are log calls. The gate refuses both kinds as evidence for
+a claim.
+
+Worth recording about method: a mechanical sweep is available only where uncited
+lines are the inside of claimed statements, which is what the Nexus module swept two
+dozen packages ago turned out to have. Here every uncited line was a statement head,
+so there was nothing to absorb and the script that pretended otherwise did damage. The
+check that would have caught it before the damage is the one that was missing from
+the script and present in the gate: does this citation stay inside one statement.
 
 ## Package 131 — what the health road reports unhealthy for, and which accounts the figures road knows
 
@@ -9709,7 +9779,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1245 | The figures road demands a loopback address and no token, and answers that it is not ready where the host has no record of its own. | `launcher.py` 3340 into 3341, or 3343 into 3344 | package one hundred and thirty-one | is P131-02 |
 | H-1246 | Its accounts come from a mapping built once from the settings and kept, each carrying the one standing symbol, the pool from its settings, and the series and width its settings settle. | `launcher.py` 3311 into 3312, or 3316-3325, then 3327, then 3329 | package one hundred and thirty-one | folds into P131-02 |
 | H-1247 | That mapping is over the accounts the settings name, where the operator roads resolve over the accounts whose runtimes are published. | `launcher.py` 3346, against 3443 into 3444, with 3347, then 3349 into 3350, or 3352, then 3354 into 3355-3357 | package one hundred and thirty-one | folds into P131-02 |
+| H-1248 | The settings, the record or the path to one, the venue, the port, the two folders and whether permissions are enforced are kept as handed in; the accounts alone are copied; and a stop, a book cache and an alert sink are built rather than handed in. | `launcher.py` 2770, then 2774, then 2776, then 2777, then 2780, then 2781, then 2783, then 2784, with 2775, and 2785, then 2793, then 2795 | package one hundred and thirty-two | is P132-01 |
+| H-1249 | The alert sink reads the address to post to from the environment as it is built, and a posting opens a session of its own under a total deadline and raises on an answer that is not a success. | `launcher.py` 2795-2798, into 886, then 889 | package one hundred and thirty-two | folds into P132-01 |
+| H-1250 | The watch is built once per account, holding the registry it scans, the lock over it, a clock, the age that warns and the gap between scans. | `launcher.py` 4627-4633, into 2247, then 2248, then 2249, then 2250, then 2251 | package one hundred and thirty-two | folds into P124-01 |
+| H-1251 | Each background set takes what it needs off the host and does nothing where it is missing or where a set already stands. | `launcher.py` 3715, then 3717 into 3718, and 3813, then 3815 into 3816 | package one hundred and thirty-two | folds into P124-02 |
+| H-1253 | Each records its set only once every one of them is built, and reads its set back before stopping. | `launcher.py` 3753, and 3838, then 3843 into 3844, or 3846, then 3852 | package one hundred and thirty-two | folds into P124-02 |
+| H-1252 | The synchronous accounting reads the registration under the registry's lock and takes the context off it, and returns on a reported failure with the figures where they stood. | `launcher.py` 2896, then 2897, with 2927 into 2936 | package one hundred and thirty-two | folds into P5-05 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 10:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 10:30 UTC

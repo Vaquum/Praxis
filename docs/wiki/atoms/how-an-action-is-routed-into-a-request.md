@@ -2,10 +2,10 @@
 row: P119-01
 baseline: 49aa659
 created: 2026-11-15 04:00 UTC
-modified: 2026-11-15 04:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The kind of action is looked up in a fixed mapping, and one the mapping does not hold is reported and dropped"
-    source: "`launcher.py` 1101, then 1102 into 1110"
+    source: "`launcher.py` 1101, then 1102 into 1110, asked through 4193"
   - claim: "A change is answered inside its own branch, carrying no sum, no fee and no budget, a placeholder size, and the name of the command it means to amend"
     source: "`launcher.py` 1112 into 1113-1124"
   - claim: "An abort is answered with nothing at all"

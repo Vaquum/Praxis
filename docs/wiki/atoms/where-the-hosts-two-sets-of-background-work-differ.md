@@ -2,7 +2,7 @@
 row: P124-02
 baseline: 49aa659
 created: 2026-11-15 06:30 UTC
-modified: 2026-11-15 06:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The samplers are built one per account, and the book pollers one per distinct symbol across those same accounts"
     source: "`launcher.py` 3731, against 3819, then 3822"
@@ -16,6 +16,12 @@ evidence:
     source: "`launcher.py` 3699, against 3799"
   - claim: "Both builds are handed to the Praxis loop and waited on for ten seconds"
     source: "`launcher.py` 3702, then 3705, and 3802, then 3805"
+  - claim: "Each build takes what it needs off the host and does nothing where it is missing or where a set already stands"
+    source: "`launcher.py` 3715, then 3717 into 3718, and 3813, then 3815 into 3816"
+  - claim: "Each records its set only once every one of them is built"
+    source: "`launcher.py` 3753, and 3838"
+  - claim: "Each stop reads its set off the host before handing a stop of every one to the loop"
+    source: "`launcher.py` 3843 into 3844, or 3846, then 3852, and 3761, then 3767"
   - claim: "Both stop everything already started when a build fails"
     source: "`launcher.py` 3748-3751, and 3833-3836"
   - claim: "Both keep their list where a stop fails"
@@ -27,7 +33,7 @@ The host runs two sets of work beside its trading — samplers writing down what
 
 ## What they share
 
-Each build is handed to the Praxis loop and waited on for ten seconds. Each stops everything it had already started when the build fails. Each keeps its list where a stop fails, and clears it only where the stop answered.
+Each build takes what it needs off the host, does nothing where that is missing or where a set already stands, and records its set only once every one is built. Each build is handed to the Praxis loop and waited on for ten seconds. Each stops everything it had already started when the build fails. Each stop reads its set off the host first, and keeps that set where the stop fails, clearing it only where the stop answered.
 
 ## How many of each
 

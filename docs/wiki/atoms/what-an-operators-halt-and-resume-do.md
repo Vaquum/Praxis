@@ -2,16 +2,16 @@
 row: P130-02
 baseline: 49aa659
 created: 2026-11-15 09:30 UTC
-modified: 2026-11-15 09:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Halting and resuming are one routine, told which it is by a flag"
     source: "`launcher.py` 3513, and 3516"
   - claim: "It weighs the caller and answers with whatever refusal that gives"
     source: "`launcher.py` 3519, then 3521 into 3522"
-  - claim: "It then resolves the account, answers with whatever refusal that gives, and reads the account's name off the runtime"
-    source: "`launcher.py` 3524, then 3526 into 3527, or 3531"
+  - claim: "It then resolves the account, answers with whatever refusal that gives, insists the runtime is there, and reads the account's name off it"
+    source: "`launcher.py` 3524, then 3526 into 3527, or 3529, then 3531"
   - claim: "The reason is read from the body, with a default standing in for an empty body, a body that will not parse, a body that is not a mapping, and a reason that is absent or blank"
-    source: "`launcher.py` 3468, then 3470 into 3471, or 3473-3474 into 3475 into 3476, or 3478, then 3480"
+    source: "`launcher.py` 3532 into 3468, then 3470 into 3471, or 3473-3474 into 3475 into 3476, or 3478, then 3480"
   - claim: "Halting sets a manual halt carrying that reason and builds one record of the ask; resuming clears the halt and builds the other"
     source: "`launcher.py` 3536 into 3537-3540, or 3543-3546"
   - claim: "The state is then written down, and a failure there answers an error at five hundred"

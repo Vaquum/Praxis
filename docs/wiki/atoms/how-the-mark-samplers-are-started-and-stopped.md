@@ -2,7 +2,7 @@
 row: P124-01
 baseline: 49aa659
 created: 2026-11-15 06:30 UTC
-modified: 2026-11-15 06:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Starting does nothing where the loop or the host's record is missing"
     source: "`launcher.py` 3699 into 3700"
@@ -16,16 +16,16 @@ evidence:
     source: "`launcher.py` 3731, then 3733-3734, then 3736-3743"
   - claim: "Each is added to a list of its own and started at once"
     source: "`launcher.py` 3744, then 3745"
-  - claim: "A failure part way through stops every sampler already started and raises"
-    source: "`launcher.py` 3747 into 3748-3751"
+  - claim: "The whole walk that builds them is wrapped, and a failure part way through stops every sampler already started and raises"
+    source: "`launcher.py` 3730, then 3747 into 3748-3751"
   - claim: "The host's own list is reached only past that raise, so a later build starts from an empty set"
     source: "`launcher.py` 3753, against 3747-3751"
   - claim: "Stopping does nothing where the loop is missing or no sampler stands"
     source: "`launcher.py` 3758 into 3759"
   - claim: "It takes the list, hands a stop of every one to the loop, and waits ten seconds for the whole walk"
     source: "`launcher.py` 3761, then 3763-3765, then 3767, then 3770"
-  - claim: "A walk that fails keeps the list standing, where one that answers clears it"
-    source: "`launcher.py` 3771 into 3772, against 3775"
+  - claim: "The wait is wrapped, and a walk that fails keeps the list standing where one that answers clears it"
+    source: "`launcher.py` 3769, then 3771 into 3772, against 3775"
 ---
 # How the mark samplers are started and stopped
 
@@ -43,7 +43,7 @@ Where the bars are kept, taken from the environment with a standing folder where
 
 Each gets a price reader bound to its own account, is added to a list of its own, and is started at once rather than after the set is complete.
 
-A failure part way through therefore has samplers already running. It stops every one of them and raises. The line that would record the set stands past that raise, so a later build starts from an empty set rather than from a half-built one.
+The whole walk is wrapped, so a failure part way through — which has samplers already running — stops every one of them and raises. The line that would record the set stands past that raise, so a later build starts from an empty set rather than from a half-built one.
 
 ## What a stop keeps
 

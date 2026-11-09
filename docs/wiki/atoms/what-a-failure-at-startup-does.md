@@ -2,10 +2,14 @@
 row: P4-20
 baseline: 49aa659
 created: 2026-10-01 10:18 UTC
-modified: 2026-11-05 11:10 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A key that can withdraw, or cannot trade spot, raises"
     source: "`launcher.py` 3101-3112"
+  - claim: "The asking refuses outright where the loop or the trading stack is missing, before any key is read"
+    source: "`launcher.py` 3065 into 3066-3067"
+  - claim: "Past that it insists the stack is there, takes the venue's adapter off it, and asks after each account's key in turn under a deadline apiece"
+    source: "`launcher.py` 3093, then 3094, then 3095, then 3096, then 3097"
   - claim: "That raise is caught, trading stopped, and the failure carried out"
     source: "`launcher.py` 3117-3120, out through 3069-3074 and 5003-5008"
   - claim: "No account has a thread by then"

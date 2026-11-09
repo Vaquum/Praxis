@@ -2,9 +2,11 @@
 row: P118-02
 baseline: 49aa659
 created: 2026-11-15 03:30 UTC
-modified: 2026-11-15 03:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
-  - claim: "The watch is built with no timer yet, a flag reading not running, and a lock of its own apart from the one over the registry it scans"
+  - claim: "The watch is built once per account, holding the registry it scans, the lock over it, a clock, the age that warns and the gap between scans"
+    source: "`launcher.py` 4627-4633, into 2247, then 2248, then 2249, then 2250, then 2251"
+  - claim: "It is built with no timer yet, a flag reading not running, and a lock of its own apart from the one over the registry"
     source: "`launcher.py` 2252, then 2253, then 2254"
   - claim: "Whether it is running is answered from that flag"
     source: "`launcher.py` 2260"
@@ -18,10 +20,6 @@ evidence:
     source: "`launcher.py` 2321, then 2322 into 2323, or 2325-2326"
   - claim: "Any failure out of a scan is caught and reported, and the next scan scheduled all the same, under that lock again"
     source: "`launcher.py` 2327-2328, then 2330 into 2331"
-  - claim: "A scan takes the moment once and weighs every record's age against that one moment"
-    source: "`launcher.py` 2284, then 2286-2293"
-  - claim: "The gathering is done under the registry's own lock, and the longest wait worked out after that lock is let go"
-    source: "`launcher.py` 2286-2293, then 2298"
 ---
 # How the watch keeps itself going
 
@@ -29,7 +27,9 @@ evidence:
 
 ## The two locks
 
-One is the lock over the registry of commands, shared with whatever writes to it. The other is the watch's own, and it guards nothing but the flag and the timer.
+It is built holding the registry it scans, the lock over that registry, a clock, the age that warns and the gap between scans — then a timer it has not set, and a flag reading not running.
+
+The registry's lock is shared with whatever writes to it. The other is the watch's own, and it guards nothing but the flag and the timer.
 
 Starting takes its own lock, answers at once where the flag already reads running, and otherwise sets the flag and schedules a scan. Whether the watch is running is answered from that flag.
 
@@ -46,10 +46,6 @@ Nothing. A failure out of a scan is caught and reported, and the next scan is sc
 ## The timer
 
 Marked a daemon before it is started, so a host on its way out leaves a pending scan where it stands rather than waiting for it.
-
-## What a scan reads
-
-The moment once, with every record's age weighed against that one moment, so the records a pass gathers are all judged against the same instant. The gathering is done under the registry's own lock, and the longest wait is worked out after that lock is let go.
 
 ## Related
 

@@ -2,12 +2,12 @@
 row: P129-02
 baseline: 49aa659
 created: 2026-11-15 09:00 UTC
-modified: 2026-11-15 09:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A terminal outcome drops the command's registration under the registry's lock"
     source: "`launcher.py` 4380, then 4381 into 4382"
   - claim: "Where that command was an entry carrying a trade name, the position is looked up under the positions lock"
-    source: "`launcher.py` 4384-4387, then 4388, then 4389"
+    source: "`launcher.py` 4383, then 4384-4387, then 4388, then 4389"
   - claim: "It is deleted only where nothing is left of it"
     source: "`launcher.py` 4390 into 4391"
   - claim: "That deletion is remembered, and is what sends the bracket's protective registration to be dropped"

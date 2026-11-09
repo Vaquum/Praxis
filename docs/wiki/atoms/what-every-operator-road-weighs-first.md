@@ -2,7 +2,7 @@
 row: P130-01
 baseline: 49aa659
 created: 2026-11-15 09:30 UTC
-modified: 2026-11-15 09:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A caller from any address but the two loopback ones is refused as forbidden"
     source: "`launcher.py` 3416 into 3417, the two at 195"
@@ -12,8 +12,8 @@ evidence:
     source: "`launcher.py` 3424, then 3426 into 3427"
   - claim: "Only past all three does the weighing answer with nothing, which is what lets a road go on"
     source: "`launcher.py` 3429"
-  - claim: "The read-only status road weighs the same three"
-    source: "`launcher.py` 3498, then 3500 into 3501"
+  - claim: "The read-only status road weighs the same three, then resolves its account and answers with whatever refusal that gives"
+    source: "`launcher.py` 3498, then 3500 into 3501, or 3503, then 3505 into 3506, or 3508"
   - claim: "The account is resolved from a copy of the published runtimes taken under their lock"
     source: "`launcher.py` 3443 into 3444, then 3446"
   - claim: "Where no account is named, a single running one is used, several are refused as needing a name with the known ones listed, and none at all is refused as unknown"
@@ -29,7 +29,7 @@ Every road an operator can take weighs three things about the caller before it r
 
 The caller must come from one of the two loopback addresses, or it is refused as forbidden. A token must be set in the environment, or the road answers that it is not configured. The header must carry that token after the word Bearer, compared in a way whose timing does not vary with the answer.
 
-Only past all three does the weighing answer with nothing at all, and that nothing is what lets a road go on.
+Only past all three does the weighing answer with nothing at all, and that nothing is what lets a road go on. The read-only status road weighs them too, and then resolves its account under the same rules as the rest.
 
 So the roads are off entirely until a token is set, and a caller reaching them from elsewhere on the network is turned away before the token is even looked up.
 

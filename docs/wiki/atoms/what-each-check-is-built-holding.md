@@ -2,7 +2,7 @@
 row: P118-01
 baseline: 49aa659
 created: 2026-11-15 03:30 UTC
-modified: 2026-11-15 03:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Four sets of limits are made as the walk is built: the risk limits empty, the price limits worked out from the account's settings, the platform caps taken from the caller where one came and made empty where none did, and the health policy empty"
     source: "`launcher.py` 964, then 965, then 966, then 967"
@@ -11,7 +11,7 @@ evidence:
   - claim: "Three checks read nothing beyond what they were built holding: the first its hooks, the second its limits, the fourth the account's money"
     source: "`launcher.py` 970, and 973, and 983"
   - claim: "The other three call a provider as each decision arrives, for a price reading, a health reading and a platform reading"
-    source: "`launcher.py` 976-980, and 986-990, and 995-999"
+    source: "`launcher.py` 976-980, and 986-990, and 995-999, the platform one handed back at 625 and the price one at 3790"
   - claim: "Two of those hand the decision's own context to the provider, where the health one hands it nothing"
     source: "`launcher.py` 979, and 998, against 988"
   - claim: "The health reading used where a caller supplies none is one fixed set of figures: no latency, no failures in a row, no failure share, the whole allowance free, and no clock drift"

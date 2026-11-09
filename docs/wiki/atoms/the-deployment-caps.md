@@ -2,16 +2,16 @@
 row: P4-27
 baseline: 49aa659
 created: 2026-10-02 09:11 UTC
-modified: 2026-10-11 19:23 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
-  - claim: "Six ceilings are read from the settings: an order's size in money, a position's size, how often orders may go out, how wide the book may be, how old the book's figures may be, and how far the price worked out of the book may sit from the one expected"
-    source: "`launcher.py` 760-767"
+  - claim: "Six ceilings are read from the settings and handed back together: an order's size in money, a position's size, how often orders may go out, how wide the book may be, how old the book's figures may be, and how far the price worked out of the book may sit from the one expected"
+    source: "`launcher.py` 760-767, then 788, the per-account settings built from them at 351"
   - claim: "The last of them is weighed before a send, against a price worked out of the book"
     source: "`execution_manager.py` 4064-4098"
   - claim: "Four are refused if given anything but a positive finite decimal"
     source: "`launcher.py` 663-678, called at 761, 762, 764 and 766"
-  - claim: "The rate and the book's age are refused if given anything but a positive whole number"
-    source: "`launcher.py` 694-707, called at 763 and 765"
+  - claim: "The rate and the book's age are refused if given anything but a positive whole number, and handed back as given otherwise"
+    source: "`launcher.py` 694-707, then 709, called at 763 and 765"
   - claim: "A book age that does not exceed the two seconds between polls refuses the start later, as an account's runtime is put together"
     source: "`launcher.py` 338-349 against the interval at 197, reached from 4097-4099"
   - claim: "An empty setting counts as unset for all six"

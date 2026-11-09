@@ -2,7 +2,7 @@
 row: P119-02
 baseline: 49aa659
 created: 2026-11-15 04:00 UTC
-modified: 2026-11-15 04:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "An entry carrying no size is reported and dropped, and an exit carrying none is dropped the same way"
     source: "`launcher.py` 1209 into 1217, and 1295 into 1303"
@@ -11,13 +11,13 @@ evidence:
   - claim: "Every road that builds a request estimates the fee as the sum times the rate"
     source: "`launcher.py` 1176, or 1252, and 1375"
   - claim: "An entry's sum is worked out against a reference price and an exit's against the price its position was entered at"
-    source: "`launcher.py` 1251, against 1374"
+    source: "`launcher.py` 1251, against 1374, each built into an answer at 1254-1267, and 1378-1392"
   - claim: "An entry's size starts as the action's own and stays there where no adapter was given"
     source: "`launcher.py` 1219, past 1221"
   - claim: "The snapped amount replaces the action's own on both roads, each after its own refusal has been weighed"
     source: "`launcher.py` 1248-1249, and 1371-1372"
   - claim: "Which level an exit's refusal is reported at is chosen by whether the whole remainder was meant"
-    source: "`launcher.py` 1324"
+    source: "`launcher.py` 1324, then 1325"
 ---
 # Where the two request builders part
 

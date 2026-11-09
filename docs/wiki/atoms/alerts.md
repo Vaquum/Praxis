@@ -2,7 +2,7 @@
 row: P3-20
 baseline: 49aa659
 created: 2026-09-30 19:11 UTC
-modified: 2026-10-10 11:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A level outside the three is replaced with the middle one rather than refused"
     source: "`alert_sink.py` 48-49 with the three at 20"
@@ -23,7 +23,7 @@ evidence:
   - claim: "So does the working-out of the details"
     source: "`alert_sink.py` 63-65"
   - claim: "Some paths log without sending at all, even where an address is set"
-    source: "`launcher.py` 3385-3404"
+    source: "`launcher.py` 3385-3404, then 3406"
   - claim: "Entering a halted state queues one at the highest level, whatever caused it"
     source: "`launcher.py` 4132 into Nexus `mode_controller.py` 510-511 and 379-380"
   - claim: "It is dropped if the account is no longer halted when the queue drains"

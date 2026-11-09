@@ -2,10 +2,10 @@
 row: P120-01
 baseline: 49aa659
 created: 2026-11-15 04:30 UTC
-modified: 2026-11-15 04:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
-  - claim: "A position of no size is put in under the command's own name as an entry is registered, before the order goes out"
-    source: "`launcher.py` 2137 into 2138-2145, reaching 1446-1452"
+  - claim: "A position of no size is put in under the command's own name on either road an entry takes, before the order goes out"
+    source: "`launcher.py` 2137 into 2138-2145, or 4314, then 4315, then 4316, both reaching 1446-1452"
   - claim: "The price it carries is the action's own, or a provider's where the action gives none"
     source: "`launcher.py` 1431, then 1432 into 1433"
   - claim: "Where neither gives one, an entry sized by amount is reported and nothing is put in, or an entry sized in money takes a price of one"

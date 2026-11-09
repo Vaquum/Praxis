@@ -2,10 +2,10 @@
 row: P121-02
 baseline: 49aa659
 created: 2026-11-15 05:00 UTC
-modified: 2026-11-15 05:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "With no state or no settings to read, a strategy is told of no positions, no money and a halted mode"
-    source: "`launcher.py` 2497 into 2498-2502"
+    source: "`launcher.py` 2497 into 2498-2502, asked through 4166"
   - claim: "A strategy the settings do not name is told the same"
     source: "`launcher.py` 2504, then 2509 into 2510-2514"
   - claim: "Otherwise its money is the pool at its share, less what it has deployed, held at nothing at the least"
@@ -14,8 +14,8 @@ evidence:
     source: "`launcher.py` 2520 into 2521-2522, or 2524"
   - claim: "Only after that copy are they narrowed to the strategy's own"
     source: "`launcher.py` 2526-2528, past 2520-2524"
-  - claim: "The mode is the strategy's own where it has one, and the account's where it has none"
-    source: "`launcher.py` 2530, then 2531"
+  - claim: "The mode is the strategy's own where it has one and the account's where it has none, and all three are answered together"
+    source: "`launcher.py` 2530, then 2531, then 2533"
 ---
 # What a strategy is told about the account
 

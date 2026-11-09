@@ -2,7 +2,7 @@
 row: P4-14
 baseline: 49aa659
 created: 2026-10-03 20:04 UTC
-modified: 2026-10-11 20:42 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A line written through the arrangement itself is rendered as JSON and handed to a writer the library makes"
     source: "`praxis/infrastructure/observability.py` 59 and 62"
@@ -23,7 +23,7 @@ evidence:
   - claim: "Work is handed from a thread to the loop by asking the loop to run it"
     source: "`launcher.py` 3042 and 3702"
   - claim: "A setting can turn JSON off, leaving plain text"
-    source: "`launcher.py` 4850-4856"
+    source: "`launcher.py` 4847, then 4848, into 4850-4856"
 ---
 # What a host writes about itself
 

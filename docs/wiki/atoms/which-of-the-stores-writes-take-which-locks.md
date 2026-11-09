@@ -2,14 +2,14 @@
 row: P5-07
 baseline: 49aa659
 created: 2026-11-05 16:22 UTC
-modified: 2026-11-06 06:59 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A checkpoint and a record of a state change enter the same guard before taking the log lock"
     source: "`nexus/infrastructure/state_store.py` 178 and 198, each entering 219 before the log lock"
   - claim: "The strategy-event write enters no guard before taking its lock"
     source: "`nexus/infrastructure/state_store.py` 236, with no guard entered before it"
   - claim: "The object standing as the pair's first half is set on the risk state as the build runs, and a check refuses to carry on where the pair would hold another"
-    source: "`praxis/launcher.py` 4128 setting it, 2569-2576 refusing where it is another, or else 2579 putting it in the pair"
+    source: "`praxis/launcher.py` 4128 setting it, 2569-2576 refusing where it is another, or else 2579 putting it in the pair handed back at 2578"
 ---
 # Which of the store's writes take which locks
 

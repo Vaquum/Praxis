@@ -2,10 +2,10 @@
 row: P3-22
 baseline: 49aa659
 created: 2026-10-01 09:10 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A host is told which ways of working it may drive, as a list of names in its settings"
-    source: "`launcher.py` 851 and 856-862"
+    source: "`launcher.py` 851 and 856-862, each kept at 878 and the set handed back at 880"
   - claim: "Work naming one outside the list is refused rather than queued"
     source: "`execution_manager.py` 3481-3495"
   - claim: "Unset or empty leaves the plain single order alone"

@@ -2,14 +2,14 @@
 row: P122-01
 baseline: 49aa659
 created: 2026-11-15 05:30 UTC
-modified: 2026-11-15 05:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The record is opened only where a path was given, its folder made where absent, one connection kept on the host, and its shape made sure of before it is handed back"
     source: "`launcher.py` 3123 into 3124-3125, or 3127, then 3128, then 3129, then 3130, then 3133"
   - claim: "Each of the host's three appends stops where the loop or the trading stack is missing, the acknowledgement and the abandonment reporting and returning"
     source: "`launcher.py` 3148 into 3153, and 3190 into 3195"
   - claim: "The delivery record raises there instead"
-    source: "`launcher.py` 3231 into 3236"
+    source: "`launcher.py` 3231 into 3232-3236"
   - claim: "The acknowledgement builds its event with the host's clock, reads the epoch and the record off the trading stack, hands the append to the Praxis loop and waits ten seconds"
     source: "`launcher.py` 3155-3161, then 3164-3167"
   - claim: "The abandonment does the same"

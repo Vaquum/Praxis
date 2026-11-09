@@ -2,7 +2,7 @@
 row: P11-03
 baseline: 49aa659
 created: 2026-11-10 07:30 UTC
-modified: 2026-11-10 07:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Stopping a poller sets the signal, cancels the task, and waits for it while swallowing the interruption that raises"
     source: "`praxis/infrastructure/book_poller.py` 63 into 65-69"
@@ -11,7 +11,7 @@ evidence:
   - claim: "The host stops its pollers one after another, each waited for"
     source: "`praxis/launcher.py` 3848-3850"
   - claim: "The whole walk is bounded at ten seconds"
-    source: "`praxis/launcher.py` 3855"
+    source: "`praxis/launcher.py` 3854, then 3855"
   - claim: "A walk that fails or runs out of time keeps the pollers recorded for another attempt"
     source: "`praxis/launcher.py` 3856-3857, which leaves 3860 unreached"
   - claim: "A walk that finishes forgets them"

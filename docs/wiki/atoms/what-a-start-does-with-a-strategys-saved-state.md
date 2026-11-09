@@ -2,7 +2,7 @@
 row: N7-07
 baseline: 49aa659
 created: 2026-10-27 11:20 UTC
-modified: 2026-10-27 11:20 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A start reads the file named for each strategy its manifest names and hands the bytes to that strategy"
     source: "`nexus/startup/sequencer.py` 536-537 and 543-547 into 554-555"
@@ -17,7 +17,7 @@ evidence:
   - claim: "Nothing at all is read where the directory is unset, and the start says so and moves on"
     source: "`nexus/startup/sequencer.py` 532-534"
   - claim: "The launcher gives the start the setting as it stands, while giving the stopping a fallback where the settings name none"
-    source: "`praxis/launcher.py` 4081 against 4014-4017, the setting left unset at 4929-4932"
+    source: "`praxis/launcher.py` 4081 against 4014-4017, the setting left unset at 4929-4932, the strategies folder resolved to text at 2449"
 ---
 # What a start does with a strategy's saved state
 

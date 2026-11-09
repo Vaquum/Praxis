@@ -2,14 +2,16 @@
 row: N7-05
 baseline: 49aa659
 created: 2026-10-27 09:40 UTC
-modified: 2026-10-27 12:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A mark is put on the record Praxis keeps of a command where its handover timed out and a record for it still stands"
     source: "`praxis/launcher.py` 1975-1978, reached from `nexus/strategy/action_submit.py` 338-341"
   - claim: "What timed out is the wait for a name to come back, and Praxis answers with one as it queues the command, the send to the venue being the account's worker later"
     source: "`nexus/infrastructure/praxis_connector/praxis_outbound.py` 186 over `praxis/core/execution_manager.py` 3550 into 3582, the sending at 3984 into 3993-4009"
-  - claim: "The watch gathers the records carrying such a mark whose own moment is far enough back"
-    source: "`praxis/launcher.py` 2286-2293"
+  - claim: "The watch takes the moment once and gathers the records carrying such a mark whose own moment is far enough back against that one moment"
+    source: "`praxis/launcher.py` 2284, then 2286-2293"
+  - claim: "The gathering is done under the registry's own lock, and the longest of those waits worked out after that lock is let go"
+    source: "`praxis/launcher.py` 2286-2293, then 2298"
   - claim: "It answers at once where it gathers none, and otherwise works out the longest of those waits and a list of the names taking at most ten"
     source: "`praxis/launcher.py` 2295-2298 and 2299-2301, the cap standing at 212"
   - claim: "A mark is lifted where an outcome for that command is worked through and the working through reports success"
@@ -33,7 +35,7 @@ A command whose handover timed out carries a mark on the record Praxis keeps of 
 
 ## What a pass does
 
-It gathers the records carrying a mark whose own moment is far enough back. Where it gathers none it answers at once. Otherwise it works out the longest of those waits and a list of the names, taking at most ten of them.
+It takes the moment once and gathers the records carrying a mark whose own moment is far enough back, every age weighed against that one moment, so a pass judges them all against the same instant. The gathering is done under the registry's own lock. Where it gathers none it answers at once. Otherwise it works out the longest of those waits and a list of the names, taking at most ten of them.
 
 ## How a command leaves the watch
 

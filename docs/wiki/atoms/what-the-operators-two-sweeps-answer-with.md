@@ -2,16 +2,16 @@
 row: P123-01
 baseline: 49aa659
 created: 2026-11-15 06:00 UTC
-modified: 2026-11-15 06:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Each sweep weighs the operator's credentials first and answers with whatever refusal that gives"
     source: "`launcher.py` 3570, then 3572 into 3573, and 3598, then 3600 into 3601"
   - claim: "Each then resolves the account's runtime and answers with whatever refusal that gives"
     source: "`launcher.py` 3575, then 3577 into 3578, and 3603, then 3605 into 3606"
-  - claim: "The account's name is read off that runtime rather than off the request"
-    source: "`launcher.py` 3582, and 3610"
-  - claim: "Cancelling everything sweeps and answers the account's name beside the names it cancelled"
-    source: "`launcher.py` 3585, then 3595"
+  - claim: "Past those refusals each insists the runtime is there, and reads the account's name off it rather than off the request"
+    source: "`launcher.py` 3580, then 3582, and 3608, then 3610"
+  - claim: "Cancelling everything sweeps under a wrapping of its own and answers the account's name beside the names it cancelled"
+    source: "`launcher.py` 3584, then 3585, then 3595"
   - claim: "Closing everything cancels first and closes after, inside one wrapping"
     source: "`launcher.py` 3612, then 3613, then 3614"
   - claim: "A failure anywhere in either sweep is reported and answered as a named error at five hundred"
@@ -29,7 +29,7 @@ An operator can ask an account to cancel everything it has working, or to cancel
 
 Weigh the operator's credentials, and answer with whatever refusal that gives. Then resolve the account's runtime, and answer with whatever refusal that gives.
 
-The account's name is read off that runtime rather than off the request, so the name in the answer is the one the host resolved.
+Past those refusals each insists the runtime is there, and reads the account's name off it rather than off the request — so the name in the answer is the one the host resolved.
 
 ## What each answers
 

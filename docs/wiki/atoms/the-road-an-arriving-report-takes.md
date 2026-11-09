@@ -2,14 +2,18 @@
 row: P5-05
 baseline: 49aa659
 created: 2026-11-05 16:22 UTC
-modified: 2026-11-06 06:59 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Each report the turning returns is put on the account's queue"
     source: "`praxis/launcher.py` 2988 and 2992"
   - claim: "The pass that moves the figures between them runs only where the account's wiring is published"
     source: "`praxis/launcher.py` 2985-2986 and the test at 2989 before 2990, with 2992 standing outside it"
-  - claim: "That pass returns without working the report through where its command has no context registered"
+  - claim: "That pass reads the command's registration under the registry's lock and takes the context off it, or nothing where no registration stands"
+    source: "`praxis/launcher.py` 2896, then 2897"
+  - claim: "It returns without working the report through where its command has no context registered"
     source: "`praxis/launcher.py` 2902 before the return at 2916, against the working through at 2919"
+  - claim: "A working through that reports a failure returns as well, leaving the figures where they stood"
+    source: "`praxis/launcher.py` 2927 into 2936"
   - claim: "An outcome for an account with no queue is dropped before it is turned into reports"
     source: "`praxis/launcher.py` 2974-2983, which returns rather than reaching 2988"
   - claim: "The names a start gathers from the spine are read nowhere between the turning and the queue"

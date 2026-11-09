@@ -2,7 +2,7 @@
 row: P126-01
 baseline: 49aa659
 created: 2026-11-15 07:30 UTC
-modified: 2026-11-15 07:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A host is refused unless exactly one of a record and a path to one is given, both and neither failing the same test"
     source: "`launcher.py` 2750 into 2751-2752"
@@ -41,6 +41,7 @@ So the same deployment, short of the same cap, is refused by one of two lines de
 
 ## Related
 
+- [What a host keeps as it is built](what-a-host-keeps-as-it-is-built.md)
 - [The deployment caps](the-deployment-caps.md)
 - [Starting a host](starting-a-host.md)
 - [What a timing setting is held to](what-a-timing-setting-is-held-to.md)

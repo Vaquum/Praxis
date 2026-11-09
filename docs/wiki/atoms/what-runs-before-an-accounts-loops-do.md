@@ -2,10 +2,10 @@
 row: P128-02
 baseline: 49aa659
 created: 2026-11-15 08:30 UTC
-modified: 2026-11-15 08:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
-  - claim: "The account's accounting wiring is published part way through the build, under its own lock"
-    source: "`launcher.py` 4348-4353, then 4354 into 4355"
+  - claim: "The two folders and the reader over them are settled, and the account's accounting wiring published part way through the build, under its own lock"
+    source: "`launcher.py` 4147, then 4150, then 4153, then 4348-4353, then 4354 into 4355"
   - claim: "The outcomes a previous run recorded but never acknowledged are re-delivered after that, still inside the build"
     source: "`launcher.py` 4547, past 4354-4355"
   - claim: "The actions the startup sequence held over are drained next"

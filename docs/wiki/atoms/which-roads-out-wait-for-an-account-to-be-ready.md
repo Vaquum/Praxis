@@ -2,7 +2,7 @@
 row: P127-01
 baseline: 49aa659
 created: 2026-11-15 08:00 UTC
-modified: 2026-11-15 08:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "Four roads out of the trading side are set as it is started"
     source: "`launcher.py` 2997, or 3005, then 3038, then 3039, then 3040"
@@ -16,6 +16,10 @@ evidence:
     source: "`launcher.py` 3042, then 3043, past 3038-3040"
   - claim: "Starting it refuses outright where the host's loop has not been started"
     source: "`launcher.py` 2946 into 2947-2948"
+  - claim: "The stack is built with the one bootstrap symbol and the slippage cap off the host's limits, and a queue made for each account before any road is set"
+    source: "`launcher.py` 2957-2964, then 2966-2968"
+  - claim: "The turning and the queues are taken into names of their own before the outcome road is written"
+    source: "`launcher.py` 2970, then 2971, ahead of 2974"
 ---
 # Which roads out wait for an account to be ready
 
@@ -38,6 +42,8 @@ Where the settings carry one, the host's routing runs first and the caller's is 
 ## When the side itself starts
 
 Only after all four roads are set, and then waited on for thirty seconds. Starting it at all refuses outright where the host's loop has not been started.
+
+The stack itself is built with the one bootstrap symbol and the slippage cap off the host's limits, and a queue is made for each account before any road is set. The turning and those queues are taken into names of their own before the outcome road is written.
 
 ## Related
 

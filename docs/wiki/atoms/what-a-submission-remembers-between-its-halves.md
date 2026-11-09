@@ -2,14 +2,14 @@
 row: P129-01
 baseline: 49aa659
 created: 2026-11-15 09:00 UTC
-modified: 2026-11-15 09:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A fresh remembering is made for every call to the submitter, holding each built request under its command's name"
-    source: "`launcher.py` 4220-4222, then 4228, then 4230 into 4231-4235"
+    source: "`launcher.py` 4220-4222, then 4228, then 4230 into 4231-4235, the batch sent at 4257"
   - claim: "A request with no command name is handed to the checks and remembered nowhere"
     source: "`launcher.py` 4230, then 4237"
-  - claim: "The registering reads that remembering by the command's name, by a lookup that demands the entry"
-    source: "`launcher.py` 2078"
+  - claim: "The registering reads that remembering by the command's name, by a lookup that demands the entry, before it builds the handle it answers with"
+    source: "`launcher.py` 2078, then 2080, the handle built at 2109-2124 and answered at 2209, the whole callback handed back at 2211"
   - claim: "Three of the account's loops are each given that same submitter to call"
     source: "`launcher.py` 4555, and 4568, and 4579"
   - claim: "The registry of commands is made once for the account and shared across every call"

@@ -2,7 +2,7 @@
 row: P125-02
 baseline: 49aa659
 created: 2026-11-15 07:00 UTC
-modified: 2026-11-15 07:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "One thread is made per account, each a daemon named after its account, kept in a list and started at once"
     source: "`launcher.py` 3892, then 3895-3900, then 3901, then 3902"
@@ -11,7 +11,7 @@ evidence:
   - claim: "The account's runtime is published under a lock of its own once its build has answered"
     source: "`launcher.py` 3993 into 3994"
   - claim: "Delivering to an account reads that runtime under the same lock and refuses where none stands"
-    source: "`launcher.py` 3969, then 3972 into 3973-3977, or 3979"
+    source: "`launcher.py` 3969, then 3970, then 3972 into 3973-3977, or 3979"
   - claim: "Three roads deliver that way"
     source: "`launcher.py` 3008, and 3019, and 3030"
   - claim: "An ordinary stop unpublishes the runtime before any of the account's loops is stopped"

@@ -2,7 +2,7 @@
 row: P125-01
 baseline: 49aa659
 created: 2026-11-15 07:00 UTC
-modified: 2026-11-15 07:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The listener is started only where a port was given and the loop stands"
     source: "`launcher.py` 3267 into 3268"
@@ -10,8 +10,8 @@ evidence:
     source: "`launcher.py` 3270-3273, then 3274"
   - claim: "One application serves the health road, the figures road, a status read, and four asks that change something"
     source: "`launcher.py` 3294, then 3295-3301"
-  - claim: "It is bound to every address of the host, at the port it was given"
-    source: "`launcher.py` 3302, then 3303, then 3304, then 3305"
+  - claim: "It is bound to every address of the host at the port it was given, and handed back"
+    source: "`launcher.py` 3302, then 3303, then 3304, then 3305, then 3306"
   - claim: "Stopping does nothing where no listener stands or the loop is missing"
     source: "`launcher.py` 3280 into 3281"
   - claim: "It hands the cleanup to the loop and waits ten seconds for it"

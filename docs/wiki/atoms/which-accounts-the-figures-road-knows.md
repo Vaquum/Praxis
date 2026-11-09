@@ -2,7 +2,7 @@
 row: P131-02
 baseline: 49aa659
 created: 2026-11-15 10:00 UTC
-modified: 2026-11-15 10:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A caller from any address but the two loopback ones is refused as forbidden"
     source: "`launcher.py` 3340 into 3341"
@@ -16,8 +16,8 @@ evidence:
     source: "`launcher.py` 3347, then 3349 into 3350"
   - claim: "Anything else unnamed, or a name that is not among them, is refused as unknown with the known ones listed"
     source: "`launcher.py` 3352, then 3354 into 3355-3357"
-  - claim: "That mapping is over the accounts the settings name, where the operator roads resolve over the accounts whose runtimes are published"
-    source: "`launcher.py` 3346, against 3443 into 3444"
+  - claim: "That mapping is over the accounts the settings name and the epoch is read after it, where the operator roads resolve over the accounts whose runtimes are published"
+    source: "`launcher.py` 3346, then 3359, against 3443 into 3444"
 ---
 # Which accounts the figures road knows
 

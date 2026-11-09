@@ -2,7 +2,7 @@
 row: P128-01
 baseline: 49aa659
 created: 2026-11-15 08:30 UTC
-modified: 2026-11-15 08:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The build refuses where the trading stack or the host's loop is missing"
     source: "`launcher.py` 4067 into 4068-4069"
@@ -13,7 +13,7 @@ evidence:
   - claim: "Past that refusal the positions lock is put into that slot, so one lock stands under both names"
     source: "`launcher.py` 4102, then 4128"
   - claim: "A second lock of its own is made for the registry of commands"
-    source: "`launcher.py` 4120"
+    source: "`launcher.py` 4120, with the venue's own manager taken off the trading stack at 4103"
   - claim: "The mode controller is built over the positions lock and reconciled at once"
     source: "`launcher.py` 4129-4133, then 4134"
   - claim: "Two handlers are built over that one controller, each taking its own answer from the settings"

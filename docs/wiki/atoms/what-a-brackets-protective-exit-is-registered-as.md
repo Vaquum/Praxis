@@ -2,7 +2,7 @@
 row: P121-01
 baseline: 49aa659
 created: 2026-11-15 05:00 UTC
-modified: 2026-11-15 05:00 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "The protective exit's record is written as the entry is registered, before any protection has been placed"
     source: "`launcher.py` 2194-2197 into 2198-2200, reaching 1578-1588"
@@ -12,8 +12,8 @@ evidence:
     source: "`launcher.py` 1583-1585"
   - claim: "It is marked as not an entry, and as meaning the whole remainder whatever the entry was"
     source: "`launcher.py` 1586, then 1587"
-  - claim: "It is written durably and then in memory under the registry's lock"
-    source: "`launcher.py` 1589, then 1590 into 1591-1593"
+  - claim: "It is written durably and then in memory under the registry's lock, and its name handed back"
+    source: "`launcher.py` 1589, then 1590 into 1591-1593, then 1596"
   - claim: "The in-memory write replaces whatever stood under that name, where the entry's own write only fills a gap"
     source: "`launcher.py` 1591, against 2083 into 2085-2087"
   - claim: "A rollback drops the entry's registration only where it put one in, and the exit's wherever a bracket name was recorded"

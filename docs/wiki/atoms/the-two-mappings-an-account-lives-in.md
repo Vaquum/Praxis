@@ -2,10 +2,10 @@
 row: P126-02
 baseline: 49aa659
 created: 2026-11-15 07:30 UTC
-modified: 2026-11-15 07:30 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
-  - claim: "An account's accounting wiring is written into one mapping from inside its build"
-    source: "`launcher.py` 4355"
+  - claim: "An account's working-through is built and its accounting wiring written into one mapping, from inside its build"
+    source: "`launcher.py` 4341-4346, then 4355"
   - claim: "Its runtime is written into another only once that build has answered"
     source: "`launcher.py` 3993 into 3994, past 3992"
   - claim: "The runtime is taken out again on the ordinary way out, and on the failing one"

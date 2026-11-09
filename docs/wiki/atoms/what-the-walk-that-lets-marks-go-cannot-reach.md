@@ -2,7 +2,7 @@
 row: P6-01
 baseline: 49aa659
 created: 2026-11-06 15:07 UTC
-modified: 2026-11-07 00:35 UTC
+modified: 2026-11-15 10:30 UTC
 evidence:
   - claim: "A command the copy does not hold has no test run for it at all"
     source: "`praxis/launcher.py` 4459-4460 over the copy taken at 4427, the test at 4461 run for that copy's keys alone"
@@ -13,7 +13,7 @@ evidence:
   - claim: "It is set before its own outcome is queued"
     source: "`praxis/launcher.py` 2990 before 2992, the write reached from the queue at 4439"
   - claim: "It is set holding neither of the locks the write's own guard takes"
-    source: "`praxis/launcher.py` 2938-2943 reached after 2919 has returned, against `nexus/infrastructure/state_store.py` 220-221"
+    source: "`praxis/launcher.py` 2938-2943 reached after 2919 has returned, the write wrapped at 4429, against `nexus/infrastructure/state_store.py` 220-221"
   - claim: "The one deletion the mapping ever takes is the walk's own"
     source: "`praxis/launcher.py` 4462, with no other deletion from it anywhere under `praxis/`"
 ---
