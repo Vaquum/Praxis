@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 566 not.**
+**6 of them reviewed, 568 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 114 — what the trading rules asking insists on, and what the rules are read as
+
+Scope: the asking after a symbol's trading rules and the reading of what comes back,
+part of a module the ledger marks `partial`. After the package before this one, a
+hundred of its five hundred and thirty-four statements were uncited. What the asking
+insists on, and what the rules are read as, are in no article. The streams, the
+health tracking and the weight headers are left for the package after this, and the
+cell stays `partial`.
+
+### Merge and promote, package 114
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1109 | The weight headers are read before the answer is weighed for failure, and the body only after both. | Promote. The order is in no article, and the allowance being recorded even from a failing answer is what keeps a run of failures from hiding its cost |
+| Row H-1110 | A body carrying no list of symbols or an empty one is refused, only the first symbol is read, and its rules are demanded under the same test. | Merge with H-1109. An answer about several symbols being read as an answer about one is worth saying |
+| Row H-1111 | A caller handing in one symbol as text rather than a sequence is refused outright. | Merge with H-1109. Text being itself a sequence of letters is why the refusal exists |
+| Row H-1112 | The rules are gathered by kind with any entry that is not a mapping or names no kind passed over, and three kinds are demanded with every missing one named together. | Promote. The reading is in no article, and a refusal naming all of what is absent rather than the first is what a caller can act on |
+| Row H-1113 | Five figures are read and each turned into an exact decimal, where the two asset names are read with an empty one standing in. | Merge with H-1112. Every figure demanded and only the names defaulted is the shape of it |
+| Row H-1114 | A missing field or a figure that will not convert becomes a venue failure naming the symbol. | Merge with H-1112 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P114-01 | What the trading rules asking insists on | written | [what-the-trading-rules-asking-insists-on.md](atoms/what-the-trading-rules-asking-insists-on.md) |
+| P114-02 | What the rules are read as | written | [what-the-rules-are-read-as.md](atoms/what-the-rules-are-read-as.md) |
+
+### Re-seed, after writing package 114
+
+Three findings about order and one about a refusal that exists because of a language
+property.
+
+| What it found | What came of it |
+|---|---|
+| The weight headers are read before the failure check, so allowance spent on a failing answer is still recorded. | Stated. A reader wondering why a run of failures consumed allowance has the answer in the order |
+| Only the first symbol of the answer is read, whatever else the list holds. | Stated. The asking sends one symbol, so this is consistent and still worth saying, because nothing checks that the one returned is the one asked for |
+| Every figure is demanded and only the two asset names are read with a fallback. | Stated as the division it is |
+| A single symbol handed in as text is refused, because text is itself a sequence and would be read letter by letter. | Stated with the reason, since the refusal reads as pedantry without it |
+
+Worth recording: the second row needed care. Only the first symbol being read is
+correct given the asking sends one symbol — but nothing in the routine checks that
+the symbol returned is the one asked for. The article says what is read and does not
+claim the venue could mismatch them, because this module cannot show that. Stating
+the mechanism and stopping is the honest form when the risk depends on the far side.
 
 ## Package 113 — when a request is signed afresh, and what an asking reads back
 
@@ -8682,6 +8727,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1106 | An asking after no assets answers with nothing, and otherwise the whole account is asked for with no parameters and the asked-for assets picked out. | `binance_adapter.py` 1851 into 1852, against 1854, then 1856-1858 | package one hundred and thirteen | is P113-02 |
 | H-1107 | An asking after trades refuses a starting name together with either end of a window, weighs both ends for a zone, and sends only what was given beside the symbol. | `binance_adapter.py` 1896 into 1897-1898, then 1900, and 1901, then 1903, then 1905 into 1906, and 1908 into 1909, and 1911 into 1912, and 1914 into 1915, then 1917, then 1919 | package one hundred and thirteen | folds into P113-02 |
 | H-1108 | Money in and money out are read by two parsings that take the same two fields under the same two names. | `binance_adapter.py` 2033-2035, and 2053-2055 | package one hundred and thirteen | folds into P113-02 |
+| H-1109 | The asking takes a session, waits for its turn against a budget, sends the symbol alone, and reads the weight headers before weighing the answer for failure. | `binance_adapter.py` 2170, then 2173, then 2174-2178, then 2179, then 2180, then 2181 | package one hundred and fourteen | is P114-01 |
+| H-1115 | An order refused becomes a plainer venue failure, a venue failure passes as it is, and a transport failure becomes a passing one. | `binance_adapter.py` 2182 into 2183-2184, or 2185 into 2186, or 2187 into 2188-2189 | package one hundred and fourteen | folds into P114-01 |
+| H-1110 | The venue's own limits are read first, a body carrying no list of symbols or an empty one is refused, only the first symbol is read, and its rules are demanded under the same test. | `binance_adapter.py` 2191, then 2193, then 2195 into 2196-2197, then 2199, then 2200, then 2202 into 2203-2204 | package one hundred and fourteen | folds into P114-01 |
+| H-1111 | A caller handing in one symbol as text rather than a sequence is refused outright. | `binance_adapter.py` 2131 into 2132-2133 | package one hundred and fourteen | folds into P114-01 |
+| H-1112 | The rules are gathered by kind with any entry that is not a mapping or names no kind passed over, and three kinds are demanded with every missing one named together. | `binance_adapter.py` 2206-2210, then 2212, then 2213, then 2215 into 2216-2217 | package one hundred and fourteen | is P114-02 |
+| H-1113 | Five figures are read and each turned into an exact decimal, where the two asset names are read with an empty one standing in. | `binance_adapter.py` 2222, and 2223, and 2224, and 2225, and 2226, against 2227, and 2228 | package one hundred and fourteen | folds into P114-02 |
+| H-1114 | A missing field or a figure that will not convert becomes a venue failure naming the symbol. | `binance_adapter.py` 2219-2220 into 2230, then 2231-2232 | package one hundred and fourteen | folds into P114-02 |
 | H-1094 | An amount is snapped onto the symbol's step before anything is weighed against it, and the snapped amount is what the checks are made against. | `binance_adapter.py` 1518 ahead of 1520, then 1520 | package one hundred and eleven | is P111-02 |
 | H-1095 | A paired order answers through its own parsing, and one carrying a stop limit price without being paired is refused. | `binance_adapter.py` 1536, against 1538 into 1539-1540 | package one hundred and eleven | folds into P111-02 |
 | H-1096 | Both roads read what comes back through the same parsing. | `binance_adapter.py` 1542-1548, then 1549-1551, then 1552, and 1512 | package one hundred and eleven | folds into P111-02 |
@@ -8707,4 +8759,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 01:00 UTC
