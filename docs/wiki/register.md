@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 477 not.**
+**6 of them reviewed, 481 not.**
 
 ## Package 1
 
@@ -856,6 +856,61 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 78 — what an outcome's answer records, and what a position change checks
+
+Scope: the processor that turns an outcome into a change of state, which the ledger
+marks `partial` with forty-seven of its hundred and ninety-seven statements uncited.
+Articles have what an entry outcome changes, where a realized result is written
+down, where a position's last scraps go and what writes the name a success records.
+What each handler's answer records, what a dust close refuses before it touches
+anything, what a position change checks, and where the locks sit on one are in no
+article.
+
+### Merge and promote, package 78
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-882 | Each of the three names a dust close is given must be text with something other than spaces in it, all three weighed before any lock is taken, the positions lock then taken before the duplicate-name lock. | Promote. What a dust close refuses is in no article, and the refusals standing ahead of the locks is what keeps a badly asked close from holding the positions up |
+| Row H-883 | An acceptance marks money as moved only for an entry, the money call itself standing past the answer every other order's acceptance takes. | Promote. What an answer records is in no article, and the money call being unreachable for an exit is what a reader of the marking would get wrong |
+| Row H-884 | A rejection and a cancellation each mark money with whether their own money call succeeded, so either can answer that it worked while marking that money did not move. | Merge with H-883. It is the same point about an answer carrying less than its verdict suggests |
+| Row H-885 | A fill's answer carries a mark set false before any work and turned true on whichever road its money call came back on. | Merge with H-883 |
+| Row H-886 | Every check that a figure is present at all is an assertion naming a field of the outcome; every check that raises is about the state — no trade named, no position under that name, or a size the position cannot cover. | Promote. The line between the two kinds is in no article, and it is what tells a reader which failures are the record's fault and which the state's |
+| Row H-887 | An exit against a position whose cost basis stands at nought is noticed as the figures are worked out, and the reducing goes on regardless. | Merge with H-886, the one check on the path whose answer changes nothing |
+| Row H-888 | Growing and reducing both read their figures before any lock is taken and a growing answers from outside it, while clearing a pending sale takes the lock before it even looks the position up. | Promote. Where the locks sit is in no article, and one routine locking before the lookup where the others lock only the write is the difference worth having |
+| Row H-889 | Moving the strategy's own figures has a second way in that takes their lock itself, and nothing under `nexus/` calls it outside a comment. | Merge with H-888 |
+| Row H-890 | The name a success records is written only where the handler's answer said it worked, and that same answer is then handed back unchanged; the lock guarding the record is made as the processor is built. | Merge into the article on what writes the name, which has the set and the write already |
+
+Four subjects promote, four rows merge into them and one merges into an article
+already written, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N78-01 | What a dust close refuses before it touches anything | written | [what-a-dust-close-refuses-before-it-touches-anything.md](atoms/what-a-dust-close-refuses-before-it-touches-anything.md) |
+| N78-02 | What each outcome's answer records | written | [what-each-outcomes-answer-records.md](atoms/what-each-outcomes-answer-records.md) |
+| N78-03 | What a position change checks | written | [what-a-position-change-checks.md](atoms/what-a-position-change-checks.md) |
+| N78-04 | Where the locks sit on a position change | written | [where-the-locks-sit-on-a-position-change.md](atoms/where-the-locks-sit-on-a-position-change.md) |
+
+### Re-seed, after writing Nexus package 78
+
+The reader produced nothing again, a fourth run, so the checks were worked through
+here. Three were defects and two of them came from the same habit.
+
+| What it found | What came of it |
+|---|---|
+| A rejection marks money exactly as a cancellation does. The draft said it never marks money at all, read off a citation that stopped one line short of the line that does it. | Cut. The article has the two handlers agreeing, and the finding that survived is what the mark they pass actually carries |
+| An acceptance marks money as moved only for an entry: an exit's acceptance answers before the money call is reached. The draft stated the marking as though it held for every acceptance. | The article says which acceptance reaches it, and links the road that answers earlier |
+| "Of the four checks across the three routines, this is the only one written as a refusal" — there are eleven assertions and six raises across four routines, and three of the raises are refusals of the same kind. | Cut and replaced by what the two kinds of check actually divide on: a field of the arriving record, or a thing that should already exist |
+| Adding the unused locking wrapper to the article on where a realized result is written down took it past its cap. | Split rather than trimmed: the wrapper belongs with where the locks sit, which is its subject |
+
+Both the money-mark defects are the same habit in two forms: reading a line where it
+is written rather than where it can be reached. The rejection's was worse, because
+the citation itself ran out before the evidence — a range that stops one line short
+reads as proof of the opposite. A citation is only as good as its last line, and the
+last line is the one to check.
+
+Three statements of the module are left uncited and are an exclusion rather than work
+outstanding: all three are log calls, which the gate refuses as evidence for a claim.
 
 ## Nexus package 77 — a pass over the parked outcomes, and what a tick answers
 
@@ -6842,8 +6897,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-879 | A tick answers whether it took an outcome, and gives the same answer for one dispatched inline, one parked, and one put behind a parked sibling without being tried at all. | `outcome_loop.py` 233 after 230-231, or 228 reached from 218-219, against 213-214 | package seventy-seven | is N77-02 |
 | H-880 | The resolver answering with nothing is the only route to a dispatch reporting failure; the submitting of a strategy's actions failing falls through to the same answer. | `outcome_loop.py` 444 reached from 436-438, against 398-399 | package seventy-seven | folds into N77-02 |
 | H-881 | Whether the loop is running is answered under the same lock as starting and stopping, and only a worker that both exists and is still alive counts. | `outcome_loop.py` 139-140, the lock made at 132, the field cleared only at 188-189 | package seventy-seven | recorded; starting-and-stopping-the-outcome-loop states it |
+| H-882 | Each of the three names a dust close is given must be text with something other than spaces in it, all three weighed before any lock is taken, the positions lock then taken before the duplicate-name lock. | `outcome_processor.py` 662 into 663-664, or 666 into 667-668, or 670 into 672, ahead of 674, then 675 | package seventy-eight | is N78-01 |
+| H-883 | An acceptance marks money as moved only for an entry, the money call itself standing past the answer every other order's acceptance takes. | `outcome_processor.py` 206 into 209, reached only past 191, the call at 197 | package seventy-eight | is N78-02 |
+| H-884 | A rejection and a cancellation each mark money with whether their own money call succeeded, so either can answer that it worked while marking that money did not move. | `outcome_processor.py` 305 read at 319-323, and 331 read at 351-355 | package seventy-eight | folds into N78-02 |
+| H-885 | A fill's answer carries a mark set false before any work and turned true on whichever road its money call came back on. | `outcome_processor.py` 222, then 239, or 254, read at 293 | package seventy-eight | folds into N78-02 |
+| H-886 | Every check that a figure is present at all is an assertion naming a field of the outcome; every check that raises is about the state. | `outcome_processor.py` 413, or 445-446, or 458-461, or 499-501, against 465, or 471, or 505, or 511, or 521, or 600 into 601-602 | package seventy-eight | is N78-03 |
+| H-887 | An exit against a position whose cost basis stands at nought is noticed as the figures are worked out, and the reducing goes on regardless. | `outcome_processor.py` 535, the work carrying on at 558-560 | package seventy-eight | folds into N78-03 |
+| H-888 | Growing and reducing both read their figures before any lock is taken and a growing answers from outside it, while clearing a pending sale takes the lock before it even looks the position up. | `outcome_processor.py` 473-477 ahead of 487, and 513-514 ahead of 558, and 492, against 604 ahead of 605 | package seventy-eight | is N78-04 |
+| H-889 | Moving the strategy's own figures has a second way in that takes their lock itself, and nothing under `nexus/` calls it outside a comment. | `outcome_processor.py` 778-779, against the one call at 286 | package seventy-eight | folds into N78-04 |
+| H-890 | The name a success records is written only where the handler's answer said it worked, and that same answer is then handed back unchanged; the lock guarding the record is made as the processor is built. | `outcome_processor.py` 163 into 164-165, then 167, the lock made at 69 | package seventy-eight | recorded; what-writes-the-name-a-success-records states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 13:00 UTC

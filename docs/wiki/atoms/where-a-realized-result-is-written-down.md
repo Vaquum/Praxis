@@ -2,7 +2,7 @@
 row: N3-03
 baseline: 49aa659
 created: 2026-10-22 15:20 UTC
-modified: 2026-10-23 09:00 UTC
+modified: 2026-11-13 12:00 UTC
 evidence:
   - claim: "A fill that came back with a result builds one event naming the strategy, the amount, the moment and the outcome it came from"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 260-268"

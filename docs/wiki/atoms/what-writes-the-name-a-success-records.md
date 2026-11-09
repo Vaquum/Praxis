@@ -2,10 +2,14 @@
 row: N9-04
 baseline: 49aa659
 created: 2026-11-03 15:40 UTC
-modified: 2026-11-05 11:10 UTC
+modified: 2026-11-13 13:00 UTC
 evidence:
   - claim: "The name a success records goes onto the state object a write serializes, and is put out with the rest of that state by whatever write comes next"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 165 onto the object kept at 63, which `praxis/launcher.py` 4343 hands it, serialized by a later write at `praxis/launcher.py` 3549 into `nexus/infrastructure/state_store.py` 199, or by a checkpoint at 179 into `nexus/infrastructure/snapshot.py` 45, the set copied at `nexus/infrastructure/wal_codec.py` 78 into 94 and packed at 97"
+  - claim: "The lock guarding that set is made as the processor is built"
+    source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 69, taken at 164"
+  - claim: "The name is written only where the handler's answer said it worked, and that same answer is then handed back unchanged"
+    source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 163 into 164-165, then 167"
   - claim: "The two marks a result carries stand clear until a handler passes one"
     source: "`nexus/infrastructure/praxis_connector/process_result.py` 30-31, a handler passing them instead at `nexus/infrastructure/praxis_connector/outcome_processor.py` 322-323 or 354-355"
   - claim: "The mark for the holding is set wherever the holding is found at all, even where the figure behind it already stood at nothing, so a holding already gone is what the exit road needs"

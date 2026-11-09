@@ -141,7 +141,7 @@ Every Praxis module is named here: 77 are `full` and 11 `partial`, with none `un
 | `nexus/infrastructure/wal_entry.py` | full | N18-02, N8-08 |
 | `nexus/infrastructure/snapshot_scheduler.py` | full | N25-01, N6-01, N6-11, N7-08, N7-12, N8-05, N9-01 |
 | `nexus/infrastructure/praxis_connector/fund_transaction.py` | full | N16-04, P4-06 |
-| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N55-01, N7-05, N7-09, N76-01, N9-04, P26-01, P3-24, P4-30, P6-03, P7-04 |
+| `nexus/infrastructure/praxis_connector/outcome_processor.py` | full | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N55-01, N7-05, N7-09, N76-01, N78-01, N78-02, N78-03, N78-04, N9-04, P26-01, P3-24, P4-30, P6-03, P7-04 |
 | `nexus/infrastructure/praxis_connector/praxis_inbound.py` | full | N16-06, N6-04 |
 | `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | N11-02, N47-01, N6-06, N6-08, N6-09, N7-02, N7-05, P4-04, P4-06 |
 | `nexus/infrastructure/praxis_connector/process_result.py` | full | N18-01, N9-04 |
@@ -178,8 +178,8 @@ Every Praxis module is named here: 77 are `full` and 11 `partial`, with none `un
 
 Modules are listed individually as tracing reaches them, and every one of Nexus's 70 is now listed. Six are marked `full` as shapes: five sets of named values across three of them, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types. Each declares names or a shape, or keeps what it was handed, and makes no check of its own, so there is no behaviour for an article to trace; a value outside one of those sets is refused by the machinery the set is built on rather than by anything in the module. Package 7 recorded that, and it is an exclusion rather than work outstanding.
 
-6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 56 are accounted for in full and 8 are not.
+6 of the modules listed above carry no row of their own, and all six are the shapes recorded below. Every other Nexus module is owned by at least one row: the eight that were `partial` by citation alone were taken by packages 15, 16 and 17. The other 64 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 6 with no row are the shapes below, an exclusion rather than work outstanding. What remains on this side is depth: of the 64 that carry a row, 57 are accounted for in full and 7 are not.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 13:00 UTC

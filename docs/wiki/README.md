@@ -209,6 +209,8 @@ the others where it appears.
 - [When an entry may name a sum instead of a size](atoms/when-an-entry-may-name-a-sum-instead-of-a-size.md) — a request to open a position says how much either in coin or in money to spend, and the money form is allowed only for a plain purchase at whatever the market gives.
 - [The two mappings an action reseals](atoms/the-two-mappings-an-action-reseals.md) — the record copies each set of settings it is handed and puts it behind a read-only view, so neither side can write into one afterwards, though a value nested inside one stays shared.
 - [What an entry outcome changes](atoms/what-an-entry-outcome-changes.md) — a report of one kind moves the money set aside for a command on to the next place it sits, and two kinds of report move nothing at all.
+- [What each outcome's answer records](atoms/what-each-outcomes-answer-records.md) — the reply to a report says whether it worked, and separately whether a holding or the money changed; a cancelled or refused sale can reply that it worked while recording that the money did not move.
+- [What a position change checks](atoms/what-a-position-change-checks.md) — the routines that move a holding insist on different things: a missing number in the arriving report is checked one way and a missing holding another, and one check carries on regardless of what it finds.
 - [What a settling fee does to the figure](atoms/what-a-settling-fee-does-to-the-figure.md) — the gap between a guessed trading cost and what the report says it came to moves two balances in opposite directions, and can raise the money held against a strategy without anyone committing more.
 - [When a reservation times out](atoms/when-a-reservation-times-out.md) — money held for a trade that never went out is given back by a sweep at the start of a fresh request, and an order finding its own hold already expired hands the money back itself rather than waiting for that sweep.
 - [Releasing an order whose record was lost](atoms/releasing-an-order-whose-record-was-lost.md) — where the system knows an order by name but has lost everything else about it, the money behind it is given back from the name alone, and asking about an order that was never there is treated as success.
@@ -437,6 +439,7 @@ the others where it appears.
 - [What a written-back position carries](atoms/what-a-written-back-position-carries.md) — a holding rebuilt at startup from the venue side takes one price as both the price it opened at and the price its money is booked at, where a holding built in the ordinary way keeps those apart.
 - [What the host counts when a fill empties a position](atoms/what-the-host-counts-when-a-fill-empties-a-position.md) — a holding is gone before the message announcing its close arrives, so a tally stands in for it and tells a sold-out trade from one that never held anything.
 - [Where a position's last scraps go](atoms/where-a-positions-last-scraps-go.md) — the part of a holding too small to sell is written off to a running total per coin, and no decision ever looks at that total again.
+- [What a dust close refuses before it touches anything](atoms/what-a-dust-close-refuses-before-it-touches-anything.md) — writing off a tiny holding is given three names and each must be real text, all three checked before any part of the book is held, so a badly asked write-off blocks nothing.
 - [What a taking-out takes](atoms/what-a-taking-out-takes.md) — releasing the money behind a sale removes what was asked for or as much as is there, and a strategy left with a sliver is dropped from the books entirely.
 - [What a start weighs a position at](atoms/what-a-start-weighs-a-position-at.md) — startup values each holding at a different price depending on where it came from, and writes the price it settled on back onto the holding.
 - [What a start does with a dusted position](atoms/what-a-start-does-with-a-dusted-position.md) — startup asks the venue side what it is holding and writes back anything missing, so a holding written off can reappear with its money attached.
@@ -445,6 +448,7 @@ the others where it appears.
 - [What a fee figure is worked out from](atoms/what-a-fee-figure-is-worked-out-from.md) — the trading cost in a report is a flat thousandth of the fill, while the ledger alongside it books what the venue actually charged, so each trade is recorded as costing one amount in one place and another in the other.
 - [Which fills come back with a result](atoms/which-fills-come-back-with-a-result.md) — a purchase reports no gain or loss at all, and the gain on a sale is measured from the price the holding was opened at rather than the price its money is booked at.
 - [Where a realized result is written down](atoms/where-a-realized-result-is-written-down.md) — what a sale made or lost is saved to the record before it is counted, so a save that fails leaves nothing counted that was never saved.
+- [Where the locks sit on a position change](atoms/where-the-locks-sit-on-a-position-change.md) — the sums are worked out before the holdings are held and only the writing happens inside the hold, except for one routine that holds them before it even looks, and one way in that nothing calls.
 - [What the deployed figures out of step refuse](atoms/what-the-deployed-figures-out-of-step-refuse.md) — two records of committed money are kept, and while they disagree no new holding can be opened, though sales and cancellations go through untouched.
 - [What a boot rebuilds from the positions](atoms/what-a-boot-rebuilds-from-the-positions.md) — startup works out each strategy’s committed money again from the holdings it can see, and without that pass the first order of the new run is turned down and so is every one after it.
 - [What a boot finds stranded](atoms/what-a-boot-finds-stranded.md) — money the last run had committed with nothing left to give it back is written off at startup, at the risk of committing it twice.
@@ -575,15 +579,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 478
+Both sides are the subject, and Praxis is the side that has been written. 482
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 56 are accounted for in full and 8 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 57 are accounted for in full and 7 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 11:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 13:00 UTC
