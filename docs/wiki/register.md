@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 702 not.**
+**6 of them reviewed, 704 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 183 — the test both protective prices must pass, and what the venue's tick does to one
+
+Scope: the reading that weighs a protective pair against the price the entry filled at,
+and the flooring a protective price gets on its way to the venue, part of a module the
+ledger marks `partial`. Both sit in the stretch the sweep has reached. Neither subject
+is in an article.
+
+### Merge and promote, package 183
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1643 | A long's take-profit must sit above the entry's average price and its stop below it, a short's the other way about. | Promote. The test is in no article, and what it is weighed against is the finding |
+| Row H-1644 | A pair failing it at first placement has the entry closed out as unprotected, and one failing it on a change refuses the change. | Merge with H-1643 |
+| Row H-1645 | Snapping floors a price to a whole number of the venue's ticks, and a symbol whose venue sizes are not held has its price left as it was. | Promote. The flooring is in no article, and the skipped road is the finding |
+| Row H-1646 | A price named outright is used as named, where one given as an offset is worked out from the entry's average and snapped. | Merge with H-1645 |
+| Row H-1647 | The direction an offset is applied in turns on the side of the entry. | Merge with H-1645 |
+| Row H-1648 | The stop's own limit price is passed through as given at first placement, and snapped on a change. | Merge with H-1645 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P183-01 | The test both protective prices must pass | written | [the-test-both-protective-prices-must-pass.md](atoms/the-test-both-protective-prices-must-pass.md) |
+| P183-02 | What the venue's tick does to a protective price | written | [what-the-venues-tick-does-to-a-protective-price.md](atoms/what-the-venues-tick-does-to-a-protective-price.md) |
+
+### Re-seed, after writing package 183
+
+The second subject turned up a figure treated two ways by two routines. At first
+placement the stop's limit price is handed through exactly as given; on a change it is
+floored like the other two. The same number, from the same settings, reaches the venue
+differently depending on which road put it there.
+
+| What it found | What came of it |
+|---|---|
+| The stop's limit price is snapped on a change and not at first placement. | Stated as the article's close. Nothing in either routine hints at the other |
+| A symbol whose venue sizes are not held has its price left exactly as it was. | Stated. That is the one road by which an unsnapped price reaches a venue |
+| The leg test is weighed against what the entry filled at. | Stated. A pair sensible when it was asked for can fail here |
+| Failing the test costs the position its cover at first placement, and costs a change nothing but the change. | Stated as the two endings they are |
+
+Worth recording: the first draft of the leg test's article said the failure "would fire
+at once", which is the docstring's reasoning rather than a line. What the article says
+now is what the two callers do, and the reasoning stays where it was written.
 
 ## Package 182 — draining an account's outside events, and the sweep over the first four thousand lines
 
@@ -12504,7 +12547,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1640 | The call a boot makes drains only for an account marked as booting. | `execution_manager.py` 3687, then 3688, then 3689 | package one hundred and eighty-two | folds into P182-01 |
 | H-1641 | Marking an account as booting is an ask of its own, and the mark is cleared when the boot finishes. | `execution_manager.py` 3619, then 3620 into 3621, or 3670, then 3671 into 3672 | package one hundred and eighty-two | folds into P182-01 |
 | H-1642 | One round is all the account's worker asks for. | `execution_manager.py` 3739, reached from 3907 | package one hundred and eighty-two | folds into P182-01 |
+| H-1643 | A long's take-profit must sit above the entry's average price and its stop below it, a short's the other way about. | `execution_manager.py` 5124, then 5125, or 5127, the figure reaching it at 4947 | package one hundred and eighty-three | is P183-01 |
+| H-1644 | A pair failing it at first placement has the entry closed out as unprotected, and one failing it on a change refuses the change. | `execution_manager.py` 4947, then 4958-4961, against 9902, then 9905 | package one hundred and eighty-three | folds into P183-01 |
+| H-1645 | Snapping floors a price to a whole number of the venue's ticks, and a symbol whose venue sizes are not held has its price left as it was. | `execution_manager.py` 5242, then 5243 into 5244, or 5246 | package one hundred and eighty-three | is P183-02 |
+| H-1646 | A price named outright is used as named, where one given as an offset is worked out from the entry's average and snapped. | `execution_manager.py` 5208, then 5209, or 5211, then 5212-5216, and 5218, then 5219, or 5221, then 5222-5226 | package one hundred and eighty-three | folds into P183-02 |
+| H-1647 | The direction an offset is applied in turns on the side of the entry. | `execution_manager.py` 5206 | package one hundred and eighty-three | folds into P183-02 |
+| H-1648 | The stop's own limit price is passed through as given at first placement, and snapped on a change. | `execution_manager.py` 5228, against 9873, and 9884, and 9895 | package one hundred and eighty-three | folds into P183-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 11:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 12:00 UTC
