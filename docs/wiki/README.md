@@ -17,6 +17,8 @@ the others where it appears.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — a trade, a request and an order: work from outside, one piece of it, and one send to the venue.
 - [Which readings hand back a copy](atoms/which-readings-hand-back-a-copy.md) — the figures an account is asked for come back detached from it, except for one road that hands over the account's own state, which a caller can then read later or write to.
 - [The three questions asked of an account's condition](atoms/the-three-questions-asked-of-an-accounts-condition.md) — asking whether an account has fail-stopped and asking whether it can send orders both answer no while it is being brought back into step, for different reasons, so only asking both tells a gate that will lift from one that will not.
+- [When an account's registration is written](atoms/when-an-accounts-registration-is-written.md) — every startup tries to write the event that fixes how an account's costs are counted, and one reading decides whether anything goes down.
+- [The registration a pre-account history is given](atoms/the-registration-a-pre-account-history-is-given.md) — a history older than the account system is handed a registration that exists only in memory, so its fills can be counted.
 - [What an account is](atoms/what-an-account-is.md) — a name that groups the requests, orders, holdings and queues kept about it.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [What a venue must offer](atoms/what-a-venue-must-offer.md) — Praxis writes down what it needs of any exchange as a list of named things with no code behind them, so the file says what must be answered to and nothing about how.
@@ -757,7 +759,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 660
+Both sides are the subject, and Praxis is the side that has been written. 662
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -768,4 +770,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 00:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 01:00 UTC

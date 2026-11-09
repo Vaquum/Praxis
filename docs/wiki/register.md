@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 659 not.**
+**6 of them reviewed, 661 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 161 — when an account's registration is written, and the registration a pre-account history is given
+
+Scope: the write that fixes how an account's costs are counted and the one reading that
+decides whether it happens, and the registration made up in memory for a history older
+than registrations. Both sit in a module the ledger marks `partial`; the reading reaches
+into two modules the ledger marks `full`, which gain a row each rather than a change of
+state. After the package before this one, five hundred and sixty-six of the manager's
+two thousand four hundred and eighty-seven statements were uncited. Neither subject is
+in an article.
+
+### Merge and promote, package 161
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1471 | Nothing is written where the account's money record already names a cost-basis method, and the write is attempted on every startup. | Promote. The write is in no article, and one reading decides the whole of it |
+| Row H-1472 | A name the manager does not hold is refused outright, and the registration reaches the money record only where the write answered with a place. | Merge with H-1471 |
+| Row H-1473 | The money record refuses a second registration, and a refusal raised while an event is applied there is swallowed. | Merge with H-1471 |
+| Row H-1474 | A saved picture carries the method back, so a restart from one finds the account registered. | Merge with H-1471 |
+| Row H-1475 | Where the replayed events book to the money record and none of them is a registration, a registration naming the default method is applied there. | Promote. The made-up registration is in no article, and it is why the startup write finds nothing to do |
+| Row H-1476 | The events are sifted for the four kinds that book into the money record. | Merge with H-1475 |
+| Row H-1477 | It is applied to the money record alone, with nothing written to the record of events. | Merge with H-1475 |
+| Row H-1478 | The sifting runs as part of the replay, and the startup write comes straight after it. | Merge with H-1475 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P161-01 | When an account's registration is written | written | [when-an-accounts-registration-is-written.md](atoms/when-an-accounts-registration-is-written.md) |
+| P161-02 | The registration a pre-account history is given | written | [the-registration-a-pre-account-history-is-given.md](atoms/the-registration-a-pre-account-history-is-given.md) |
+
+### Re-seed, after writing package 161
+
+The first subject could not be written from its own module. What the reading is worth
+depends on what the money record does with a second registration, and that is two
+modules away.
+
+| What it found | What came of it |
+|---|---|
+| The money record refuses a second registration, and the refusal is swallowed where the event is applied. | Stated as the reason the reading matters: without it a duplicate would go down and the only sign would be a log line |
+| A saved picture carries the method back. | Stated as one of three ways the method comes to be named already |
+| The made-up registration is never written to the record of events. | Stated. It lives in memory and is made again on the next replay |
+| The sifting and the write run one after the other on every startup. | Stated. The pair is why a pre-account history has a registered money record and no registration recorded |
+
+Worth recording: the module under review states the rule and two other modules carry
+the consequence. A row scoped to one file would have had the reading written down as a
+guard against nothing.
 
 ## Package 160 — what an amend asks the venue before it replaces, and what is written down when a flatten goes out
 
@@ -11293,7 +11340,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1468 | The intent is recorded and applied before the send, and the send recorded and applied after it. | `execution_manager.py` 7779, then 7780, then 7782, then 7818, then 7825, then 7826 | package one hundred and sixty | folds into P160-02 |
 | H-1469 | A venue failure is first put to a rescue by the order's own name, one that finds nothing recording the failure and ending the send, one that finds the order standing in for the send's answer. | `execution_manager.py` 7791, then 7792, then 7795, then 7802, then 7810, or 7812 | package one hundred and sixty | folds into P160-02 |
 | H-1470 | Each fill the venue gives as it takes the order is recorded against the closing command, and only one the record answered with a place is carried into the figures. | `execution_manager.py` 7828, then 7829-7844, the command named at 7836, then 7845, then 7846 into 7847 | package one hundred and sixty | folds into P160-02 |
+| H-1471 | Nothing is written where the account's money record already names a cost-basis method, and the write is attempted on every startup. | `execution_manager.py` 2154 into 2155, reached from `trading.py` 548, then 549 | package one hundred and sixty-one | is P161-01 |
+| H-1472 | A name the manager does not hold is refused outright, and the registration reaches the money record only where the write answered with a place. | `execution_manager.py` 2148, then 2150, then 2152, or 2157, then 2162, then 2164 into 2165 | package one hundred and sixty-one | folds into P161-01 |
+| H-1473 | The money record refuses a second registration, and a refusal raised while an event is applied there is swallowed. | `account_ledger.py` 235, then 237, the method set at 239, against `execution_manager.py` 2091, then 2093 | package one hundred and sixty-one | folds into P161-01 |
+| H-1474 | A saved picture carries the method back, so a restart from one finds the account registered. | `account_ledger.py` 213, then 214 into 215 | package one hundred and sixty-one | folds into P161-01 |
+| H-1475 | Where the replayed events book to the money record and none of them is a registration, a registration naming the default method is applied there. | `execution_manager.py` 2119 into 2120-2126 | package one hundred and sixty-one | is P161-02 |
+| H-1476 | The events are sifted for the four kinds that book into the money record. | `execution_manager.py` 2114-2117, the four named at 2116 | package one hundred and sixty-one | folds into P161-02 |
+| H-1477 | It is applied to the money record alone, with nothing written to the record of events. | `execution_manager.py` 2120, against 2162 | package one hundred and sixty-one | folds into P161-02 |
+| H-1478 | The sifting runs as part of the replay, and the startup write comes straight after it. | `execution_manager.py` 1113, then `trading.py` 549 | package one hundred and sixty-one | folds into P161-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 00:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 01:00 UTC
