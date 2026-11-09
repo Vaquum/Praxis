@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 589 not.**
+**6 of them reviewed, 591 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 125 — what the one listener serves, and when an account can be delivered to
+
+Scope: the single listener every road into a running host arrives on, and the window
+in which an account's runtime can be reached, part of a module the ledger marks
+`partial`. After the package before this one, three hundred and fifty-three of its
+twelve hundred and one statements were uncited. The listener's start is in an article
+and its roads and its stop are in none; the publishing an account's thread does is in
+none. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 125
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1200 | One application serves the health road, the figures road, a status read and four asks that change something, bound to every address of the host. | Promote. The roads are in no article, and everything arriving on one listener is what makes the credentials the only thing between an ask and the account |
+| Row H-1201 | The listener's build is waited on for ten seconds with nothing wrapped around the wait, where the background work's builds are wrapped. | Merge with H-1200. A port that cannot be bound stopping the host is the consequence |
+| Row H-1202 | The listener is forgotten after the stop's wait whether the wait answered or raised, where the background work keeps what it could not stop. | Merge with H-1200 |
+| Row H-1203 | One thread is made per account, each a daemon named after its account, and starting them refuses where the trading stack or the loop is missing, where a thread finding the same thing answers at once instead. | Promote. The thread's own life is in no article, and the same condition costing a refusal in one place and silence in the other is worth stating |
+| Row H-1204 | The account's runtime is published under a lock once its build has answered, and delivering reads it back under that lock and refuses where none stands. | Merge with H-1203. It is the whole of when an account can be reached |
+| Row H-1205 | An ordinary stop unpublishes the runtime before any of the account's loops is stopped, where a failure unpublishes it after the failure is reported and then sets the host's own stop. | Merge with H-1203 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P125-01 | What the one listener serves | written | [what-the-one-listener-serves.md](atoms/what-the-one-listener-serves.md) |
+| P125-02 | When an account can be delivered to | written | [when-an-account-can-be-delivered-to.md](atoms/when-an-account-can-be-delivered-to.md) |
+
+### Re-seed, after writing package 125
+
+The listener turned out to be a third routine built from the pattern the package
+before this one wrote up, and it departs from it at both points the other two agree
+on.
+
+| What it found | What came of it |
+|---|---|
+| The listener's build is waited on for ten seconds like the samplers' and the pollers', and wraps nothing — so a port that cannot be bound stops the host where a sampler that cannot be built does not. | Stated, linking the pattern article. Three routines share the shape and this is the only one whose failure is fatal |
+| The listener is forgotten after a failed stop, where the other two keep what they could not stop. | Stated. The reason the other two keep it is to try again, and there is nothing here to try again with |
+| Everything arrives on one listener — the health road a container polls, and four asks that change an account. | Stated, with what follows: the credentials each ask weighs are the only thing between an outside caller and the account |
+| Starting the account threads refuses where the trading stack is missing, and a thread that finds the same thing returns without a word. | Stated as the pair |
+
+Worth recording: the pattern article written last package made this one findable. Its
+four departure points were the questions to ask of the listener, and the listener
+answered two of them differently from both of the others. A pattern written down
+once becomes a checklist for everything else built from it, which is a reason to
+write the pattern article rather than fold it into one of its instances.
 
 ## Package 124 — how the mark samplers are started and stopped, and where the host's two sets of background work differ
 
@@ -9327,7 +9374,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1197 | A sampler's cadence is read from the environment on every build, where a poller's is a figure standing in the module. | `launcher.py` 3722, against 3827, the figure at 197 | package one hundred and twenty-four | folds into P124-02 |
 | H-1198 | A sampler writes to the host's record under the epoch, where a poller writes into a cache the host keeps. | `launcher.py` 3725-3726, against 3826 | package one hundred and twenty-four | folds into P124-02 |
 | H-1199 | Starting the samplers stops where the record is missing, and starting the pollers where the venue is missing. | `launcher.py` 3699, against 3799 | package one hundred and twenty-four | folds into P124-02 |
+| H-1200 | One application serves the health road, the figures road, a status read and four asks that change something, bound to every address of the host. | `launcher.py` 3294, then 3295-3301, then 3302, then 3303, then 3304, then 3305 | package one hundred and twenty-five | is P125-01 |
+| H-1201 | The listener's build is waited on for ten seconds with nothing wrapped around the wait. | `launcher.py` 3267 into 3268, or 3270-3273, then 3274, against 3804-3808 | package one hundred and twenty-five | folds into P125-01 |
+| H-1202 | The listener is forgotten after the stop's wait whether the wait answered or raised. | `launcher.py` 3280 into 3281, or 3283-3286, then 3288, then 3291, past 3287-3288 | package one hundred and twenty-five | folds into P125-01 |
+| H-1203 | One thread is made per account, each a daemon named after its account, and starting them refuses where the trading stack or the loop is missing, where a thread finding the same thing answers at once instead. | `launcher.py` 3892, then 3895-3900, then 3901, then 3902, with 3888 into 3889-3890, against 3988 into 3989 | package one hundred and twenty-five | is P125-02 |
+| H-1204 | The account's runtime is published under a lock once its build has answered, and delivering reads it back under that lock and refuses where none stands. | `launcher.py` 3993 into 3994, then 3969, then 3972 into 3973-3977, or 3979 | package one hundred and twenty-five | folds into P125-02 |
+| H-1205 | An ordinary stop unpublishes the runtime before any of the account's loops is stopped, where a failure unpublishes it after the failure is reported and then sets the host's own stop. | `launcher.py` 4001 into 4002, ahead of 4004-4007, against 4037-4038, then 4040 | package one hundred and twenty-five | folds into P125-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 06:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 07:00 UTC
