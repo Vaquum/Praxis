@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 579 not.**
+**6 of them reviewed, 581 not.**
 
 ## Package 1
 
@@ -856,6 +856,56 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 120 — the empty position an entry is given first, and what rebuilding an order's record is given
+
+Scope: the position written for an entry before its order goes out, and the building
+of the record an outcome is worked through against, part of a module the ledger marks
+`partial`. After the package before this one, four hundred and twenty-five of its
+twelve hundred and one statements were uncited. Neither routine is in an article, and
+the two callers of the second are in none either. The rest of the module is left for
+the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 120
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1156 | A position of no size is written under the command's own name as an entry is registered, carrying the action's price or a provider's. | Promote. The write is in no article, and a fill for an entry with no position raising is what it exists against |
+| Row H-1157 | Where neither gives a price, an entry sized by amount is reported and nothing is written, where one sized in money takes a price of one. | Merge with H-1156. The two sizings parting on whether a position is written at all is the finding |
+| Row H-1158 | The first fill sets the position's price to the fill's own wherever the size standing is nought. | Merge with H-1156. It is why the figure written has to be positive and does not have to be right |
+| Row H-1159 | The write is made only where nothing stands under that name already, under the lock where one was given. | Merge with H-1156 |
+| Row H-1160 | The record is built from a request fetched through whatever the caller handed in, and nothing is built where that answers with nothing. | Promote. The building is in no article, and what it is handed is the whole of the second finding |
+| Row H-1161 | A refusal from the record's own demands is reported and nothing built, so a malformed record is never registered. | Merge with H-1160 |
+| Row H-1162 | One caller hands over the request the checks already used and the other a way to build one again, settled by whether the road out carries a command name of Praxis's own. | Merge with H-1160 |
+| Row H-1163 | The caller that hands over the ready request has just raised the position's pending amount, which is the figure a full close is worked out against. | Merge with H-1160. A rebuild at that point would record a full close as a part one |
+| Row H-1164 | A request carrying no side is reported and nothing is built. | Merge with H-1160 |
+| Row H-1165 | Whether the record counts as an entry is settled from the action's kind, and a request carrying no size refuses only where it is not one. | Merge with H-1160. An entry's size being allowed to be absent is what distinguishes the two tests |
+
+Two subjects promote and eight rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P120-01 | The empty position an entry is given first | written | [the-empty-position-an-entry-is-given-first.md](atoms/the-empty-position-an-entry-is-given-first.md) |
+| P120-02 | What rebuilding an order's record is given | written | [what-rebuilding-an-orders-record-is-given.md](atoms/what-rebuilding-an-orders-record-is-given.md) |
+
+### Re-seed, after writing package 120
+
+The second article's finding is a stale docstring, caught by reading the callers
+rather than the routine.
+
+| What it found | What came of it |
+|---|---|
+| The routine's own description says it re-runs the context build. One of its two callers hands it the context the checks already made instead. | Stated as the two callers, with the docstring left unmentioned. The body takes whatever it is handed; the description is a claim about one caller |
+| That caller cannot rebuild, because it has just raised the position's pending amount and a full close is worked out against that amount. | Stated. The chain is three lines in three places and no one line says it |
+| Which of the two callers runs is settled by whether the road out carries a command name of Praxis's own. | Stated. The two are mutually exclusive, one returning before the other's loop is reached |
+| An entry sized by amount with no price available has no position written for it, where one sized in money always does. | Stated. The amount-sized road is already refused earlier for want of a price, so this branch is reached by nothing — which the article does not claim, since the earlier refusal is on another road and this module cannot show the two are the only roads in |
+
+Worth recording: the unreachable branch was nearly written up as unreachable. The
+earlier refusal does stand on the road through the request builders, and the write is
+reached from the registering, which is further on — so the branch looks dead. Saying
+so would need every road into the registering accounted for, and this module shows
+two. The article states what the branch does and stops, which is the honest form when
+reachability depends on callers the module does not name.
 
 ## Package 119 — how an action is routed into a request, and where the two request builders part
 
@@ -9040,7 +9090,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1153 | Which level an exit's refusal is reported at is chosen by whether the whole remainder was meant. | `launcher.py` 1324 | package one hundred and nineteen | folds into P119-02 |
 | H-1154 | Both builders let a snapped amount replace the action's own, each after its own refusal has been weighed. | `launcher.py` 1248-1249, and 1371-1372 | package one hundred and nineteen | folds into P119-02 |
 | H-1155 | Every road that builds a request estimates the fee as the sum times the rate. | `launcher.py` 1176, or 1252, and 1375 | package one hundred and nineteen | folds into P119-02 |
+| H-1156 | A position of no size is written under the command's own name as an entry is registered, carrying the action's price or a provider's. | `launcher.py` 2137 into 2138-2145, reaching 1446-1452, with 1431, then 1432 into 1433 | package one hundred and twenty | is P120-01 |
+| H-1157 | Where neither gives a price, an entry sized by amount is reported and nothing is written, where one sized in money takes a price of one. | `launcher.py` 1435, then 1437 into 1442, or 1444 | package one hundred and twenty | folds into P120-01 |
+| H-1158 | The first fill sets the position's price to the fill's own wherever the size standing is nought. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 473, then 479, then 480-482 | package one hundred and twenty | folds into P120-01 |
+| H-1159 | The write is made only where nothing stands under that name already, under the lock where one was given. | `launcher.py` 1455 into 1456-1457, or 1459 | package one hundred and twenty | folds into P120-01 |
+| H-1160 | The record is built from a request fetched through whatever the caller handed in, and nothing is built where that answers with nothing. | `launcher.py` 1499, then 1500 into 1501 | package one hundred and twenty | is P120-02 |
+| H-1161 | A refusal from the record's own demands is reported and nothing built, so a malformed record is never registered. | `launcher.py` 1521-1522 into 1533, then 1538 | package one hundred and twenty | folds into P120-02 |
+| H-1162 | One caller hands over the request the checks already used and the other a way to build one again, settled by whether the road out carries a command name of Praxis's own. | `launcher.py` 2183, against 4329, the settling at 4239-4255, against 4270 into 4271 | package one hundred and twenty | folds into P120-02 |
+| H-1163 | The caller that hands over the ready request has just raised the position's pending amount, which is the figure a full close is worked out against. | `launcher.py` 2161-2164 before 2179-2184, with 1307, then 1308 | package one hundred and twenty | folds into P120-02 |
+| H-1164 | A request carrying no side is reported and nothing is built. | `launcher.py` 1503 into 1508 | package one hundred and twenty | folds into P120-02 |
+| H-1165 | Whether the record counts as an entry is settled from the action's kind, and a request carrying no size refuses only where it is not one. | `launcher.py` 1510, then 1512 into 1517 | package one hundred and twenty | folds into P120-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 04:30 UTC
