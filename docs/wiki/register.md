@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 643 not.**
+**6 of them reviewed, 645 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 153 — how a bracket's news is told apart, and what ending a scheme forgets
+
+Scope: the one handler that hears about both a bracket's entry and its protection, and
+the ending of a fed-out order, part of a module the ledger marks `partial`. After the
+package before this one, seven hundred and ninety-eight of its two thousand four
+hundred and eighty-seven statements were uncited. Neither subject is in an article.
+The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 153
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1406 | News of the wrong kind, news naming an order found in neither the live nor the closed orders, and an order whose status is not terminal are each dropped. | Promote. The handler is in no article, and looking in the closed orders too is what lets news arrive after the order was moved aside |
+| Row H-1407 | A leg's news is turned into its parent list's name, and the brackets searched for one whose protection carries that name and reports itself active. | Merge with H-1406. The protection is tried before the entry is considered |
+| Row H-1408 | Otherwise the bracket is looked up by the order's command, and the bracket taken out of the account's brackets before its entry is settled. | Merge with H-1406. Placing the protection puts it back, and a failure in between leaves no bracket at all |
+| Row H-1409 | An entry that ended having filled nothing is reported and left without protection. | Merge with H-1406 |
+| Row H-1410 | One moment is taken and carried by the outcome handed on, any closing record, and the outcome written down. | Promote. The ending is in no article, and the order of its forgetting and its writing is what a later reader sees |
+| Row H-1411 | The command is marked terminal, dropped from the held commands, and any abort against it dropped, all before the outcome is written down. | Merge with H-1410. Between them the command is terminal and held nowhere |
+| Row H-1412 | A scheme that filled something and closes its position has a closing record written and projected before the outcome. | Merge with H-1410 |
+| Row H-1413 | The outcome carries the command's whole amount as its target whatever was filled. | Merge with H-1410 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P153-01 | How a bracket's news is told apart | written | [how-a-brackets-news-is-told-apart.md](atoms/how-a-brackets-news-is-told-apart.md) |
+| P153-02 | What ending a scheme forgets | written | [what-ending-a-scheme-forgets.md](atoms/what-ending-a-scheme-forgets.md) |
+
+### Re-seed, after writing package 153
+
+Both subjects are about an order of operations that opens a window, which is the axis
+this module keeps producing.
+
+| What it found | What came of it |
+|---|---|
+| The bracket is removed from the account's brackets before its entry is settled, and placing the protection puts it back. | Stated. A failure in between leaves no bracket at all, which no line says and the order shows |
+| The protection is searched for before the entry is considered at all. | Stated. A leg's news is turned into its parent's name first, so a protection's leg never reaches the entry road |
+| The command is forgotten from three places before its outcome is written down. | Stated as the window: terminal and held nowhere, with the outcome not yet recorded |
+| A position's closing is recorded ahead of the outcome that caused it. | Stated |
+
+Worth recording: this module has now yielded the same kind of finding in six packages
+running — a write or a removal placed before the thing that would justify it, opening
+a window in which the records disagree. None of those windows is a defect on its own
+and every one of them is invisible from the line that opens it. Asking what order two
+writes happen in has been the most productive single question in this module.
 
 ## Package 152 — how a protection in doubt is re-confirmed, and what retiring a ladder's old grid counts
 
@@ -10854,7 +10901,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1403 | A terminal rung has its fills added to both running totals and its name taken off the live children. | `execution_manager.py` 9134, then 9138, then 9139, then 9140, then 9141 | package one hundred and fifty-two | folds into P152-02 |
 | H-1404 | A rung the venue has never heard of is passed over in silence, and any other venue failure halts the amend in its cancelling phase. | `execution_manager.py` 9146-9149, then 9150 into 9151, or 9152 into 9153-9156 | package one hundred and fifty-two | folds into P152-02 |
 | H-1405 | A cancellation is written to the record only where the account's own state holds that rung. | `execution_manager.py` 9188 into 9189-9195 | package one hundred and fifty-two | folds into P152-02 |
+| H-1406 | News of the wrong kind, news naming an order found in neither the live nor the closed orders, and an order whose status is not terminal are each dropped. | `execution_manager.py` 4660-4662 into 4663, or 4665-4668, then 4669 into 4670, or 4672 into 4673 | package one hundred and fifty-three | is P153-01 |
+| H-1407 | A leg's news is turned into its parent list's name, and the brackets searched for one whose protection carries that name and reports itself active. | `execution_manager.py` 4680-4682, then 4683-4691, then 4693 into 4694, then 4696 | package one hundred and fifty-three | folds into P153-01 |
+| H-1408 | Otherwise the bracket is looked up by the order's command, and taken out of the account's brackets before its entry is settled. | `execution_manager.py` 4698, then 4699 into 4700, or 4702, ahead of 4714-4717 | package one hundred and fifty-three | folds into P153-01 |
+| H-1409 | An entry that ended having filled nothing is reported and left without protection. | `execution_manager.py` 4704 into 4712 | package one hundred and fifty-three | folds into P153-01 |
+| H-1410 | One moment is taken and carried by the outcome handed on, any closing record, and the outcome written down. | `execution_manager.py` 8405, used at 8422, and 8435, and 8444 | package one hundred and fifty-three | is P153-02 |
+| H-1411 | The command is marked terminal, dropped from the held commands, and any abort against it dropped, all before the outcome is written down. | `execution_manager.py` 8426, then 8427, then 8428, ahead of 8442-8449 | package one hundred and fifty-three | folds into P153-02 |
+| H-1412 | A scheme that filled something and closes its position has a closing record written and projected before the outcome. | `execution_manager.py` 8430-8432 into 8433-8438, then 8439, then 8440 | package one hundred and fifty-three | folds into P153-02 |
+| H-1413 | The outcome carries the command's whole amount as its target, and the average price is the money over the amount. | `execution_manager.py` 8407-8409, then 8411-8424, the target at 8416 | package one hundred and fifty-three | folds into P153-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 20:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 21:00 UTC

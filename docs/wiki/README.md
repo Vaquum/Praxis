@@ -127,6 +127,8 @@ the others where it appears.
 - [When a weight curve plans nothing](atoms/when-a-weight-curve-plans-nothing.md) — a curve that passes every settings check can still split an amount into a part of nothing, caught on the way out rather than at the start.
 - [What a protection of unknown fate is rebuilt as](atoms/what-a-protection-of-unknown-fate-is-rebuilt-as.md) — a protective pair whose outcome the record never settles comes back marked as being in doubt, carrying both the list it had and the list meant to replace it, for the watchdog to ask the venue about.
 - [The one precedence written twice](atoms/the-one-precedence-written-twice.md) — the rule reducing a protective pair's two legs to a single status is written in two places that agree on the rule and differ on what it is applied to and on whether anything checks first that the pair has finished.
+- [How a bracket's news is told apart](atoms/how-a-brackets-news-is-told-apart.md) — one handler hears about both a protected entry and its protection, searching for the protection first, and the holding is taken off the books before its entry is settled so a failure in between leaves none at all.
+- [What ending a scheme forgets](atoms/what-ending-a-scheme-forgets.md) — a fed-out order is forgotten from three places before its outcome is written down, so between them it is finished and held nowhere with nothing yet recorded about how it ended.
 - [Which child news a scheme acts on](atoms/which-child-news-a-scheme-acts-on.md) — news about a finished fed-out order is silenced by the lookup that finds no running one rather than by any test naming it, and a child ending mid-change is forgotten as live with nothing else done about it.
 - [What starting a bracket writes before its entry](atoms/what-starting-a-bracket-writes-before-its-entry.md) — the whole shape of a protected entry is written down before the entry is sent, so a crash in between leaves a record of one whose entry never went out.
 - [What a ladder's change is refused for](atoms/what-a-ladders-change-is-refused-for.md) — a grid that could not exist is caught by building it and throwing the result away, and a change naming only prices keeps the weights the order already had.
@@ -741,7 +743,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 644
+Both sides are the subject, and Praxis is the side that has been written. 646
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -752,4 +754,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 20:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 21:00 UTC
