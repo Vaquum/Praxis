@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 630 not.**
+**6 of them reviewed, 632 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 146 — the three kinds of orphan a boot finds, and why a flatten is recovered only once
+
+Scope: the sorting of commands the record shows starting and never finishing, and the
+one test guarding the recovery of a flatten, part of a module the ledger marks
+`partial`. After the package before this one, nine hundred and seventy-one of its two
+thousand four hundred and eighty-seven statements were uncited. Neither subject is in
+an article. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 146
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1358 | One walk gathers the accepted commands, the scheme starts, the intents and the names their orders were given, and counts a command finished where a send answered either way or a terminal outcome was recorded. | Promote. The sorting is in no article, and a failed send counting as finishing a command is what makes silence the thing that defines an orphan |
+| Row H-1359 | The first kind is an accepted command with no intent, the second a command whose order was intended, and the third a scheme start the resumes did not rebuild — the first two both excluding commands that began a scheme. | Merge with H-1358. A command would otherwise be refused as an orphan and ended as a scheme both |
+| Row H-1360 | The first kind is refused one at a time, carrying the trade the record named for it. | Merge with H-1358 |
+| Row H-1361 | A flatten order already carrying fills is reported and left alone for the live reconcile. | Promote. The test is in no article, and what it guards against is a double count that the projection's own shape makes possible |
+| Row H-1362 | Where no local order stands at all, an intent and a submission are both recorded and applied, so the record gains the whole history of an order Praxis never saw go out. | Merge with H-1361 |
+| Row H-1363 | Each venue trade naming that order becomes a fill written to the record, applied only where the write answered with a place. | Merge with H-1361 |
+| Row H-1364 | The order is read back afterwards and an outcome built only where it now carries fills. | Merge with H-1361 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P146-01 | The three kinds of orphan a boot finds | written | [the-three-kinds-of-orphan-a-boot-finds.md](atoms/the-three-kinds-of-orphan-a-boot-finds.md) |
+| P146-02 | Why a flatten is recovered only once | written | [why-a-flatten-is-recovered-only-once.md](atoms/why-a-flatten-is-recovered-only-once.md) |
+
+### Re-seed, after writing package 146
+
+Both subjects turn on a definition the code states by what it gathers rather than by
+any name it uses.
+
+| What it found | What came of it |
+|---|---|
+| A command counts as finished where a send answered either way, so a failed send finishes a command as a successful one does. | Stated. What makes an orphan is silence rather than failure, which no line says and the gathering shows |
+| The first two kinds of orphan both exclude commands that began a scheme. | Stated as why: a command would otherwise be refused as an orphan and ended as a scheme both |
+| A flatten already carrying fills is left alone because fills are projected by adding amounts rather than by matching the trade they came from. | Stated. The guard is about the projection's shape, not about the flatten, and it is the only place that shape is visible as a constraint |
+| A duplicate write of a fill answers with no place, and nothing is applied. | Stated. It is the second guard against the same double count, in the same routine |
+
+Worth recording: the orphan sorting has no word in it for "orphan" beyond the local
+names, and what each kind means is readable only from which sets a command must be
+absent from. Writing the three as sentences about the record — never intended, "may
+have gone out", "was running and could not be brought back" — is the article's whole
+contribution; the code gives three list comprehensions.
 
 ## Package 145 — how a change is routed to its handler, and what placing a bracket's protection writes first
 
@@ -10492,7 +10538,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1355 | What the exit may fill is recorded by amount alone, with no money figure. | `execution_manager.py` 4927 | package one hundred and forty-five | folds into P145-02 |
 | H-1356 | Legs on the wrong side of the entry's fill are refused as an adapter failure before the venue is reached. | `execution_manager.py` 4960-4962, then 4965, or 4967-4975 | package one hundred and forty-five | folds into P145-02 |
 | H-1357 | The exit command is installed, given the entry's trade name and mapped to its order only after the send has answered. | `execution_manager.py` 5017, then 5018, then 5019, past 5015 | package one hundred and forty-five | folds into P145-02 |
+| H-1358 | One walk gathers the accepted commands, the scheme starts, the intents and the names their orders were given, and counts a command finished where a send answered either way or a terminal outcome was recorded. | `execution_manager.py` 2220, then 2221 into 2222, or 2232, then 2233 into 2234, or 2235 into 2236, or 2237 into 2238-2239, or 2240 into 2241, then 2242 into 2243, or 2244-2247 into 2248 | package one hundred and forty-six | is P146-01 |
+| H-1359 | The first kind is an accepted command with no intent, the second a command whose order was intended, and the third a scheme start the resumes did not rebuild. | `execution_manager.py` 2250-2252, then 2254-2259, and 2260-2263, and 2264-2268 | package one hundred and forty-six | folds into P146-01 |
+| H-1360 | The first kind is refused one at a time, carrying the trade the record named for it. | `execution_manager.py` 2270, then 2271-2275 | package one hundred and forty-six | folds into P146-01 |
+| H-1361 | A flatten order already carrying fills is reported and left alone for the live reconcile. | `execution_manager.py` 8018, then 8019 into 8026 | package one hundred and forty-six | is P146-02 |
+| H-1362 | The exit command is built from the venue's own amount and, where no local order stands, an intent and a submission are both recorded and applied. | `execution_manager.py` 8028-8030, then 8031, then 8032, then 8033, then 8035 into 8036-8045, then 8049, then 8051-8058, then 8059 | package one hundred and forty-six | folds into P146-02 |
+| H-1363 | Each venue trade naming that order becomes a fill written to the record, applied only where the write answered with a place. | `execution_manager.py` 8061, then 8062, then 8063, then 8066, then 8082, then 8083 into 8084 | package one hundred and forty-six | folds into P146-02 |
+| H-1364 | The order is read back afterwards and an outcome built only where it now carries fills. | `execution_manager.py` 8086, then 8087 into 8092 | package one hundred and forty-six | folds into P146-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 17:30 UTC
