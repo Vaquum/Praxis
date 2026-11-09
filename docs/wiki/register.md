@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 633 not.**
+**6 of them reviewed, 635 not.**
 
 ## Package 1
 
@@ -856,6 +856,53 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 148 — which child news a scheme acts on, and what starting a bracket writes before its entry
+
+Scope: the handling of a fed-out order's child news, and the start of a bracket, part
+of a module the ledger marks `partial`. After the package before this one, nine
+hundred and twenty of its two thousand four hundred and eighty-seven statements were
+uncited. Neither subject is in an article. The rest of the module is left for the
+packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 148
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1369 | Three kinds of news are dropped before anything is acted on: news of the wrong kind, news naming an order the account does not hold, and news whose order belongs to no running scheme. | Promote. The handling is in no article, and news for a finished scheme being dropped by the third test is worth stating |
+| Row H-1370 | A terminal child is taken off the scheme's live children first, and a scheme mid-amend then stops there. | Merge with H-1369. A child ending during an amend is forgotten as live and nothing else done about it here |
+| Row H-1371 | A child that ended in anything but a full fill, where the scheme is open, is treated as a failed slice and the pass ends. | Merge with H-1369. A scheme already held takes a different road, which leaves its hold in place |
+| Row H-1372 | Everything reaching the end asks whether the scheme can now be finished. | Merge with H-1369 |
+| Row H-1373 | A bracket's start is recorded with both prices, both offsets, the stop's limit, the whole amount and the timeout, and applied, before the entry is sent. | Promote. The start is in no article, and the record preceding the send is the finding |
+| Row H-1374 | The parameters and the amount are insisted upon rather than tested, so a command arriving without them stops the worker. | Merge with H-1373 |
+| Row H-1375 | An entry whose send answered with no order ends the command with nothing filled, the start already written staying in the record. | Merge with H-1373 |
+| Row H-1376 | Otherwise the command is mapped to that order, a live bracket registered, and an entry already terminal settled at once. | Merge with H-1373 |
+| Row H-1377 | A bracket still working answers from the admitted totals, so one whose entry is still resting answers with what has been admitted so far. | Merge with H-1373 |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P148-01 | Which child news a scheme acts on | written | [which-child-news-a-scheme-acts-on.md](atoms/which-child-news-a-scheme-acts-on.md) |
+| P148-02 | What starting a bracket writes before its entry | written | [what-starting-a-bracket-writes-before-its-entry.md](atoms/what-starting-a-bracket-writes-before-its-entry.md) |
+
+### Re-seed, after writing package 148
+
+Both subjects are about what is settled before the interesting part of a routine
+begins.
+
+| What it found | What came of it |
+|---|---|
+| News for a scheme already finished is dropped by the test for a running scheme, since finishing removes it from the running ones. | Stated. No test names a finished scheme, and the drop is a consequence of where the scheme is looked up |
+| A child ending during an amend is taken off the live children and nothing else is done about it. | Stated. The removal happens before the amend test, so it applies whatever the test then decides |
+| A bracket's whole shape is recorded before its entry is sent. | Stated, with what a crash between the two leaves: a record of a bracket whose entry never went out |
+| The parameters and the amount are insisted upon rather than tested. | Stated. A command arriving without them stops the worker rather than being refused, which is a different outcome from every other refusal on this road |
+
+Worth recording: the third drop in the first article is the useful one and it is not a
+test of its own. Finishing a scheme takes it out of the running schemes, so the lookup
+that finds no scheme is what silences news for a finished one. Describing a drop by
+the state that causes it, rather than by the line that performs it, is what makes
+that readable.
 
 ## Package 147 — the four roads out of a slice's send
 
@@ -10590,7 +10637,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1365 | A slice's send has four endings, and only a timeout or a name the venue already knows sends it to be rescued by that name. | `execution_manager.py` 5992 into 5993-5995, and 6219 into 6220-6222, then 5996 into 5997-6000, and 6223 into 6224-6227, or 6001, then 6002, and 6228, then 6229 | package one hundred and forty-seven | is P147-01 |
 | H-1366 | A venue failure and a parameter the adapter will not take are both recorded as failed with no rescue attempted. | `execution_manager.py` 6003 into 6004-6007, and 6230 into 6234, or 6008 into 6009-6013, and 6235 into 6240 | package one hundred and forty-seven | folds into P147-01 |
 | H-1367 | The moment is stamped only once the venue has answered, and the submission and every immediate fill recorded under it. | `execution_manager.py` 5991, and 6218, then 6015-6021, then 6022, then 6023, and 6248, then 6249, then 6025, then 6026-6037, and 6251, then 6252-6266 | package one hundred and forty-seven | folds into P147-01 |
+| H-1369 | Three kinds of news are dropped before anything is acted on. | `execution_manager.py` 6399 into 6400, or 6402, then 6403 into 6404, or 6406, then 6407 into 6408 | package one hundred and forty-eight | is P148-01 |
+| H-1370 | A terminal child is taken off the scheme's live children first, and a scheme mid-amend then stops there. | `execution_manager.py` 6410 into 6411, then 6413 into 6414 | package one hundred and forty-eight | folds into P148-01 |
+| H-1371 | A child that ended in anything but a full fill, where the scheme is open, is treated as a failed slice and the pass ends. | `execution_manager.py` 6416-6419 into 6420-6426, then 6427 | package one hundred and forty-eight | folds into P148-01 |
+| H-1372 | Everything reaching the end asks whether the scheme can now be finished. | `execution_manager.py` 6429 | package one hundred and forty-eight | folds into P148-01 |
+| H-1373 | A bracket's start is recorded with both prices, both offsets, the stop's limit, the whole amount and the timeout, and applied, before the entry is sent. | `execution_manager.py` 4502, then 4503-4517, then 4518, then 4519, then 4521-4522 | package one hundred and forty-eight | is P148-02 |
+| H-1374 | The parameters and the amount are insisted upon rather than tested. | `execution_manager.py` 4499, then 4500 | package one hundred and forty-eight | folds into P148-02 |
+| H-1375 | An entry whose send answered with no order ends the command with nothing filled. | `execution_manager.py` 4525 into 4526-4533 | package one hundred and forty-eight | folds into P148-02 |
+| H-1376 | Otherwise the command is mapped to that order, a live bracket registered, and an entry already terminal settled at once. | `execution_manager.py` 4535, then 4536, then 4537, then 4539, then 4541 into 4542 | package one hundred and forty-eight | folds into P148-02 |
+| H-1377 | A bracket still working answers from the admitted totals. | `execution_manager.py` 4544-4546, then 4547-4549, then 4551 | package one hundred and forty-eight | folds into P148-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 18:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 18:30 UTC
