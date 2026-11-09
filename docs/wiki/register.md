@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 649 not.**
+**6 of them reviewed, 651 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 156 — what a scheme's change replans, and when a protection fills as it is placed
+
+Scope: the replanning a schedule change does, and the protective pair that comes back
+already filled, part of a module the ledger marks `partial`. After the package before
+this one, seven hundred and thirty-six of its two thousand four hundred and
+eighty-seven statements were uncited. Neither subject is in an article. The rest of
+the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 156
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1431 | A scheme held for protection or draining, one already owing a terminal answer, and a volume-weighted change carrying weights are each reported and dropped. | Promote. The replanning is in no article, and what the change leaves alone is most of it |
+| Row H-1432 | What is left to fill is the command's amount less the raw projected fills, and what is left to do the new count less the cursor, each able to drop the change. | Merge with H-1431. A scheme that has filled its whole amount cannot be given a new schedule even with slices unfinished |
+| Row H-1433 | A changed slice count replans the remaining amount over the remaining slices against the venue's lot step, and a replan that refuses leaves the schedule as it was. | Merge with H-1431. A change that cannot be divided is a no-op rather than a failure |
+| Row H-1434 | The replanned amounts replace only the part of the plan the cursor has not reached. | Merge with H-1431 |
+| Row H-1435 | Each fill carried back by the venue's answer is written and applied only where the write answered with a place. | Promote. The placing reading its own order back is in no article, and what it finds settles whether an outcome is built at once |
+| Row H-1436 | The protective order is read from the account's own state after those fills are applied, so what it says reflects the fills just written. | Merge with H-1435 |
+| Row H-1437 | An order already terminal having filled something has the exit's outcome built from the admitted totals. | Merge with H-1435 |
+| Row H-1438 | The prices, the entry price and the word active were all set before the order was read back. | Merge with H-1435. A reader catching the bracket in between sees a live protection for a position already closed |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P156-01 | What a scheme's change replans | written | [what-a-schemes-change-replans.md](atoms/what-a-schemes-change-replans.md) |
+| P156-02 | When a protection fills as it is placed | written | [when-a-protection-fills-as-it-is-placed.md](atoms/when-a-protection-fills-as-it-is-placed.md) |
+
+### Re-seed, after writing package 156
+
+The second subject is the sixth window this module has produced, and the first where
+the window is between a mark and an outcome rather than between two writes.
+
+| What it found | What came of it |
+|---|---|
+| A replan that cannot be divided leaves the schedule unchanged and says so. | Stated as a no-op rather than a failure, which is what distinguishes it from the other two drops |
+| Only the part of the plan past the cursor is replaced, so slices already run keep the amounts they ran with. | Stated. It is what keeps the record of what was done true after a change |
+| The protective order is read back from the account's own state after the carried fills are applied. | Stated. What it says therefore reflects those fills rather than the venue's answer directly |
+| A protection filling as it is placed is recorded active and then given an outcome, in that order. | Stated. A reader catching the bracket between the two sees a live protection for a position that has closed |
+
+Worth recording: the duplicate-write guard — applying a fill only where the write
+answered with a place — now appears in three routines, and each time it is the same
+two lines. It was first written up as the flatten recovery's second guard against
+double counting; here it is simply how fills are applied. A guard that reads as
+incidental in one place and as the mechanism in another is worth linking in both.
 
 ## Package 155 — which figures settle a bracket's entry, and what a ladder's start plans before it posts
 
@@ -11021,7 +11067,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1428 | A planning that refuses names as its slice total the count of prices the parameters held. | `execution_manager.py` 6094 into 6096-6101, the total at 6100 | package one hundred and fifty-five | folds into P155-02 |
 | H-1429 | The start records the planned count as its slice total and nought as its interval, carrying the weights asked for or an empty set. | `execution_manager.py` 6105-6119, the count at 6114, the interval at 6115, with 6117, then 6118 | package one hundred and fifty-five | folds into P155-02 |
 | H-1430 | The start is written and applied before the live ladder is built. | `execution_manager.py` 6120, then 6121, then 6123-6125 | package one hundred and fifty-five | folds into P155-02 |
+| H-1431 | A scheme held for protection or draining, one already owing a terminal answer, and a volume-weighted change carrying weights are each reported and dropped. | `execution_manager.py` 10078-10079, then 10080, then 10081, then 10083 into 10091, or 10093 into 10099, or 10101 into 10107 | package one hundred and fifty-six | is P156-01 |
+| H-1432 | What is left to fill is the command's amount less the raw projected fills, and what is left to do the new count less the cursor, each able to drop the change. | `execution_manager.py` 10109, then 10110, then 10111-10113, then 10115, then 10116, then 10117, then 10119 into 10123, or 10125 into 10133 | package one hundred and fifty-six | folds into P156-01 |
+| H-1433 | A changed slice count replans the remaining amount over the remaining slices against the venue's lot step, and a replan that refuses leaves the schedule as it was. | `execution_manager.py` 10135, then 10136, then 10137, then 10138-10139, then 10140 into 10147 | package one hundred and fifty-six | folds into P156-01 |
+| H-1434 | The replanned amounts replace only the part of the plan the cursor has not reached. | `execution_manager.py` 10149 | package one hundred and fifty-six | folds into P156-01 |
+| H-1435 | Each fill carried back by the venue's answer is written and applied only where the write answered with a place. | `execution_manager.py` 5056, then 5057 into 5058 | package one hundred and fifty-six | is P156-02 |
+| H-1436 | The protective order is read from the account's own state after those fills are applied. | `execution_manager.py` 5072 | package one hundred and fifty-six | folds into P156-02 |
+| H-1437 | An order already terminal having filled something has the exit's outcome built from the admitted totals. | `execution_manager.py` 5073-5077 into 5078-5080, then 5082-5084, then 5090-5091 | package one hundred and fifty-six | folds into P156-02 |
+| H-1438 | The prices, the entry price and the word active were all set before the order was read back. | `execution_manager.py` 5031-5036, ahead of 5072 | package one hundred and fifty-six | folds into P156-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 22:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 22:30 UTC

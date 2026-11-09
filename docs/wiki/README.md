@@ -160,6 +160,8 @@ the others where it appears.
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
 - [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — every request to alter work must name the command, the account and a reason, and a change to how work is spread over time is refused outright.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — which fields each way of working lets a change touch, and what it checks before touching them.
+- [What a scheme's change replans](atoms/what-a-schemes-change-replans.md) — only the part of the schedule not yet reached is replanned, so slices already run keep the amounts they ran with, and a change that cannot be divided leaves the schedule untouched rather than failing.
+- [When a protection fills as it is placed](atoms/when-a-protection-fills-as-it-is-placed.md) — a protective pair can come back already filled, and it is recorded as live before it is given an outcome, so a reader catching it in between sees protection for a holding that has closed.
 - [How a schedule change is carried out](atoms/how-a-schedule-change-is-carried-out.md) — the parts already sent kept, the rest planned again, and the next part set a full gap from now.
 - [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
 - [Which figures settle a bracket's entry](atoms/which-figures-settle-a-brackets-entry.md) — the order's own fills decide whether anything filled and what price the protection rests on, while the admitted totals decide what the outcome reports, so an entry can be called part filled while its protection is sized from a larger figure.
@@ -747,7 +749,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 650
+Both sides are the subject, and Praxis is the side that has been written. 652
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -758,4 +760,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 22:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 22:30 UTC
