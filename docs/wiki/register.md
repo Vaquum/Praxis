@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 626 not.**
+**6 of them reviewed, 628 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 144 — what the venue is asked when no protection is working, and the remainder subtraction written twice
+
+Scope: the resolving of a bracket whose candidate lists the venue has confirmed
+finished, and the one subtraction deciding how much of a position stands
+unprotected, part of a module the ledger marks `partial`. After the package before
+this one, ten hundred and eighteen of its two thousand four hundred and eighty-seven
+statements were uncited. Neither subject is in an article. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 144
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1342 | Both candidate list names are gathered and each asked after at the venue, its list and then every leg, with the legs' fills summed. | Promote. The resolving is in no article, and asking the venue rather than reading the projections is what settles the outcome |
+| Row H-1343 | A list the venue does not know is passed over, any other venue failure abandons the resolving, and a failure to reconcile abandons it too. | Merge with H-1342. Three ways of giving up, each leaving the bracket as it was for a later pass |
+| Row H-1344 | A position closed by a protective fill has the exit's outcome built as filled from the admitted totals, and the bracket dropped. | Merge with H-1342 |
+| Row H-1345 | How much of a bracket stands unprotected is the entry's delivered amount, less the exit's projected fills with the candidates' projections taken back out, less what the venue said they filled — and that subtraction is written in two places. | Promote. The duplication is in no article, and the same arithmetic leading to a flatten on one road and a fresh protective pair on the other is the finding |
+| Row H-1346 | In the one the figures are gathered over both candidate lists, and in the other they are the old list's alone. | Merge with H-1345 |
+| Row H-1347 | Both read the entry's delivered amount and the exit's projection from the same two helpers. | Merge with H-1345 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P144-01 | What the venue is asked when no protection is working | written | [what-the-venue-is-asked-when-no-protection-is-working.md](atoms/what-the-venue-is-asked-when-no-protection-is-working.md) |
+| P144-02 | The remainder subtraction written twice | written | [the-remainder-subtraction-written-twice.md](atoms/the-remainder-subtraction-written-twice.md) |
+
+### Re-seed, after writing package 144
+
+The sixth duplicated rule in this corpus, and the first found by recognising a
+subtraction written a package earlier.
+
+| What it found | What came of it |
+|---|---|
+| The remainder subtraction is written in two places, differing only in whether the figures are gathered over both candidate lists or the old list alone. | Promoted. It was recognisable only because the package before this one had written the same expression down in prose |
+| The same arithmetic leads to a flatten on the one road and a fresh protective pair on the other. | Stated as what each does with the answer. Neither routine mentions the other, and the shared shape is what makes the divergence worth naming |
+| Taking the local projection back out before adding the venue's figure is what stops a fill counting twice. | Stated in both articles, since each is the only place its own reader will look |
+| The resolving has three ways of giving up, each leaving the bracket untouched. | Stated. A list the venue does not know is the only one of the three that does not abandon the whole pass |
+
+Worth recording: a duplicated rule is far easier to find once one of its copies has
+been written out in plain words. Five of the six found so far came from reading two
+routines side by side or chasing a helper's callers; this one came from recognising a
+sentence already in the corpus. Writing a thing down is itself a way of searching for
+it elsewhere.
 
 ## Package 143 — how a protection amend is driven to its end, and when an amend places no replacement
 
@@ -10382,7 +10427,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1339 | Nothing left to protect drops the bracket and places no replacement. | `execution_manager.py` 9616 into 9617, then 9624 | package one hundred and forty-three | folds into P143-02 |
 | H-1340 | A remainder below the venue's least amount, or worth less than its least sum at the take-profit price, drops the bracket too. | `execution_manager.py` 9626, then 9627, then 9628, then 9630 into 9631, then 9640 | package one hundred and forty-three | folds into P143-02 |
 | H-1341 | The replacement is recorded as submitted and the bracket marked so before any order goes out. | `execution_manager.py` 9642-9649, then 9650, then 9652 | package one hundred and forty-three | folds into P143-02 |
+| H-1342 | Both candidate list names are gathered and each asked after at the venue, its list and then every leg, with the legs' fills summed. | `execution_manager.py` 7419-7426, then 7429, then 7431-7433, then 7435, then 7436-7438, then 7439 | package one hundred and forty-four | is P144-01 |
+| H-1343 | A list the venue does not know is passed over, any other venue failure abandons the resolving, and a failure to reconcile abandons it too. | `execution_manager.py` 7440 into 7441, or 7442 into 7443, or 7452-7456, then 7457 into 7458 | package one hundred and forty-four | folds into P144-01 |
+| H-1344 | A position closed by a protective fill has the exit's outcome built as filled from the admitted totals, and the bracket dropped. | `execution_manager.py` 7465-7468, then 7469 into 7470-7478, then 7480, then 7486 | package one hundred and forty-four | folds into P144-01 |
+| H-1345 | How much of a bracket stands unprotected is one subtraction, written in two places. | `execution_manager.py` 7463, against 9614 | package one hundred and forty-four | is P144-02 |
+| H-1346 | In the one the figures are gathered over both candidate lists, and in the other they are the old list's alone. | `execution_manager.py` 7429, then 7460, then 7461, against 9535, then 9544-9546 | package one hundred and forty-four | folds into P144-02 |
+| H-1347 | Both read the entry's delivered amount and the exit's projection from the same two helpers, and both drop the bracket on a remainder at or below nothing. | `execution_manager.py` 7413, and 9531, both into 2648, with 7414, and 9533, then 7464 into 7480, and 9616 into 9617 | package one hundred and forty-four | folds into P144-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 16:30 UTC
