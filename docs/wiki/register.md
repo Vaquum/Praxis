@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 677 not.**
+**6 of them reviewed, 683 not.**
 
 ## Package 1
 
@@ -856,6 +856,144 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 172 — which news makes a report, and what a boot's re-flatten does before it sizes
+
+Scope: the readings that decide which of the venue's news reaches Nexus as a report, and
+the draining a boot's re-attempted close does before reading its figures, part of a
+module the ledger marks `partial`. After the package before this one, four hundred and
+nine of its two thousand four hundred and eighty-seven statements were uncited. The
+report's later arithmetic is in an article and the readings ahead of it are in none; the
+re-flatten is named by the article on recovering an unfinished close and its order is in
+no article.
+
+### Merge and promote, package 172
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1559 | Five readings in a row decide which news reaches Nexus, starting with the four kinds considered at all. | Promote. The arithmetic after them is written and the readings are in no article |
+| Row H-1560 | The order is looked for among the live orders and then the closed ones, and news neither set holds makes no report. | Merge with H-1559 |
+| Row H-1561 | News whose command has ended, whose command belongs to live work fed out over time, or which names an order the command no longer points at, each make no report. | Merge with H-1559 |
+| Row H-1562 | What survives is reported from the admitted totals, with an average price only where something has filled. | Merge with H-1559 |
+| Row H-1563 | The account's waiting news is drained to empty before anything is sized. | Promote. The re-attempt is named elsewhere and the draining ahead of its sizing is in no article |
+| Row H-1564 | An account poisoned by that draining abandons the recovery. | Merge with H-1563 |
+| Row H-1565 | What is left open is the entry's delivered figure less the closing command's own fills. | Merge with H-1563 |
+| Row H-1566 | The close is re-attempted with the candidate names, and asks after each before placing anything. | Merge with H-1563 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P172-01 | Which news makes a report | written | [which-news-makes-a-report.md](atoms/which-news-makes-a-report.md) |
+| P172-02 | What a boot's re-flatten does before it sizes | written | [what-a-boots-re-flatten-does-before-it-sizes.md](atoms/what-a-boots-re-flatten-does-before-it-sizes.md) |
+
+### Re-seed, after writing package 172
+
+Both subjects are about what happens before the part already written down. One is five
+readings before an arithmetic; the other is a draining before a sizing. In each case the
+written article began where the interesting work had finished.
+
+| What it found | What came of it |
+|---|---|
+| Both the live and the closed orders are searched. | Stated. News arriving after its order closed is found among the closed ones |
+| News whose command is live work fed out over time makes no report. | Stated, with what it would otherwise say: that the whole command had done what one part of it did |
+| A command points at one order at a time, so news about a superseded order stops. | Stated |
+| The draining comes before the sizing. | Stated. News that was waiting counts towards the figure rather than arriving after the close was sized |
+
+Worth recording: a first draft of the first article explained why both order sets are
+searched, in words the code does not use. The check refused it. What it says now is that
+both are searched and where the late news is found, which is the same fact without the
+authorial claim.
+
+## Package 171 — what a caller waiting on an admitted event is told, and what sending a ladder's rung writes
+
+Scope: the answer the account's task gives a caller that handed it an event, and the
+records a single rung's send leaves, part of a module the ledger marks `partial`. After
+the package before this one, four hundred and seventeen of its two thousand four hundred
+and eighty-seven statements were uncited. Neither subject is in an article. The rest of
+the module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 171
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1551 | The caller is told the place the record gave the event, which is nothing at all where the record took it as one it already holds. | Promote. The answer is in no article, and nothing meaning admitted before is the finding |
+| Row H-1552 | The writer being stopped mid-drain tells the caller the writer stopped and lets the stop travel. | Merge with H-1551 |
+| Row H-1553 | Any other failure is told to the caller and the drain goes on, and a caller who has stopped waiting is told nothing on every road. | Merge with H-1551 |
+| Row H-1554 | The count of events in flight is raised as one is taken and lowered whatever happens. | Merge with H-1551 |
+| Row H-1555 | One moment is taken before the send and a second after the venue answers, each carried into its own record. | Promote. The rung's send is in no article, and the two moments bracketing the call is the finding |
+| Row H-1556 | The rung's name carries its place in the grid and the generation it belongs to. | Merge with H-1555 |
+| Row H-1557 | A rescue that found nothing, a venue failure, and params the adapter refused each record the failure and answer nothing. | Merge with H-1555 |
+| Row H-1558 | Each fill given as the rung was taken is recorded, and only one the record answered with a place carried into the figures. | Merge with H-1555 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P171-01 | What a caller waiting on an admitted event is told | written | [what-a-caller-waiting-on-an-admitted-event-is-told.md](atoms/what-a-caller-waiting-on-an-admitted-event-is-told.md) |
+| P171-02 | What sending a ladder's rung writes | written | [what-sending-a-ladders-rung-writes.md](atoms/what-sending-a-ladders-rung-writes.md) |
+
+### Re-seed, after writing package 171
+
+The first subject has an answer with two meanings and one shape. A place means the event
+is new; nothing means the record already held it. Both are successes, and only the
+article can say so.
+
+| What it found | What came of it |
+|---|---|
+| Nothing answered to the caller means admitted before rather than refused. | Stated. The caller hears the same shape for both and the article gives the difference |
+| The stopped writer is told to the caller even where the recording already took. | Stated, with what follows: the event stands for a restart to find |
+| The count in flight is lowered on the road where the stop travels as well. | Stated among what holds on every road |
+| The intent's moment is taken before the send and the send's after the venue answers. | Stated. Reading the two records together gives the span the call took |
+
+Worth recording: two moments twenty lines apart, each stamped on its own record, is a
+measurement rather than bookkeeping. Nothing in either routine says so; the pair of
+records is the only place it exists.
+
+## Package 170 — what stops a scheme before its first slice, and what is cleared before its ending is written
+
+Scope: the two endings a scheme can reach before any part of it is sent, and the
+clearing that precedes a scheme's terminal writing, part of a module the ledger marks
+`partial`. After the package before this one, four hundred and twenty-nine of its two
+thousand four hundred and eighty-seven statements were uncited. Neither subject is in an
+article. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 170
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1543 | A call-off standing against the command ends the scheme as cancelled, and a planning that refuses ends it as rejected. | Promote. The two pre-first-slice endings are in no article |
+| Row H-1544 | The count recorded on the start is the number of parts actually planned, where both refusals report the number asked for. | Merge with H-1543 |
+| Row H-1545 | The venue's lot step is used where the venue's sizes are held, and nothing stands in for it otherwise. | Merge with H-1543 |
+| Row H-1546 | The call-off is taken off the waiting list as it is read. | Merge with H-1543 |
+| Row H-1547 | The scheme is taken off the account's live schemes before the ending is recorded. | Promote. The clearing is in no article, and its coming first is the finding |
+| Row H-1548 | The next run time is forgotten and the live children cleared in the same breath. | Merge with H-1547 |
+| Row H-1549 | The schemes the account holds are what a pass over due schemes walks. | Merge with H-1547 |
+| Row H-1550 | The figures are then gathered from the admitted totals and the terminal report made, naming the scheme's place in its plan. | Merge with H-1547 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P170-01 | What stops a scheme before its first slice | written | [what-stops-a-scheme-before-its-first-slice.md](atoms/what-stops-a-scheme-before-its-first-slice.md) |
+| P170-02 | What is cleared before a scheme's ending is written | written | [what-is-cleared-before-a-schemes-ending-is-written.md](atoms/what-is-cleared-before-a-schemes-ending-is-written.md) |
+
+### Re-seed, after writing package 170
+
+The first subject turned on a figure appearing three times with two meanings. The start
+records the parts planned; both refusals report the parts asked for. Reading any one of
+the three alone, the figure looks like one number.
+
+| What it found | What came of it |
+|---|---|
+| The recorded count is the number planned and the refusals' count the number asked for. | Stated as the article's close, since the two can differ and the reader has no other way to know which is which |
+| The call-off is taken off the waiting list as it is read. | Stated. Taking it off is what keeps it from being applied twice |
+| Nothing stands in for the venue's lot step where the venue's sizes are absent. | Stated. Such a host plans parts that are not snapped to the venue's steps |
+| The clearing comes before the writing, and is not undone by a failure in it. | Stated. A failure there leaves a scheme that fires nothing and reports nothing |
+
+Worth recording: both subjects are about order rather than action. What each routine
+does is unremarkable; when it does it is the whole of what the articles say.
 
 ## Package 169 — when a protective pair counts as still protecting, and what a hidden-size order shows the venue
 
@@ -11788,7 +11926,31 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1540 | The order's name is worked out with a place of nought. | `execution_manager.py` 5297-5299 | package one hundred and sixty-nine | folds into P169-02 |
 | H-1541 | The intent names the whole size and no spend, and is recorded, applied and mapped before anything is sent. | `execution_manager.py` 5311, and 5312, then 5317, then 5318, then 5319, then 5321 | package one hundred and sixty-nine | folds into P169-02 |
 | H-1542 | One moment is taken and carried into the record of the intent. | `execution_manager.py` 5300, then 5302-5316, the moment set at 5304 | package one hundred and sixty-nine | folds into P169-02 |
+| H-1543 | A call-off standing against the command ends the scheme as cancelled, and a planning that refuses ends it as rejected carrying the refusal's own words. | `execution_manager.py` 5713, then 5715, then 5720-5729, then 5730, or 5736, then 5737-5739, then 5740, then 5746-5755, the reason built at 5754, then 5756 | package one hundred and seventy | is P170-01 |
+| H-1544 | The count recorded on the start is the number of parts actually planned, where both refusals report the number asked for. | `execution_manager.py` 5767, against 5727, or 5753 | package one hundred and seventy | folds into P170-01 |
+| H-1545 | The count of parts and the gap between them are read from the settings first, and the venue's lot step used only where the venue's sizes are held. | `execution_manager.py` 5712, then 5733, then 5734 | package one hundred and seventy | folds into P170-01 |
+| H-1546 | Otherwise the start is recorded and applied. | `execution_manager.py` 5758-5775, then 5776, then 5777 | package one hundred and seventy | folds into P170-01 |
+| H-1547 | The scheme is taken off the account's live schemes before the ending is recorded. | `execution_manager.py` 6501, then 6503 | package one hundred and seventy | is P170-02 |
+| H-1548 | The next run time is forgotten and the live children cleared in the same breath. | `execution_manager.py` 6499, then 6500 | package one hundred and seventy | folds into P170-02 |
+| H-1549 | The schemes the account holds are what a pass over due schemes walks. | `execution_manager.py` 6501, against 5816 | package one hundred and seventy | folds into P170-02 |
+| H-1550 | The figures are then gathered from the admitted totals and the terminal report made, naming the scheme's place in its plan. | `execution_manager.py` 6505-6507, then 6509-6518, the place named at 6515, and 6516 | package one hundred and seventy | folds into P170-02 |
+| H-1551 | The caller is told the place the record gave the event, which is nothing at all where the record took it as one it already holds. | `execution_manager.py` 3809, then 3813 into 3814, then 3816 into 3817 | package one hundred and seventy-one | is P171-01 |
+| H-1552 | The writer being stopped mid-drain tells the caller the writer stopped and lets the stop travel. | `execution_manager.py` 3819, then 3821-3826, then 3828 | package one hundred and seventy-one | folds into P171-01 |
+| H-1553 | Any other failure is told to the caller and the drain goes on, and a caller who has stopped waiting is told nothing on every road. | `execution_manager.py` 3830, then 3832, then 3804, against 3816, or 3820, or 3831 | package one hundred and seventy-one | folds into P171-01 |
+| H-1554 | The count of events in flight is raised as one is taken and lowered whatever happens. | `execution_manager.py` 3804, then 3805, then 3806, then 3834, then 3835 | package one hundred and seventy-one | folds into P171-01 |
+| H-1555 | One moment is taken before the send and a second after the venue answers, each carried into its own record. | `execution_manager.py` 6188, then 6190-6204, the moment set at 6192, then 6205, then 6206, then 6208, then 6229, then 6242-6247, the moment set at 6244, then 6248, then 6249 | package one hundred and seventy-one | is P171-02 |
+| H-1556 | The rung's name carries its place in the grid and the generation it belongs to. | `execution_manager.py` 6185-6187 | package one hundred and seventy-one | folds into P171-02 |
+| H-1557 | A rescue that found nothing, a venue failure, and params the adapter refused each record the failure and answer nothing. | `execution_manager.py` 6227, or 6230, then 6231-6233, then 6234, or 6235, then 6236-6239, then 6240 | package one hundred and seventy-one | folds into P171-02 |
+| H-1558 | Each fill given as the rung was taken is recorded, only one the record answered with a place carried into the figures, and the rung's name answered with. | `execution_manager.py` 6268, then 6269 into 6270, then 6281 | package one hundred and seventy-one | folds into P171-02 |
+| H-1559 | Only four kinds of news are considered at all: a fill, a call-off, an expiry and a refusal. | `execution_manager.py` 10651, then 10652 | package one hundred and seventy-two | is P172-01 |
+| H-1560 | The order is looked for among the live orders and then the closed ones, and news neither set holds makes no report. | `execution_manager.py` 10654, then 10655-10658, then 10659 into 10660 | package one hundred and seventy-two | folds into P172-01 |
+| H-1561 | News whose command has ended, whose command belongs to live work fed out over time, or which names an order the command no longer points at, each make no report. | `execution_manager.py` 10662, then 10663 into 10664, or 10666 into 10667, or 10673 into 10674 | package one hundred and seventy-two | folds into P172-01 |
+| H-1562 | What survives is reported from the admitted totals, with an average price only where something has filled. | `execution_manager.py` 10679-10681, then 10683 into 10684 | package one hundred and seventy-two | folds into P172-01 |
+| H-1563 | The account's waiting news is drained to empty before anything is sized. | `execution_manager.py` 8235, then 8247 | package one hundred and seventy-two | is P172-02 |
+| H-1564 | An account poisoned by that draining abandons the recovery. | `execution_manager.py` 8237, then 8245 | package one hundred and seventy-two | folds into P172-02 |
+| H-1565 | The bracket is rebuilt in memory with the entry's name worked out, and what is left open is the entry's delivered figure less the closing command's own fills. | `execution_manager.py` 8228-8230, then 8231-8233, then 8247, then 8248, then 8249 | package one hundred and seventy-two | folds into P172-02 |
+| H-1566 | The close is re-attempted with the candidate names, and asks after each before placing anything. | `execution_manager.py` 8255-8257, reaching 7627, then 7628, then 7636 | package one hundred and seventy-two | folds into P172-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 06:30 UTC

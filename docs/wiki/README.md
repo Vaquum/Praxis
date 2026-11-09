@@ -108,6 +108,8 @@ the others where it appears.
 - [What unregistering an account does in order](atoms/what-unregistering-an-account-does-in-order.md) — the account is taken off the manager's books before anything is stopped, which is how work already under way finds out it has gone, and its worker keeps running until the cancel lands.
 - [Which thread the manager will take work from](atoms/which-thread-the-manager-will-take-work-from.md) — work may only be handed in from the thread the first account was registered on, and until that registration the door is open to any thread.
 - [What a second budget offered for a command does](atoms/what-a-second-budget-offered-for-a-command-does.md) — the size and spend a command's fills are measured against are written once, and a later offer is dropped, usually in silence.
+- [What a caller waiting on an admitted event is told](atoms/what-a-caller-waiting-on-an-admitted-event-is-told.md) — the answer is the place the record gave the event, and an empty answer means the record already held it rather than turning it away.
+- [What sending a ladder's rung writes](atoms/what-sending-a-ladders-rung-writes.md) — the intent goes down before the venue is called and the send afterwards, each stamped with its own moment, so the pair measures the call.
 - [What admitting an event refuses](atoms/what-admitting-an-event-refuses.md) — four things are turned away before anything reaches an account's record, and an admission made during recovery is refused unless the account is parked, which is the very state that turns an ordinary admission away.
 - [The two checks around an append](atoms/the-two-checks-around-an-append.md) — the same question is asked on both sides of the write because the write is awaited, and the account is matched by identity so one that left and came back under the same name is turned away with its event already safe.
 - [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
@@ -136,6 +138,8 @@ the others where it appears.
 - [What a protection of unknown fate is rebuilt as](atoms/what-a-protection-of-unknown-fate-is-rebuilt-as.md) — a protective pair whose outcome the record never settles comes back marked as being in doubt, carrying both the list it had and the list meant to replace it, for the watchdog to ask the venue about.
 - [The one precedence written twice](atoms/the-one-precedence-written-twice.md) — the rule reducing a protective pair's two legs to a single status is written in two places that agree on the rule and differ on what it is applied to and on whether anything checks first that the pair has finished.
 - [How a bracket's news is told apart](atoms/how-a-brackets-news-is-told-apart.md) — one handler hears about both a protected entry and its protection, searching for the protection first, and the holding is taken off the books before its entry is settled so a failure in between leaves none at all.
+- [What stops a scheme before its first slice](atoms/what-stops-a-scheme-before-its-first-slice.md) — work fed out over time can end before any part of it is sent, as called off or as refused, each reporting a different count of parts.
+- [What is cleared before a scheme's ending is written](atoms/what-is-cleared-before-a-schemes-ending-is-written.md) — three things about the work are forgotten before a word of its ending is recorded, and a failure in that writing does not bring them back.
 - [What ending a scheme forgets](atoms/what-ending-a-scheme-forgets.md) — a fed-out order is forgotten from three places before its outcome is written down, so between them it is finished and held nowhere with nothing yet recorded about how it ended.
 - [Which child news a scheme acts on](atoms/which-child-news-a-scheme-acts-on.md) — news about a finished fed-out order is silenced by the lookup that finds no running one rather than by any test naming it, and a child ending mid-change is forgotten as live with nothing else done about it.
 - [What starting a bracket writes before its entry](atoms/what-starting-a-bracket-writes-before-its-entry.md) — the whole shape of a protected entry is written down before the entry is sent, so a crash in between leaves a record of one whose entry never went out.
@@ -155,6 +159,8 @@ the others where it appears.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
 - [The three kinds of orphan a boot finds](atoms/the-three-kinds-of-orphan-a-boot-finds.md) — a command the record shows starting and never finishing is sorted by what the record holds, and a send that failed counts as finishing one just as a send that succeeded does.
 - [Why a flatten is recovered only once](atoms/why-a-flatten-is-recovered-only-once.md) — a closing order that already carries fills is left alone, because fills are recorded by adding amounts rather than by matching the trade they came from, so writing them again would count them twice.
+- [Which news makes a report](atoms/which-news-makes-a-report.md) — most of what the venue says about an order never reaches Nexus, and a run of readings decides what does.
+- [What a boot's re-flatten does before it sizes](atoms/what-a-boots-re-flatten-does-before-it-sizes.md) — the waiting news is worked through first, so the figures a restart closes a position on include what arrived before it.
 - [How an unfinished close is recovered](atoms/how-an-unfinished-close-is-recovered.md) — a start picks up a close that never settled from the failures written down, and weighs what is open again before sending.
 - [How a cancelled protection pair is judged still working](atoms/how-a-cancelled-protection-pair-is-judged-still-working.md) — the venue is asked after each half of the pair that was just taken down, and a venue that will not answer is treated the same as a half found still resting.
 - [What picks a held protection change up again](atoms/what-picks-a-held-protection-change-up-again.md) — a change that stopped halfway is driven on by a scan that chooses trades by a stamped moment and never reads how far the change got.
@@ -775,7 +781,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 678
+Both sides are the subject, and Praxis is the side that has been written. 684
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -786,4 +792,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 05:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 06:30 UTC
