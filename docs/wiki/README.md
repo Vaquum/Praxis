@@ -603,6 +603,8 @@ the others where it appears.
 ## Watching a host run
 
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
+- [What the operator's two sweeps answer with](atoms/what-the-operators-two-sweeps-answer-with.md) — asking an account to cancel everything and close what it holds wraps both halves together, so a failure closing discards the answer about what was cancelled although those cancellations were already sent.
+- [What a sweep does to each item](atoms/what-a-sweep-does-to-each-item.md) — both walks carry on past an item that fails, and the walk closing positions names every position it tried while the walk cancelling orders simply leaves a failed command out of its list.
 - [Alerts](atoms/alerts.md) — how Praxis says something needs a person: a marked log line, and a web call where one is configured.
 - [What a host writes about itself](atoms/what-a-host-writes-about-itself.md) — a host writes JSON, one piece per line, each line carrying its level and the moment in UTC.
 - [What the logging arrangement misses](atoms/what-the-logging-arrangement-misses.md) — log lines a library writes keep their own shape, and asking the host for plain text does not change them.
@@ -683,7 +685,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 586
+Both sides are the subject, and Praxis is the side that has been written. 588
 articles exist. Of Praxis's own source files 84 are accounted for in full and 4 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -694,4 +696,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 05:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 06:00 UTC

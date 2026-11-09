@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 585 not.**
+**6 of them reviewed, 587 not.**
 
 ## Package 1
 
@@ -856,6 +856,55 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 123 — what the operator's two sweeps answer with, and what a sweep does to each item
+
+Scope: the two asks an operator can make of one account — cancel everything working,
+or cancel everything and close what is held — and the walks that carry them out, part
+of a module the ledger marks `partial`. After the package before this one, three
+hundred and seventy of its twelve hundred and one statements were uncited. The alert
+each sweep raises is in an article and nothing else about either is. The rest of the
+module is left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 123
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1182 | Both asks weigh the operator's credentials and answer with whatever refusal that gives. | Promote. Neither ask is in an article, and the shape the two share is the subject |
+| Row H-1189 | Both asks then resolve the account's runtime and answer with whatever refusal that gives. | Merge with H-1182 |
+| Row H-1190 | The account's name is read off that runtime rather than off the request, and any failure in a sweep is answered as a named error at five hundred. | Merge with H-1182. The name coming off the runtime rather than the request is worth stating |
+| Row H-1183 | Closing everything runs the cancelling and the closing inside one wrapping, so a failure in the closing loses the cancelling's answer with the aborts already sent. | Merge with H-1182. It is the one place the shared shape costs something |
+| Row H-1184 | The alert sink is told only where a sweep answered, at warning, carrying its counts. | Merge with H-1182 |
+| Row H-1185 | Each walk answers an empty list where the trading stack is missing. | Promote. The walks are in no article, and what each does to one item is the subject |
+| Row H-1186 | Cancelling gathers the command names off the open orders, walks them in order, and sends an abort naming the operator and stamped with the host's clock. | Merge with H-1185 |
+| Row H-1187 | Closing passes over a position whose amount stands at or below nothing, takes the opposite side by testing for a buy, and sends one market order for the whole amount under a deadline of its own. | Merge with H-1185 |
+| Row H-1188 | Only a command whose abort raised nothing reaches the cancelling's answer, where a trade whose order raised reaches the closing's answer carrying an error. | Merge with H-1185. Two walks carrying on past a failure and reporting it differently is the finding |
+
+Two subjects promote and seven rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P123-01 | What the operator's two sweeps answer with | written | [what-the-operators-two-sweeps-answer-with.md](atoms/what-the-operators-two-sweeps-answer-with.md) |
+| P123-02 | What a sweep does to each item | written | [what-a-sweep-does-to-each-item.md](atoms/what-a-sweep-does-to-each-item.md) |
+
+### Re-seed, after writing package 123
+
+The same method as the three packages before this: two routines written in one shape,
+read side by side.
+
+| What it found | What came of it |
+|---|---|
+| Closing everything wraps both sweeps together, so a failure in the closing half discards the cancelling half's answer although those aborts were sent. | Stated, with what an operator can and cannot tell from the error |
+| Both walks carry on past a failure on one item, and only the closing says so in its answer. | Stated as the pair. Each walk read alone looks complete |
+| The closing uses a deadline of its own rather than the host's usual one. | Stated |
+| A position whose amount stands at or below nothing is passed over, so a short held as a negative amount is never closed by this sweep. | Not stated. Whether a short is held as a negative amount here is a question about the figure the trading side keeps, which this module does not settle; the article says what the test passes over and stops |
+
+Worth recording: one row was held back rather than written. The test passes over an
+amount at or below nothing, and what that costs depends entirely on whether a short
+position's amount is kept as a negative figure — which is a fact about another
+module. Writing "a short is never closed" would have been a claim about code this
+package did not read. The article states the test; the question is left for the
+package that reaches the figure.
 
 ## Package 122 — which of the host's appends can stop the work, and what a delivery record carries
 
@@ -9210,7 +9259,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1179 | A delivery record carries nine fields and rebuilding the order's record from it takes the same nine back, one for one. | `launcher.py` 3238-3250, then 1639-1649 | package one hundred and twenty-two | is P122-02 |
 | H-1180 | An outcome rebuilt from its record works out the fill's average price, sets the slice counts to one, and takes the record's own moment as the outcome's. | `launcher.py` 1674 into 1675-1677, then 1688, then 1689, then 1691 | package one hundred and twenty-two | folds into P122-02 |
 | H-1181 | The two slippage measures are carried from the record rather than worked out again. | `launcher.py` 1693, and 1694 | package one hundred and twenty-two | folds into P122-02 |
+| H-1182 | Both asks weigh the operator's credentials and answer with whatever refusal that gives. | `launcher.py` 3570, then 3572 into 3573, and 3598, then 3600 into 3601 | package one hundred and twenty-three | is P123-01 |
+| H-1183 | Closing everything runs the cancelling and the closing inside one wrapping, so a failure in the closing loses the cancelling's answer with the aborts already sent. | `launcher.py` 3613 before 3614, into 3615 into 3617, past 3624-3626 | package one hundred and twenty-three | folds into P123-01 |
+| H-1184 | The alert sink is told only where a sweep answered, at warning, carrying its counts. | `launcher.py` 3590-3593, and 3619-3622 | package one hundred and twenty-three | folds into P123-01 |
+| H-1185 | Each walk answers an empty list where the trading stack is missing. | `launcher.py` 3631 into 3632, and 3657 into 3658 | package one hundred and twenty-three | is P123-02 |
+| H-1186 | Cancelling gathers the command names off the open orders, walks them in order, and sends an abort naming the operator and stamped with the host's clock. | `launcher.py` 3634-3637, then 3640, then 3643-3646 | package one hundred and twenty-three | folds into P123-02 |
+| H-1187 | Closing passes over a position whose amount stands at or below nothing, takes the opposite side by testing for a buy, and sends one market order for the whole amount under a deadline of its own. | `launcher.py` 3662, then 3663, then 3665 into 3666, with 3668-3672, then 3675-3683 | package one hundred and twenty-three | folds into P123-02 |
+| H-1188 | Only a command whose abort raised nothing reaches the cancelling's answer, where a trade whose order raised reaches the closing's answer carrying an error. | `launcher.py` 3650, under the loop at 3640, against 3684 into 3686, or 3688 | package one hundred and twenty-three | folds into P123-02 |
+| H-1189 | Both asks then resolve the account's runtime and answer with whatever refusal that gives. | `launcher.py` 3575, then 3577 into 3578, and 3603, then 3605 into 3606 | package one hundred and twenty-three | folds into P123-01 |
+| H-1190 | The account's name is read off that runtime rather than off the request, and any failure in a sweep is answered as a named error at five hundred. | `launcher.py` 3582, and 3610, with 3586 into 3587-3588, and 3615 into 3616-3617 | package one hundred and twenty-three | folds into P123-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 05:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 06:00 UTC
