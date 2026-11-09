@@ -194,6 +194,8 @@ the others where it appears.
 
 ## What a fill does when it arrives
 
+- [Which record an event is booked into](atoms/which-record-an-event-is-booked-into.md) — Praxis keeps a picture of the orders and a picture of the costs, and each event reaches one, both or neither of them.
+- [What a partial report of a scheme leaves standing](atoms/what-a-partial-report-of-a-scheme-leaves-standing.md) — a report sent while work fed out over time is still running, which says how much has filled and changes nothing about the work.
 - [What a fill changes](atoms/what-a-fill-changes.md) — a fill updates the order's record and then the money's, so a failure on the first leaves the second alone.
 - [Fills and the order](atoms/fills-and-the-order.md) — how a fill moves an order's totals and status, including one arriving too late.
 - [What the facade refuses once a start has begun](atoms/what-the-facade-refuses-once-a-start-has-begun.md) — the callback setters stop accepting changes partway through starting rather than at the end of it, and the refusal names the setter that arrived too late.
@@ -759,7 +761,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 662
+Both sides are the subject, and Praxis is the side that has been written. 664
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -770,4 +772,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 01:30 UTC

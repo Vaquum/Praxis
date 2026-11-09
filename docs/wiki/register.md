@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 661 not.**
+**6 of them reviewed, 663 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 162 — which record an event is booked into, and what a partial report of a scheme leaves standing
+
+Scope: the routing that decides which of the account's two pictures an event advances,
+and the report a scheme gives while it is still running, part of a module the ledger
+marks `partial`. After the package before this one, five hundred and fifty-six of its
+two thousand four hundred and eighty-seven statements were uncited. The routing is
+leaned on by four articles and is the subject of none; the partial report is in no
+article. The rest of the module is left for the packages after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 162
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1479 | A registration or a movement of funds is booked into the money record and goes no further, while an alert of a mismatch is booked nowhere. | Promote. Four articles lean on the routing and none states it |
+| Row H-1480 | Every other event advances the trading record, a fill also reaching the command's admitted totals and the money record, and a closed trade the money record. | Merge with H-1479 |
+| Row H-1481 | A failure booking into the money record is swallowed where it happens. | Merge with H-1479 |
+| Row H-1482 | The terminal report of a scheme marks the command ended, drops it from the live and the aborted commands, and may record the trade closed, where the partial report does none of it. | Promote. The partial report is in no article, and what it leaves untouched is what distinguishes it |
+| Row H-1483 | The figures reported are the admitted totals kept for the command, with an average price only where something has filled. | Merge with H-1482 |
+| Row H-1484 | The count of slices reported is the scheme's own place in its plan. | Merge with H-1482 |
+| Row H-1485 | One moment is taken and carried into both the report and the record of it. | Merge with H-1482 |
+| Row H-1486 | The record goes down and is applied, and the report is then handed out with retries. | Merge with H-1482 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P162-01 | Which record an event is booked into | written | [which-record-an-event-is-booked-into.md](atoms/which-record-an-event-is-booked-into.md) |
+| P162-02 | What a partial report of a scheme leaves standing | written | [what-a-partial-report-of-a-scheme-leaves-standing.md](atoms/what-a-partial-report-of-a-scheme-leaves-standing.md) |
+
+### Re-seed, after writing package 162
+
+The routing was the harder of the two to scope. Four articles already cite lines inside
+it, each for the one road it needed, and none of them says what the roads are.
+
+| What it found | What came of it |
+|---|---|
+| A failure booking into the money record is swallowed where it happens. | Stated as the price of the write order on a fill's road: the money record can fall behind while the orders carry on |
+| An alert of a mismatch advances neither record. | Stated. It is told rather than booked |
+| The partial report writes its record, applies it, and hands the report out, and touches the command not at all. | Stated against the terminal report's three further writes, which is the only way to say what the partial one is |
+| The figures are the admitted totals rather than what the venue filled. | Stated, with the link to the article that draws that distinction |
+
+Worth recording: a routine four articles cite is not a routine four articles cover. The
+citations were all correct and all partial, and the shape none of them needed was the
+one a reader would want first.
 
 ## Package 161 — when an account's registration is written, and the registration a pre-account history is given
 
@@ -11348,7 +11394,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1476 | The events are sifted for the four kinds that book into the money record. | `execution_manager.py` 2114-2117, the four named at 2116 | package one hundred and sixty-one | folds into P161-02 |
 | H-1477 | It is applied to the money record alone, with nothing written to the record of events. | `execution_manager.py` 2120, against 2162 | package one hundred and sixty-one | folds into P161-02 |
 | H-1478 | The sifting runs as part of the replay, and the startup write comes straight after it. | `execution_manager.py` 1113, then `trading.py` 549 | package one hundred and sixty-one | folds into P161-02 |
+| H-1479 | A registration or a movement of funds is booked into the money record and goes no further, while an alert of a mismatch is booked nowhere. | `execution_manager.py` 2072, then 2073, then 2075, or 2077, then 2079 | package one hundred and sixty-two | is P162-01 |
+| H-1480 | Every other event advances the trading record, a fill also reaching the command's admitted totals and the money record, and a closed trade the money record. | `execution_manager.py` 2081, then 2083, then 2084, then 2086, then 2087 | package one hundred and sixty-two | folds into P162-01 |
+| H-1481 | A failure booking into the money record is swallowed where it happens. | `execution_manager.py` 2091, then 2093 | package one hundred and sixty-two | folds into P162-01 |
+| H-1482 | The terminal report of a scheme marks the command ended, drops it from the live and the aborted commands, and may record the trade closed, where the partial report does none of it. | `execution_manager.py` 8426, then 8427, then 8428, then 8430 into 8433-8440, against 8339 | package one hundred and sixty-two | is P162-02 |
+| H-1483 | The figures reported are the admitted totals kept for the command, with an average price only where something has filled. | `execution_manager.py` 8316-8318, then 8320 into 8321-8322 | package one hundred and sixty-two | folds into P162-02 |
+| H-1484 | The count of slices reported is the scheme's own place in its plan. | `execution_manager.py` 8332, then 8333 | package one hundred and sixty-two | folds into P162-02 |
+| H-1485 | One moment is taken and carried into both the report and the record of it. | `execution_manager.py` 8315, then 8335, then 8341 | package one hundred and sixty-two | folds into P162-02 |
+| H-1486 | The record goes down and is applied, and the report is then handed out with retries. | `execution_manager.py` 8350, then 8351, then 8353 | package one hundred and sixty-two | folds into P162-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 01:30 UTC
