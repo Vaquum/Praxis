@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 620 not.**
+**6 of them reviewed, 622 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 141 — the active-protection test written twice, and what unregistering an account does in order
+
+Scope: the three-part test of a bracket's protection, written in two places, and the
+order in which an account is taken out of the manager, part of a module the ledger
+marks `partial`. After the package before this one, eleven hundred and seven of its
+two thousand four hundred and eighty-seven statements were uncited. Both roads are
+cited from other articles and neither subject is written. The rest of the module is
+left for the packages after this, and the cell stays `partial`.
+
+### Merge and promote, package 141
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1321 | A bracket's protection counts as active where it is placed, carries a name and reports itself active, and those three are tested in two places. | Promote. Neither test is in an article as a test, and the two agreeing is what keeps a bracket from being amendable on one road and invisible on the other |
+| Row H-1322 | In the one place the three settle whether a bracket entry is amendable, and in the other which brackets the weighing of a change works from. | Merge with H-1321 |
+| Row H-1323 | A weighing that answers against queueing reports it and returns, leaving the request neither queued nor refused to its caller. | Merge with H-1321 |
+| Row H-1324 | The account is taken out of the manager's mapping first, by a removal that answers with what it removed, so finding nothing there refuses the whole call. | Promote. The order is in no article, and it is what lets work already under way notice the account has gone |
+| Row H-1325 | The published amendable set is dropped, every waiting admission failed, and only then is the worker's task cancelled and waited for. | Merge with H-1324 |
+| Row H-1326 | Every waiting admission is failed carrying the same words a fresh call would have been refused with. | Merge with H-1324. A caller cannot tell from the words whether it arrived before the account went |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P141-01 | The active-protection test written twice | written | [the-active-protection-test-written-twice.md](atoms/the-active-protection-test-written-twice.md) |
+| P141-02 | What unregistering an account does in order | written | [what-unregistering-an-account-does-in-order.md](atoms/what-unregistering-an-account-does-in-order.md) |
+
+### Re-seed, after writing package 141
+
+The second article is the other half of the package before it: that one found a check
+that looks redundant, and this one found the line that makes it fire.
+
+| What it found | What came of it |
+|---|---|
+| The removal from the mapping is the first thing unregistering does, ahead of failing admissions and cancelling the worker. | Stated, linking the append's identity check. The check and the removal are two thousand lines apart and each is only half the mechanism |
+| The three-part active-protection test is written in two places, deciding amendability in one and what a change is weighed against in the other. | Promoted. This is the fifth duplicated test recorded in this corpus, and the first where the two copies agreeing is the point rather than the defect |
+| A weighing that answers against queueing leaves the request neither queued nor refused to its caller. | Stated. Both the abort road and the change road do this, and the caller is told by a log line it cannot read |
+| Every waiting admission is failed with the same words a fresh call would get. | Stated, with what a caller cannot tell from them |
+
+Worth recording: four of the five duplicated tests found so far are defects in
+waiting — the pairs disagree on a failure kind, an ordering, or a message. This one
+does not: the two copies must agree, and they do. Recording it as a duplication
+rather than as a defect is the honest reading, and it is what makes the pattern
+worth having looked for rather than a list of complaints.
 
 ## Package 140 — what admitting an event refuses, and the two checks around an append
 
@@ -10224,7 +10269,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1318 | Whether the account has fail-stopped is checked before the append and again after it. | `execution_manager.py` 3229 into 3230-3231, then 3233, then 3235 into 3236-3237 | package one hundred and forty | is P140-02 |
 | H-1319 | What the manager now holds under that name is compared against the account in hand by identity, and an append answering with no sequence answers nothing. | `execution_manager.py` 3239 into 3240, or 3242 into 3243-3247 | package one hundred and forty | folds into P140-02 |
 | H-1320 | The projection is wrapped, the interruption a cancelled task raises passing straight on and any other failure marking the account fail-stopped, with the sequence answered only past all of it. | `execution_manager.py` 3249-3250, then 3251 into 3252, or 3253 into 3254-3261, or 3263 | package one hundred and forty | folds into P140-02 |
+| H-1321 | A bracket's protection counts as active where it is placed, carries a name and reports itself active, and those three are tested in two places. | `execution_manager.py` 1057-1061, against 3052-3058 | package one hundred and forty-one | is P141-01 |
+| H-1322 | In the one place the three settle whether a bracket entry is amendable, and in the other which brackets the weighing of a change works from. | `execution_manager.py` 1062 into 1063, or 1064 into 1065, against 3060-3065 | package one hundred and forty-one | folds into P141-01 |
+| H-1323 | A change for an unregistered account is refused first, and a weighing that answers against queueing reports it and returns. | `execution_manager.py` 3047, then 3048 into 3049-3050, or 3067 into 3072 | package one hundred and forty-one | folds into P141-01 |
+| H-1324 | The account is taken out of the manager's mapping first, by a removal that answers with what it removed. | `execution_manager.py` 2952, then 2953 into 2954-2955 | package one hundred and forty-one | is P141-02 |
+| H-1325 | The published amendable set is dropped, every waiting admission failed, and only then is the worker's task cancelled and waited for. | `execution_manager.py` 2957, then 2959-2964, then 2966, then 2967, then 2968 into 2969 | package one hundred and forty-one | folds into P141-02 |
+| H-1326 | Because the removal comes first, an admission in progress finds a different account under that name and is refused. | `execution_manager.py` 2952, ahead of 2966-2969, read by 3242 into 3243-3247 | package one hundred and forty-one | folds into P141-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 14:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 15:00 UTC
