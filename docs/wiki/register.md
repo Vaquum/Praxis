@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 556 not.**
+**6 of them reviewed, 558 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 109 — what signing adds, and what an order type decides
+
+Scope: the signing of a request, the session it goes on, and the table that says
+what each order kind must carry, part of a module the ledger marks `partial`. After
+the package before this one, two hundred and forty-two of its five hundred and
+thirty-four statements were uncited. What signing adds, and what an order type
+decides about its parameters, are in no article. The sending, the parsing and the
+health tracking are left for packages of their own, and the cell stays `partial`.
+
+### Merge and promote, package 109
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1077 | Signing works on a copy, adds a moment read as whole milliseconds, lays the copy out as a query, seals exactly that text and appends the seal to it. | Promote. The signing is in no article, and what is sent agreeing with what was sealed by construction rather than by care is the point |
+| Row H-1078 | A session is refused outright where the adapter has been closed, and otherwise made where none is held or the one held is closed. | Merge with H-1077 |
+| Row H-1079 | Credentials for an account never registered raise as a failure to authenticate with the original cause dropped. | Merge with H-1077 |
+| Row H-1080 | Each order kind is looked up in a table of what it demands, and a kind the table lacks is refused as unsupported. | Promote. The table is in no article, and it being the list of kinds this adapter can send at all is what the lookup means |
+| Row H-1081 | An entry can demand a price or a stop price and can equally forbid a price, so a parameter that is merely unnecessary is an error rather than ignored. | Merge with H-1080 |
+| Row H-1082 | A price goes out in full decimal rather than as a figure, a time in force is filled from a default, and a caller's own name is added only where given. | Merge with H-1080 |
+| Row H-1083 | Reading a kind back weighs the plain limit kind first and splits it by its time in force before any table is consulted. | Merge with H-1080. The two directions not being symmetrical is the finding |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P109-01 | What signing a request adds | written | [what-signing-a-request-adds.md](atoms/what-signing-a-request-adds.md) |
+| P109-02 | What an order type decides about its parameters | written | [what-an-order-type-decides-about-its-parameters.md](atoms/what-an-order-type-decides-about-its-parameters.md) |
+
+### Re-seed, after writing package 109
+
+Three findings about construction, and one asymmetry.
+
+| What it found | What came of it |
+|---|---|
+| The query is built once, sealed, and extended, so what is sent and what was sealed cannot differ. | Stated as construction rather than care, since a reader's worry about a signed request is exactly whether the two renderings agree |
+| The order table both requires and forbids, so a price on a kind that needs none is an error rather than ignored. | Stated. The forbidding half is the surprising one and reads as missing until found |
+| Going out, every kind comes from one table; coming back, one kind is special-cased ahead of the table. | Stated as the asymmetry it is, with both directions cited |
+| Signing works on a copy, so a caller's parameters are untouched and two signings of the same parameters differ by their moments. | Stated |
+
+Worth recording: the signing article's spine is a negative that cannot be cited —
+that no second rendering of the query exists. What can be cited is the sequence: one
+layout, a seal over it, the seal appended to the same text. Saying the sequence lets
+a reader see the absence for themselves, which is the honest way to make a claim
+about something a routine does not do.
 
 ## Package 108 — what the venue adapter reckons, refuses and closes
 
@@ -8431,6 +8476,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1073 | A moment without a zone raises where one left out entirely passes, and the simulated venue counts as enabled only where its address holds something other than spaces. | `binance_adapter.py` 160 into 161-162, and 120 | package one hundred and eight | folds into P108-02 |
 | H-1074 | Closing marks the adapter closed before it touches the session, takes the session out of the field before closing it, and leaves a closed one alone. | `binance_adapter.py` 423 ahead of 424, then 425 then 426 ahead of 428, and 427 into 428 | package one hundred and eight | is P108-03 |
 | H-1076 | Entering as a context makes the session and answers the adapter itself, and leaving closes it whatever the reason. | `binance_adapter.py` 397, then 398, and 409 | package one hundred and eight | folds into P108-03 |
+| H-1077 | Signing works on a copy, adds a moment read as whole milliseconds, lays the copy out as a query, seals exactly that text and appends the seal to it. | `binance_adapter.py` 528, then 529, then 530, then 531-535, then 536 | package one hundred and nine | is P109-01 |
+| H-1078 | A session is refused outright where the adapter has been closed, and otherwise made where none is held or the one held is closed. | `binance_adapter.py` 499 into 500-501, against 503 into 504, then 505 | package one hundred and nine | folds into P109-01 |
+| H-1079 | Credentials for an account never registered raise as a failure to authenticate with the original cause dropped. | `binance_adapter.py` 479-480 into 481, then 482-483 | package one hundred and nine | folds into P109-01 |
+| H-1080 | Each order kind is looked up in a table of what it demands, and a kind the table lacks is refused as unsupported. | `binance_adapter.py` 775, then 777 into 778-779 | package one hundred and nine | is P109-02 |
+| H-1081 | An entry can demand a price or a stop price and can equally forbid a price. | `binance_adapter.py` 784 into 785-786, or 788 into 789-790, against 792 | package one hundred and nine | folds into P109-02 |
+| H-1082 | A price goes out in full decimal rather than as a figure, a time in force is filled from a default, and a caller's own name is added only where given. | `binance_adapter.py` 808 into 809, and 811 into 812, and 826, and 828 into 829, the whole answered at 831 | package one hundred and nine | folds into P109-02 |
+| H-1083 | Reading a kind back weighs the plain limit kind first and splits it by its time in force, every other kind coming from a table whose absence raises. | `binance_adapter.py` 912, then 914 into 915, or 916, against 918 into 919-920, then 922-923 | package one hundred and nine | folds into P109-02 |
 | H-1075 | Registering keeps credentials and makes a health tracker only where none stood, where unregistering removes the credentials outright and drops the tracker tolerantly. | `binance_adapter.py` 444, then 445 into 446, against 460, then 461 into 462 | package one hundred and eight | folds into P108-03 |
 | H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
 | H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
@@ -8453,4 +8505,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 20:00 UTC
