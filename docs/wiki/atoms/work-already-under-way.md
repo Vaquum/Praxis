@@ -2,8 +2,12 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-10-11 21:17 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
+  - claim: "The commands counted in flight for an account are its live work, its live trades, every command pointing at an order, and every command accepted for it"
+    source: "`execution_manager.py` 983-992"
+  - claim: "Those are answered in name order with every command already ended left out"
+    source: "`execution_manager.py` 994-998"
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
   - claim: "It needs the work eligible: draining, no change in progress, children still working"

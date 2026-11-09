@@ -2,12 +2,12 @@
 row: P4-50
 baseline: 49aa659
 created: 2026-10-14 07:55 UTC
-modified: 2026-10-14 07:55 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "Work accepted with nothing afterwards to account for it is refused on the account's behalf, and so is a send with neither result nor ending"
     source: "`execution_manager.py` 2254-2258 and 2260-2263 into 2271-2275 and 2277-2281"
   - claim: "A scheme the replay could not resume is retired separately"
-    source: "`execution_manager.py` 2260-2266 into 2279-2281"
+    source: "`execution_manager.py` 2260-2266 into 2279-2281, each walked and retired at 2283, then 2284"
   - claim: "The venue is asked per symbol the account trades, and an order the record knows, open or closed, is left alone"
     source: "`trading.py` 932 and 942, passed over at 954-955"
   - claim: "One the record does not know is cancelled only where its name carries a command Praxis owns"

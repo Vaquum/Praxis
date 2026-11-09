@@ -2,10 +2,10 @@
 row: P161-01
 baseline: 49aa659
 created: 2026-11-16 01:00 UTC
-modified: 2026-11-16 01:00 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "The account is looked up, and a name the manager does not hold is refused outright"
-    source: "`execution_manager.py` 2148, then 2150, then 2152"
+    source: "`execution_manager.py` 2148, then 2150, then 2151, then 2152"
   - claim: "Nothing is written where the account's money record already names a cost-basis method"
     source: "`execution_manager.py` 2154 into 2155"
   - claim: "Otherwise the registration is written to the record of events"

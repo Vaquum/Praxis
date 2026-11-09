@@ -2,7 +2,7 @@
 row: P134-02
 baseline: 49aa659
 created: 2026-11-15 11:30 UTC
-modified: 2026-11-15 11:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "One pass over the history answers what both the scheme resume and the ladder resume need"
     source: "`execution_manager.py` 1210, then 1214, read back at 1189, and 1190"
@@ -16,12 +16,14 @@ evidence:
     source: "`execution_manager.py` 1232 into 1233-1234, then 1236 into 1240"
   - claim: "A draining record marks the command draining and keeps the status, state and reason it is to end with"
     source: "`execution_manager.py` 1242 into 1243-1248"
+  - claim: "An outcome of a terminal status is kept as the command having ended"
+    source: "`execution_manager.py` 1250 into 1251"
   - claim: "A ladder's amend is followed as a little machine: an initiation opens it as cancelling, a plan moves it to placing where an initiation stands, and an unknown state takes its phase off the event"
     source: "`execution_manager.py` 1253 into 1254-1255, or 1257 into 1258, then 1261 into 1262, or 1264, then 1267 into 1268-1270"
   - claim: "A completion builds the new grid from the initiation and the plan kept under that generation, and records nothing at all where no initiation was kept"
     source: "`execution_manager.py` 1272 into 1273-1274, then 1276-1283, then 1285 into 1286-1288"
   - claim: "A completion and an abort each clear the in-flight record"
-    source: "`execution_manager.py` 1290, or 1292 into 1293"
+    source: "`execution_manager.py` 1290, or 1292 into 1293, then 1295"
 ---
 # What one pass gathers for the schemes
 

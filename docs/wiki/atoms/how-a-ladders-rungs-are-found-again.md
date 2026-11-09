@@ -2,20 +2,20 @@
 row: P136-01
 baseline: 49aa659
 created: 2026-11-15 12:30 UTC
-modified: 2026-11-15 12:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "Only the ladder starts are walked, from the set the history pass keeps for them alone"
     source: "`execution_manager.py` 1313, reaching 1218 into 1219"
   - claim: "A terminal outcome, a state that is anything but running, or fewer price levels than the minimum each pass a ladder over"
     source: "`execution_manager.py` 1314, or 1317, then 1319 into 1320, or 1322 into 1323"
   - claim: "A command that will not rebuild from its start is reported and passed over"
-    source: "`execution_manager.py` 1325-1326, then 1327 into 1331"
+    source: "`execution_manager.py` 1325-1326, then 1327 into 1331, the rebuilding it attempts at 1557, reaching 1530"
   - claim: "Where no amend was in flight, the generation, the parameters and the grid size come from the completed amend, or from nought, the command's own and the start's count where none completed"
     source: "`execution_manager.py` 1355-1357"
   - claim: "Each rung's name is worked out again from the mode, the command, the rung's place and the generation"
     source: "`execution_manager.py` 1499, then 1500-1502"
   - claim: "A name the account holds no order for counts as a rung never posted, one it holds counts as posted, and one whose status is not terminal counts as still working"
-    source: "`execution_manager.py` 1503, then 1504 into 1505, or 1507, then 1508 into 1509"
+    source: "`execution_manager.py` 1498, then 1503, then 1504 into 1505, or 1507, then 1508 into 1509"
   - claim: "The cursor a ladder comes back with is that count of posted rungs"
     source: "`execution_manager.py` 1359-1360, into 1511, read at 1367"
   - claim: "It comes back with no slice plan and no interval"

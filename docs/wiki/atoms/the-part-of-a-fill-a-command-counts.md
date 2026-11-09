@@ -2,7 +2,7 @@
 row: P2-49
 baseline: 49aa659
 created: 2026-10-13 11:10 UTC
-modified: 2026-10-14 08:05 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "The whole fill goes into the order first, the part that counts is worked out next, and the money record is written after that"
     source: "`execution_manager.py` 2081 before 2084 before 2087"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A money-sized one counts up to what is left of its money, the amount being that room over this fill's price"
     source: "`execution_manager.py` 2509-2518"
   - claim: "A fill whose command recorded no budget counts for nothing"
-    source: "`execution_manager.py` 2477 and 2479 into 2503"
+    source: "`execution_manager.py` 2477 and 2479 into 2499, then 2503"
   - claim: "The running total is capped and the part counted worked back out of it, so rounding cannot carry the total past the budget"
     source: "`execution_manager.py` 2525-2533"
   - claim: "A fill that leaves nothing to count leaves the running total as it was"

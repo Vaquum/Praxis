@@ -2,8 +2,10 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-10-12 00:35 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
+  - claim: "A deadline counts as passed where the moment given stands at or past it"
+    source: "`execution_manager.py` 2939"
   - claim: "The clock runs from the time supplied on the command, not from the accept written later"
     source: "`execution_manager.py` 2925 reading the time stored at 3476, the accept taking its own clock at 3517"
   - claim: "Work fed out or laddered, dequeued past that time, is ended before it starts"

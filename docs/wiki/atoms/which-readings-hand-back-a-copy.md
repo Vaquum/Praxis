@@ -2,8 +2,10 @@
 row: P139-01
 baseline: 49aa659
 created: 2026-11-15 14:00 UTC
-modified: 2026-11-15 14:00 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
+  - claim: "Each of the four readings looks the account up first and refuses a name the manager does not hold"
+    source: "`execution_manager.py` 2789, then 2790 into 2791-2793, and 2810, then 2811 into 2812-2814, and 2831, then 2832 into 2833-2835, and 2880, then 2881 into 2882-2884"
   - claim: "Reading an account's positions hands back a snapshot of them"
     source: "`execution_manager.py` 2794"
   - claim: "Reading its balances, its per-asset balances and its per-trade results each hand back what the ledger's own reading gives"

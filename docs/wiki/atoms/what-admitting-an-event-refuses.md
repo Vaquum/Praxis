@@ -2,8 +2,10 @@
 row: P140-01
 baseline: 49aa659
 created: 2026-11-15 14:30 UTC
-modified: 2026-11-15 14:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
+  - claim: "The refusal of a call from another thread builds its message before it raises"
+    source: "`execution_manager.py` 3172-3175, then 3176"
   - claim: "Admitting refuses where it is called from a thread other than the loop's, and only where a loop thread was recorded at all"
     source: "`execution_manager.py` 3168-3171 into 3176"
   - claim: "It refuses where the account is not registered"

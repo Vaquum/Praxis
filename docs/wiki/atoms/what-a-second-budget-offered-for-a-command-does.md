@@ -2,7 +2,7 @@
 row: P165-02
 baseline: 49aa659
 created: 2026-11-16 03:00 UTC
-modified: 2026-11-16 03:00 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "A budget naming neither a size nor a spend is not recorded at all"
     source: "`execution_manager.py` 2383, then 2384"
@@ -17,7 +17,7 @@ evidence:
   - claim: "Nothing in the recording revises the totals already counted"
     source: "`execution_manager.py` 2386, then 2407 against 2409"
   - claim: "One road of the four asks for conflicts, the one installing a command"
-    source: "`execution_manager.py` 2346, then 2350, against 1129, and 1158, and 4927"
+    source: "`execution_manager.py` 2345, then 2346, then 2350, against 1129, and 1158, and 4927"
 ---
 # What a second budget offered for a command does
 

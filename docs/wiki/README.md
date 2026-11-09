@@ -107,6 +107,7 @@ the others where it appears.
 
 ## The pass that takes work off the queues
 
+- [Draining an account's outside events](atoms/draining-an-accounts-outside-events.md) — news from outside can be waiting in any of three queues, and emptying them in the order they feed each other is what a restart does before it reads its figures.
 - [The account worker](atoms/how-waiting-work-is-drained.md) — each account has one worker going round the same circuit until it is stopped, taking work off a queue.
 - [The active-protection test written twice](atoms/the-active-protection-test-written-twice.md) — whether a protective pair counts as live is decided by the same three conditions in two far-apart places, which is what stops a protected entry being changeable on one road and invisible on the other.
 - [What unregistering an account does in order](atoms/what-unregistering-an-account-does-in-order.md) — the account is taken off the manager's books before anything is stopped, which is how work already under way finds out it has gone, and its worker keeps running until the cancel lands.
@@ -799,7 +800,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 702
+Both sides are the subject, and Praxis is the side that has been written. 703
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -810,4 +811,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 11:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 11:30 UTC

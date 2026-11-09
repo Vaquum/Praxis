@@ -2,7 +2,7 @@
 row: P146-01
 baseline: 49aa659
 created: 2026-11-15 17:30 UTC
-modified: 2026-11-15 17:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "An account the manager does not hold ends the pass at once"
     source: "`execution_manager.py` 2220, then 2221 into 2222"
@@ -13,7 +13,7 @@ evidence:
   - claim: "It is counted as finished again where an outcome of a terminal status was recorded for it"
     source: "`execution_manager.py` 2244-2247 into 2248"
   - claim: "The first kind is an accepted command with no intent, unfinished and beginning no scheme"
-    source: "`execution_manager.py` 2254-2259"
+    source: "`execution_manager.py` 2250, then 2251, then 2252, then 2254-2259"
   - claim: "The second is a command whose order was intended, unfinished and beginning no scheme"
     source: "`execution_manager.py` 2260-2263"
   - claim: "The third is a scheme start with no terminal outcome that the resumes did not rebuild"

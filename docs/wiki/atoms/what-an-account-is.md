@@ -2,8 +2,12 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-10-11 19:38 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
+  - claim: "An account named by nothing at all is refused before any of the rest"
+    source: "`execution_manager.py` 812, then 813-814"
+  - claim: "Asking whether an account is held reads the one store of them"
+    source: "`execution_manager.py` 850"
   - claim: "Registering a name creates its queues, its state and its ledger together"
     source: "`execution_manager.py` 823-830, with two further queues made alongside at 581-584"
   - claim: "Venue news arrives on one of those rather than the queue named in the constructor"
@@ -15,7 +19,7 @@ evidence:
   - claim: "The refusal that raises is reserved for a direct call on the manager"
     source: "`execution_manager.py` 816-818, the way in returning before it at `trading_inbound.py` 128-130"
   - claim: "An account can be registered parked, its worker sleeping each pass"
-    source: "`execution_manager.py` 831, read by the worker at 3903-3905, cleared at 3672"
+    source: "`execution_manager.py` 831, read by the worker at 3903-3905, cleared at 3670, then 3671 into 3672"
   - claim: "Recovery acts on the venue while it is parked, cancelling a stray by one call or the other"
     source: "either `praxis/trading.py` 978-982 for a linked pair or 984-988 otherwise"
   - claim: "A flatten is re-sent only where the policy calls for it and several checks have all fallen through"

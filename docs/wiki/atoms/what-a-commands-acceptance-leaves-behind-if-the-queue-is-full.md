@@ -2,12 +2,12 @@
 row: P180-01
 baseline: 49aa659
 created: 2026-11-16 10:30 UTC
-modified: 2026-11-16 10:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "A place in the queue is reserved before the acceptance is built"
     source: "`execution_manager.py` 3513, then 3514, then 3515-3520"
   - claim: "A full queue has the acceptance and any call-off against the command forgotten, and the command refused"
-    source: "`execution_manager.py` 3550, then 3551, then 3555, then 3556, then 3561"
+    source: "`execution_manager.py` 3550, then 3551, then 3555, then 3556, then 3557-3560, then 3561"
   - claim: "The reservation is given back whatever happens"
     source: "`execution_manager.py` 3562, then 3563"
   - claim: "Otherwise the command is installed and its trade remembered"

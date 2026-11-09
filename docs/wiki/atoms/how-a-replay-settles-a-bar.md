@@ -2,12 +2,12 @@
 row: P28-01
 baseline: 49aa659
 created: 2026-11-11 11:00 UTC
-modified: 2026-11-11 11:30 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "Each bar ends with a settling, after the price is set and the prediction ticked"
     source: "`run_replay.py` 252, after 246-250"
   - claim: "A round of settling waits for the account's queue of commands to empty, then drains outcomes one at a time until none is left"
-    source: "`run_replay.py` 264-266 into 268-271, the wait at `execution_manager.py` 3603"
+    source: "`run_replay.py` 264-266 into 268-271, the account looked up at `execution_manager.py` 3599, then 3600 into 3601, or the wait at 3603"
   - claim: "A round that drains no outcome ends the settling"
     source: "`run_replay.py` 272-273"
   - claim: "Eight rounds are allowed, and a settling whose every round drained something raises after the eighth"

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 701 not.**
+**6 of them reviewed, 702 not.**
 
 ## Package 1
 
@@ -856,6 +856,62 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 182 — draining an account's outside events, and the sweep over the first four thousand lines
+
+Scope: the second package of the sweep that will close the manager's cell. One subject
+promotes; everything else is a widening of a claim that already stood. After this
+package no statement in the module's first four thousand lines is uncited that a claim
+may name.
+
+### What the widenings were
+
+| What was uncited | What accounts for it now |
+|---|---|
+| The lines that hand a built thing back — a plan of parts, a set of names in flight, a frozen set of recovery flattens, a mapping of fragments | The claim covering each reading, widened to say what it answers with. Seven statements |
+| The message a refusal builds before it raises, in four places | The claim covering each refusal, widened to the line that raises. Four statements |
+| The account lookup and its refusal, repeated in the four read-throughs | One claim of its own in the article on which readings hand back a copy. Twelve statements |
+| The counts and sets a walk starts at nothing or empty, before the walk that fills them | The claim covering each walk, widened to where it starts. Six statements |
+| The rebuilding a start is handed to, in the ladder's case and the bracket's | The claim covering each rebuild attempt, widened to the shared rebuilder it reaches. Three statements |
+| The reacting that follows an event applied without failure, and the one that follows a drain's take | The claims covering each drain, widened past the failure to the ordinary road. Three statements |
+| The waiters a dead writer hands an error to | A claim of its own in the article on what a caller is told. Four statements |
+| The set of what may be changed, written after each pass and dropped at unregistering | The claim covering the reading of that set, widened to both ends. Two statements |
+| The rest — the deadline test, the terminal-outcome gathering, the fold handed back, the amend put back, the command installed before its budget, the totals set to nothing on an unadmitted fill | The claim covering each, widened in place. Eight statements |
+
+### Merge and promote, package 182
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1639 | Three queues are drained in turn, and where the caller asked for empty the round repeats until none of the three holds anything. | Promote. The draining is named by four articles and is the subject of none |
+| Row H-1640 | The call a boot makes drains only for an account marked as booting. | Merge with H-1639 |
+| Row H-1641 | Marking an account as booting is an ask of its own, and the mark is cleared when the boot finishes. | Merge with H-1639 |
+| Row H-1642 | One round is all the account's worker asks for. | Merge with H-1639 |
+
+One subject promotes, three rows merge into it, and the rest of the package is widening.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P182-01 | Draining an account's outside events | written | [draining-an-accounts-outside-events.md](atoms/draining-an-accounts-outside-events.md) |
+
+### Re-seed, after writing package 182
+
+This package also carries a repair. Eight of the packages between the hundred and
+sixty-sixth and the hundred and seventy-ninth were written, gated and reported as
+committed, and eight of those commits were refused. Their registers, indexes and
+changelog lines reached the record through the packages that followed, which name those
+files every time; their articles did not, because each commit names only its own files.
+
+| What it found | What came of it |
+|---|---|
+| A commit re-runs the gate, so writing the next package's articles into the tree while a commit is running makes that commit's gate fail. | The same finding as the hundred and thirtieth package, broken again the same way. The articles of eight packages are committed here |
+| The script reports its own status, and the status was never read. | The reading is now part of the package rather than an afterthought: nothing is reported committed until the log carries it |
+| The register, index and changelog were carried by later commits. | So the record was never wrong about what the wiki says, only about which files held it |
+| The gate passed on every one of those eight runs for the package it was gating. | The refusals name the next package's unregistered articles, never the package being committed |
+
+Worth recording: a background commit whose exit code is never read is not a commit. The
+rule from the hundred and thirtieth package said the tree must be frozen while a commit
+runs; what it did not say is that the commit's own answer has to be read before the next
+package starts. It says so now.
 
 ## Package 181 — what the manager is built holding, and what an account's runtime is built holding
 
@@ -12444,7 +12500,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1636 | Four marks about where the account stands all start false. | `execution_manager.py` 596, and 597, and 598, and 601 | package one hundred and eighty-one | folds into P181-02 |
 | H-1637 | Two counts start at nothing, a wake-up starts unset, and a request for a protection scan starts unmade. | `execution_manager.py` 585, then 586, then 595, then 602 | package one hundred and eighty-one | folds into P181-02 |
 | H-1638 | The live work, the live trades, the amend counts and the amends still owing all start empty. | `execution_manager.py` 591, and 592, and 593, and 594 | package one hundred and eighty-one | folds into P181-02 |
+| H-1639 | Three queues are drained in turn, and where the caller asked for empty the round repeats until none of the three holds anything. | `execution_manager.py` 3734, then 3735, then 3736, then 3737, then 3739, then 3740, reading 3746-3750 | package one hundred and eighty-two | is P182-01 |
+| H-1640 | The call a boot makes drains only for an account marked as booting. | `execution_manager.py` 3687, then 3688, then 3689 | package one hundred and eighty-two | folds into P182-01 |
+| H-1641 | Marking an account as booting is an ask of its own, and the mark is cleared when the boot finishes. | `execution_manager.py` 3619, then 3620 into 3621, or 3670, then 3671 into 3672 | package one hundred and eighty-two | folds into P182-01 |
+| H-1642 | One round is all the account's worker asks for. | `execution_manager.py` 3739, reached from 3907 | package one hundred and eighty-two | folds into P182-01 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 11:30 UTC

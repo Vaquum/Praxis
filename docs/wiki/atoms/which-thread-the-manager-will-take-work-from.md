@@ -2,18 +2,18 @@
 row: P165-01
 baseline: 49aa659
 created: 2026-11-16 03:00 UTC
-modified: 2026-11-16 03:00 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "The thread is remembered the first time an account is registered, and only the first time"
     source: "`execution_manager.py` 820 into 821"
   - claim: "Handing news to an account is refused from any other thread"
-    source: "`execution_manager.py` 3101-3104, then 3109"
+    source: "`execution_manager.py` 3101-3104, then 3105-3108, then 3109"
   - claim: "Admitting an event is refused the same way"
     source: "`execution_manager.py` 3168-3171, then 3176"
   - claim: "Before any account is registered the remembered thread is absent and neither refusal can fire"
     source: "`execution_manager.py` 820, against 3102"
   - claim: "An account the manager does not hold is refused on both roads"
-    source: "`execution_manager.py` 3111, then 3112 into 3114, and 3178, then 3179 into 3181"
+    source: "`execution_manager.py` 3111, then 3112 into 3113-3114, and 3178, then 3179 into 3181"
   - claim: "News that passes both readings is put on the account's own queue without waiting"
     source: "`execution_manager.py` 3116"
 ---

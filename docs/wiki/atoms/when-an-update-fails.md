@@ -2,7 +2,7 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-10-12 00:35 UTC
+modified: 2026-11-16 11:30 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
@@ -13,7 +13,7 @@ evidence:
   - claim: "A stopped account turns away the commands waiting in its queue"
     source: "`execution_manager.py` 3958-3963"
   - claim: "It carries out an abort all the same, and puts an amend back to wait"
-    source: "`execution_manager.py` 3912-3919, put back at 3952-3953"
+    source: "`execution_manager.py` 3912-3919, put back at 3953, then 3954"
   - claim: "A priority instruction that fails ends there"
     source: "`execution_manager.py` 3937-3950"
   - claim: "A command taken off the queue that fails ends there"
