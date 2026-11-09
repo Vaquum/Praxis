@@ -168,6 +168,7 @@ the others where it appears.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
 - [How a replay works out where a ladder's change had got to](atoms/how-a-replay-works-out-where-a-ladders-change-had-got-to.md) — reading the record back builds both the change still owing and the last one that completed, and the second needs its own start to have been read.
 - [What happens before a lost protection's close is attempted](atoms/what-happens-before-a-lost-protections-close-is-attempted.md) — four things are done to a trade whose cover is lost before any order goes out, and their order is what a restart depends on.
+- [How a remediation reaches Nexus](atoms/how-a-remediation-reaches-nexus.md) — what Praxis tells Nexus about a position it could not keep covered waits in memory until Nexus takes it, and a record of the handing-over is what stops it being told twice.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
 - [What calling off a scheme's children leaves behind](atoms/what-calling-off-a-schemes-children-leaves-behind.md) — each still-working part is asked to stop, and a part that cannot be stopped stays on the list the settling reads.
 - [What a boot's rejection of an orphan says](atoms/what-a-boots-rejection-of-an-orphan-says.md) — an instruction accepted and never carried out is reported as refused, in figures that are stand-ins because nothing of it was ever read.
@@ -215,6 +216,7 @@ the others where it appears.
 - [How a ladder's prices are changed](atoms/how-a-ladders-prices-are-changed.md) — the whole grid replaced: every old rung cancelled and seen to be over before one new rung goes out.
 - [What stops a ladder's new rungs](atoms/what-stops-a-ladders-new-rungs.md) — a grid can be left short: nothing worth placing, a freeze, or a rung that halts the run each time it is tried.
 - [When a price change leaves no new order](atoms/when-a-price-change-places-nothing.md) — a price change can end with nothing resting in place of the order it replaced: the cancel never settles, the order is still working, too little is left to trade, or the send goes out and comes back unconfirmed.
+- [What a slice that cannot be sent does to the work](atoms/what-a-slice-that-cannot-be-sent-does-to-the-work.md) — a part that will not go out freezes the rest and reports what has filled, leaving the instruction live for Nexus to decide about.
 - [What moves a scheme on to its next part](atoms/what-moves-a-scheme-on-to-its-next-part.md) — each turn sends the part at the cursor and then moves the cursor, reading nothing about what that part filled.
 - [When a call-off goes unreported](atoms/when-a-call-off-goes-unreported.md) — the call-off is written down before the report is worked out, and one missing lookup leaves the order stopped with Nexus never told.
 - [Cancellation](atoms/how-a-trade-is-cancelled.md) — asking Praxis to stop a request already submitted, answered at once or taken up in the line of its own.
@@ -803,7 +805,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 706
+Both sides are the subject, and Praxis is the side that has been written. 708
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -814,4 +816,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 12:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 13:00 UTC

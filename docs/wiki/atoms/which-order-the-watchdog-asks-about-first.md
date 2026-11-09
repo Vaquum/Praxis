@@ -2,16 +2,16 @@
 row: P157-01
 baseline: 49aa659
 created: 2026-11-15 23:00 UTC
-modified: 2026-11-15 23:00 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "An account the manager does not hold ends the pass"
-    source: "`execution_manager.py` 7357, then 7358 into 7359"
+    source: "`execution_manager.py` 7357, then 7358 into 7359, or 7365"
   - claim: "The brackets are walked over a copy, and any whose protection is not in doubt is passed over"
     source: "`execution_manager.py` 7361, then 7362 into 7363"
   - claim: "The replacement still owing is asked about before the protection the bracket holds, and a name appearing twice is asked about once"
     source: "`execution_manager.py` 7366-7373"
   - claim: "Each candidate is asked after in turn, and the first found working ends the asking"
-    source: "`execution_manager.py` 7377, then 7379, then 7384 into 7385-7386"
+    source: "`execution_manager.py` 7376, then 7377, then 7379, then 7384 into 7385-7386"
   - claim: "A venue failure on a candidate is remembered and the next candidate tried all the same"
     source: "`execution_manager.py` 7380 into 7381-7382"
   - claim: "A candidate found working has the protection written back as active, and the bracket passed over"

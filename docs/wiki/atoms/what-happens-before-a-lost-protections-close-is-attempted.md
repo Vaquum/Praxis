@@ -2,10 +2,10 @@
 row: P179-02
 baseline: 49aa659
 created: 2026-11-16 10:00 UTC
-modified: 2026-11-16 10:00 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "The version is lifted to the first where it stands below it"
-    source: "`execution_manager.py` 6911"
+    source: "`execution_manager.py` 6903, then 6911"
   - claim: "The account's other work is frozen before anything is recorded"
     source: "`execution_manager.py` 6913-6917, then 6918"
   - claim: "The failure is recorded, and only then is the bracket's standing moved to failed"

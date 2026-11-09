@@ -2,7 +2,7 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-11-16 11:30 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "An account named by nothing at all is refused before any of the rest"
     source: "`execution_manager.py` 812, then 813-814"
@@ -27,7 +27,7 @@ evidence:
   - claim: "A flatten the venue still has working is left in place, not re-sent"
     source: "`execution_manager.py` 7984-7994"
   - claim: "The repair sweep reaches the same send by a call of its own, only where the policy calls for it and no such order stands already"
-    source: "`execution_manager.py` 7118-7122 and 7136-7137, reaching the route at 7139 unless either test returns instead"
+    source: "`execution_manager.py` 7114, then 7115 into 7116, or 7118-7122 and 7136-7137, reaching the route at 7139 unless either test returns instead"
   - claim: "Holdings are keyed by trade and account together"
     source: "`trading_state.py` 482-491"
   - claim: "On the exchange adapter, credentials are stored against the name and used to sign its calls"

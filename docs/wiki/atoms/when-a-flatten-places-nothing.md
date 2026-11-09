@@ -2,10 +2,10 @@
 row: P4-44
 baseline: 49aa659
 created: 2026-10-13 07:20 UTC
-modified: 2026-10-13 07:20 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "A long is closed by selling and a short by buying"
-    source: "`execution_manager.py` 7609-7611"
+    source: "`execution_manager.py` 7607, then 7609-7611"
   - claim: "The venue's sizes must be at hand, and with them the name of the asset the cap is read in, either missing leaving the position open"
     source: "`execution_manager.py` 7613-7618 into 7625"
   - claim: "A leg of the cancelled pair still live, part filled or unanswerable stops it"

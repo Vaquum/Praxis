@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 705 not.**
+**6 of them reviewed, 707 not.**
 
 ## Package 1
 
@@ -856,6 +856,59 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 185 — how a remediation reaches Nexus, what a slice that cannot be sent does, and the sweep to eight thousand
+
+Scope: the handing-on of a remediation and the retry that keeps it waiting, the freezing
+a failed slice causes, and the fourth package of the sweep. Two subjects promote; the
+rest is widening. After this package no statement in the module's first eight thousand
+lines is uncited that a claim may name.
+
+### What the widenings were
+
+| What was uncited | What accounts for it now |
+|---|---|
+| The account lookups and refusals opening four more ways in | The claim covering each, widened to the lookup above it. Eight statements |
+| The two running totals a candidate walk starts at nothing, and the guard it opens | The claim covering the walk, widened to where it starts. Four statements |
+| The command read off a trade before each of five writings | The claim covering each writing, widened to what it reads first. Five statements |
+| The moment taken before a pass over drains, and the retry moment stamped on each | The claim covering the drain, widened to both. Three statements |
+| The queue marked done as a stopping worker empties it | The claim covering the stopping, widened to the line after the log. One statement |
+| The names a freeze gathers and answers with | The claim covering the freeze, widened to its ends. Four statements |
+| The free balance walked asset by asset, and the account's own answer about a lost protection | The claim covering each reading, widened in place. Five statements |
+| The rest — the order named before a close's send, the side read before a cap, the recording of a protection failure | The claim covering each, widened in place. Four statements |
+
+### Merge and promote, package 185
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1653 | A remediation handed on and recorded as delivered is never handed on twice, and a replay remembers again only the failures no delivery answers for. | Promote. The remediation is named by three articles and the handing-on is in none |
+| Row H-1654 | Nothing is handed on where the manager was built with no way of handing one on, and a failure leaves one waiting while the walk goes on. | Merge with H-1653 |
+| Row H-1655 | A slice that cannot be sent freezes the work only where no hold stands on it already, and forgets its next run time whatever hold it carries. | Promote. The freezing is named as an ending elsewhere and what it writes is in no article |
+| Row H-1656 | The failure is recorded against the command, and that record is what a replay rebuilds a frozen command from. | Merge with H-1655 |
+
+Two subjects promote, two rows merge into them, and the rest of the package is widening.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P185-01 | How a remediation reaches Nexus | written | [how-a-remediation-reaches-nexus.md](atoms/how-a-remediation-reaches-nexus.md) |
+| P185-02 | What a slice that cannot be sent does to the work | written | [what-a-slice-that-cannot-be-sent-does-to-the-work.md](atoms/what-a-slice-that-cannot-be-sent-does-to-the-work.md) |
+
+### Re-seed, after writing package 185
+
+The first subject is a delivery with a record behind it, which is the same shape as the
+mismatch delivery written long ago and the same shape as an outcome's retry. Three
+deliveries, one pattern, and only this one keeps its pending set in memory.
+
+| What it found | What came of it |
+|---|---|
+| A delivery recorded on the spine is what keeps a remediation from being handed on twice. | Stated, with the restart case: one handed on whose record never landed is handed on again |
+| A failure handing one on leaves it waiting and the walk goes on. | Stated. One unreachable Nexus does not hold up the others |
+| The freezing a failed slice causes is skipped where a hold already stands. | Stated. Work already held for protection or draining keeps the hold it has |
+| The next run time is forgotten whatever hold is carried. | Stated as the second arm, since that is what stops another part being due |
+
+Worth recording: the sweep has now reached eight thousand of the module's eleven
+thousand lines, and the shape of what is left is clear — the amend driver, the ladder's
+retiring and the outcome builders, then the exclusions.
 
 ## Package 184 — what target the closing command is given, and the sweep over the next two and a half thousand lines
 
@@ -12610,7 +12663,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1650 | The budget already recorded for that command is taken as its target where one stands, and the size being closed where none does. | `execution_manager.py` 7728, then 7729-7733, the fallback at 7732 | package one hundred and eighty-four | folds into P184-01 |
 | H-1651 | Both the protective pair's fills and the hand-placed close's are counted under that one command. | `execution_manager.py` 4927, and 7815, against 7865 | package one hundred and eighty-four | folds into P184-01 |
 | H-1652 | The command built for the closing side is a plain market order carrying the entry's trade and timeout. | `execution_manager.py` 7735-7750 | package one hundred and eighty-four | folds into P184-01 |
+| H-1653 | A remediation handed on and recorded as delivered is never handed on twice, and a replay remembers again only the failures no delivery answers for. | `execution_manager.py` 6801-6806, then 6807, then 6808, against 6757-6761, then 6763, then 6764, then 6765-6770 | package one hundred and eighty-five | is P185-01 |
+| H-1654 | Nothing is handed on where the manager was built with no way of handing one on, and a failure leaves one waiting while the walk goes on. | `execution_manager.py` 6781, then 6782, or 6784-6788, then 6789, then 6790, then 6791, then 6792, then 6799 | package one hundred and eighty-five | folds into P185-01 |
+| H-1655 | A slice that cannot be sent freezes the work only where no hold stands on it already, and forgets its next run time whatever hold it carries. | `execution_manager.py` 8294 into 8295, then 8296 | package one hundred and eighty-five | is P185-02 |
+| H-1656 | The failure is recorded against the command, and that record is what a replay rebuilds a frozen command from. | `execution_manager.py` 8278, then 8285-8291, then 8292, against 1225 into 1226 | package one hundred and eighty-five | folds into P185-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 12:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 13:00 UTC

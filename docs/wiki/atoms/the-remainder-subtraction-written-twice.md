@@ -2,16 +2,16 @@
 row: P144-02
 baseline: 49aa659
 created: 2026-11-15 16:30 UTC
-modified: 2026-11-15 16:30 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "What a bracket still has unprotected is the entry's delivered amount, less the exit's projected fills with the candidates' own projections taken back out, less what the venue said those candidates filled"
     source: "`execution_manager.py` 7463"
   - claim: "The same shape is written again where an amend decides whether to place a replacement"
     source: "`execution_manager.py` 9614"
   - claim: "Both read the entry's delivered amount, which is the filled amount net of its base-asset fees"
-    source: "`execution_manager.py` 7413, and 9531, both into 2648"
+    source: "`execution_manager.py` 7411, then 7412, then 7413, and 9531, both into 2648"
   - claim: "Both read the exit command's projected fills from the same helper"
-    source: "`execution_manager.py` 7414, and 9533"
+    source: "`execution_manager.py` 7414, then 7415, and 9533, then 9534, then 9536"
   - claim: "In the one the figures taken back out and added in are gathered over both candidate lists"
     source: "`execution_manager.py` 7429, then 7460, then 7461"
   - claim: "In the other they are the old list's alone"

@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-10-11 22:51 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"
@@ -13,11 +13,11 @@ evidence:
   - claim: "Praxis asks a venue to place an order"
     source: "`execution_manager.py` 4269-4280"
   - claim: "It asks a venue to cancel one, and a linked pair by its own call"
-    source: "either `execution_manager.py` 8527-8531 or 8521-8525"
+    source: "either `execution_manager.py` 8527-8531 or 8521-8525, the account's own answer read at 6657"
   - claim: "It asks what became of an order, and of a linked pair separately"
     source: "either `execution_manager.py` 5519-5523 or 5582"
   - claim: "It asks what the account holds of one named asset, and what it has traded in one pair"
-    source: "`execution_manager.py` 6662-6664 and 8061"
+    source: "`execution_manager.py` 6662-6664, walked at 6665, then 6666 into 6667, or answering 6669, and 8061"
   - claim: "It asks for the book before pricing an order"
     source: "`execution_manager.py` 4194-4197"
   - claim: "It asks for the symbol rules, for settled transfers, and for what the keys are allowed to do"

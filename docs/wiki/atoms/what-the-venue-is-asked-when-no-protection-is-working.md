@@ -2,12 +2,12 @@
 row: P144-01
 baseline: 49aa659
 created: 2026-11-15 16:30 UTC
-modified: 2026-11-15 16:30 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "Both list names a bracket might be protected by are gathered, the one it holds and any replacement still owing, with an absent name left out"
-    source: "`execution_manager.py` 7419-7426"
+    source: "`execution_manager.py` 7419-7426, the two running totals started at 7427, then 7428"
   - claim: "Each is asked after at the venue, its list first and then every leg of that list, the legs' fills summed"
-    source: "`execution_manager.py` 7429, then 7431-7433, then 7435, then 7436-7438, then 7439"
+    source: "`execution_manager.py` 7430, then 7429, then 7431-7433, then 7434, then 7435, then 7436-7438, then 7439"
   - claim: "A list the venue does not know is passed over and the walk goes on"
     source: "`execution_manager.py` 7440 into 7441"
   - claim: "Any other venue failure abandons the whole resolving"

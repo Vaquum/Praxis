@@ -2,14 +2,14 @@
 row: P166-01
 baseline: 49aa659
 created: 2026-11-16 03:30 UTC
-modified: 2026-11-16 03:30 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "A bracket carrying no moment the doubt began at is left alone"
     source: "`execution_manager.py` 7508, then 7509"
   - claim: "The wait is measured from that moment against the restore deadline, and a wait short of it ends the pass"
     source: "`execution_manager.py` 7511, then 7512 into 7513"
   - claim: "What is left open is the entry's delivered figure less what the closing command has filled"
-    source: "`execution_manager.py` 7517, then 7518, then 7519"
+    source: "`execution_manager.py` 7515, then 7516, then 7517, then 7518, then 7519"
   - claim: "Nothing left open means nothing done"
     source: "`execution_manager.py` 7520 into 7521"
   - claim: "Otherwise the bracket is remediated on those figures, with every name the pair could still rest under handed over"

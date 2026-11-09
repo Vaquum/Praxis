@@ -2,16 +2,16 @@
 row: P4-45
 baseline: 49aa659
 created: 2026-10-13 09:10 UTC
-modified: 2026-10-13 09:10 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "A sell is capped by the account's free coin and by what this trade owns of it"
-    source: "`execution_manager.py` 7648 and 7656-7661"
+    source: "`execution_manager.py` 7648, then 7650, and 7656-7661"
   - claim: "A buy is capped by the free money over a price worked out for the cap alone, the best offer with a buffer on it"
     source: "`execution_manager.py` 7664-7665 into 6692, the buffer at 184"
   - claim: "The order itself goes out at the market, carrying no price, while that figure is also what the worth is weighed at"
     source: "`execution_manager.py` 7775 against 7783-7790, the figure kept at 7666 and weighed at 7681-7682"
   - claim: "A book query that raises, and a side with nothing on it, both leave the average paid going in as that price"
-    source: "`execution_manager.py` 6686-6687 and 6689-6690, handed in at 7647 and 7664"
+    source: "`execution_manager.py` 6684, then 6686-6687 and 6689-6690, handed in at 7647 and 7664"
   - claim: "A sell's price is the best bid, falling back the same way"
     source: "`execution_manager.py` 7662 into 6708-6716"
   - claim: "What remains is rounded down to the venue's step"
@@ -21,7 +21,7 @@ evidence:
   - claim: "A cap below the remainder is logged rather than refused"
     source: "`execution_manager.py` 7670-7679"
   - claim: "The size is weighed against that same price, and one under the smallest, or worth under the smallest value, sends nothing"
-    source: "`execution_manager.py` 7681-7690"
+    source: "`execution_manager.py` 7681-7690, the order named at 7692-7696"
 ---
 # How big a flatten goes out
 

@@ -2,10 +2,10 @@
 row: P4-42
 baseline: 49aa659
 created: 2026-10-13 06:50 UTC
-modified: 2026-10-14 13:10 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "Every live scheme is frozen, each freeze written down before it takes hold in memory"
-    source: "`execution_manager.py` 6630-6638"
+    source: "`execution_manager.py` 6626, then 6630-6638, then 6639, then 6640, the names answered at 6642"
   - claim: "A scheme already held for protection or draining is passed over, and any other hold is overwritten with the protection one"
     source: "`execution_manager.py` 6627-6628 against 6638"
   - claim: "The failure record refuses a revision below the first, so an unamended pair's zero is raised to one before it is written"
@@ -25,7 +25,7 @@ evidence:
   - claim: "A deadline passed with nothing left on the books leaves the pair unknown instead"
     source: "`execution_manager.py` 7519-7521"
   - claim: "A pair that never goes up enters the same answer directly"
-    source: "`execution_manager.py` 7181-7185, reached from 4958-4963"
+    source: "`execution_manager.py` 7181-7185, then 7186-7190, reached from 4958-4963"
   - claim: "An account named in no policy setting gets the flattening one"
     source: "`trading_config.py` 220-221 against 26-28, wired at `trading.py` 232"
   - claim: "The word to Nexus is kept under the command's name and offered at once"

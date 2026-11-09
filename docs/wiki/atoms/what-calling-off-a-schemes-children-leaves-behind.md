@@ -2,7 +2,7 @@
 row: P174-01
 baseline: 49aa659
 created: 2026-11-16 07:30 UTC
-modified: 2026-11-16 12:30 UTC
+modified: 2026-11-16 13:00 UTC
 evidence:
   - claim: "A copy of the live children is walked, so the set can be changed as it goes"
     source: "`execution_manager.py` 6445, then 6447"
@@ -17,7 +17,7 @@ evidence:
   - claim: "The live set standing non-empty is what keeps the work from being settled"
     source: "`execution_manager.py` 6355, then 6356, reached from 7068, then 7069"
   - claim: "A drain passes over work whose live set is empty, so the calling off is attempted only while names remain"
-    source: "`execution_manager.py` 7052-7056, then 7057"
+    source: "`execution_manager.py` 7052-7056, then 7057, the moment taken at 7059 and the retry stamped at 7064, then 7065-7067"
 ---
 # What calling off a scheme's children leaves behind
 
