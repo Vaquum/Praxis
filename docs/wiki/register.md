@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 691 not.**
+**6 of them reviewed, 699 not.**
 
 ## Package 1
 
@@ -856,6 +856,188 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 180 — what a command's acceptance leaves behind if the queue is full, and what the closing side of a bracket is given
+
+Scope: the undoing of a durable acceptance where the account's queue is found full, and
+the names, command and budget the closing side of a bracket is given, part of a module
+the ledger marks `partial`. After the package before this one, three hundred and
+thirty-one of its two thousand four hundred and eighty-seven statements were uncited.
+The reservation is in an article and the rollback behind it is in none; the closing
+side's own command is in no article.
+
+### Merge and promote, package 180
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1623 | A full queue has the acceptance and any call-off against the command forgotten, and the command refused. | Promote. The reservation is written and what happens where it fails is not |
+| Row H-1624 | The reservation is given back whatever happens. | Merge with H-1623 |
+| Row H-1625 | The acceptance is applied to the trading record directly, not by the routing that poisons an account on failure. | Merge with H-1623 |
+| Row H-1626 | An account parked by a failed startup is refused before any of it. | Merge with H-1623 |
+| Row H-1627 | The closing side gets a command name of its own, an order name with a fixed place, a command of its own and a budget against it. | Promote. The closing command is in no article, and its separateness is the finding |
+| Row H-1628 | The bracket is marked as having had its protection placed before anything is sent, and that mark is what the boot's pass reads. | Merge with H-1627 |
+| Row H-1629 | The protective side is the opposite of the entry's and the three prices come from the entry's average. | Merge with H-1627 |
+| Row H-1630 | The intent names the closing command rather than the entry's. | Merge with H-1627 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P180-01 | What a command's acceptance leaves behind if the queue is full | written | [what-a-commands-acceptance-leaves-behind-if-the-queue-is-full.md](atoms/what-a-commands-acceptance-leaves-behind-if-the-queue-is-full.md) |
+| P180-02 | What the closing side of a bracket is given | written | [what-the-closing-side-of-a-bracket-is-given.md](atoms/what-the-closing-side-of-a-bracket-is-given.md) |
+
+### Re-seed, after writing package 180
+
+The first subject is a road the code's own comment calls unreachable, and that is why it
+is worth an article: what it does is the shape of the undoing the design would need if
+the reservation were ever wrong.
+
+| What it found | What came of it |
+|---|---|
+| The acceptance and any call-off are both forgotten on the full-queue road. | Stated as the undoing of a durable accept, with the reservation named as what makes the road unreachable |
+| That one apply bypasses the road that poisons an account. | Stated. A failure there fails one command and leaves the account able to take others |
+| The mark saying protection was placed is set before the send. | Stated with its reader: the boot's pass over brackets passes a marked one over |
+| The closing side has its own name, command and budget. | Stated. The intent names the closing command, which keeps the pair's fills out of the entry's totals |
+
+Worth recording: the gate refused the first draft's citation of the parked-account
+refusal for stopping one line short of the raise. The rule earns its keep on exactly
+this shape — a message built over four lines, with the raise on the fifth.
+
+## Package 179 — how a replay works out where a ladder's change had got to, and what happens before a lost protection's close
+
+Scope: the folding of a replay into the ladder change still in flight and the last one
+completed, and the order of the writes a lost protection causes before any closing order
+goes out, part of a module the ledger marks `partial`. After the package before this one,
+three hundred and forty-one of its two thousand four hundred and eighty-seven statements
+were uncited. The resumed grid's source is in an article and the folding behind it is in
+none; the pieces of the remediation are named by two articles and their order is in
+none.
+
+### Merge and promote, package 179
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1615 | A completed change is recorded only where its own start was found in the replay. | Promote. The resumed grid's source is written and where that source comes from is not |
+| Row H-1616 | A change that started is remembered at cancelling, a plan moves it to placing, and a state-unknown sets it to whichever phase that record carried. | Merge with H-1615 |
+| Row H-1617 | The size of a completed grid stands at nought where no plan was found. | Merge with H-1615 |
+| Row H-1618 | A completed change and an abandoned one both forget the change in flight. | Merge with H-1615 |
+| Row H-1619 | The freezing of the account's other work comes before the failure is recorded, and the record before the standing is moved. | Promote. The pieces are named elsewhere and the order is in no article |
+| Row H-1620 | The close is attempted only where the account's settings answer flatten-then-halt. | Merge with H-1619 |
+| Row H-1621 | The version is lifted to the first where it stands below it. | Merge with H-1619 |
+| Row H-1622 | The remediation is remembered against the account, and the remembered ones drained last. | Merge with H-1619 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P179-01 | How a replay works out where a ladder's change had got to | written | [how-a-replay-works-out-where-a-ladders-change-had-got-to.md](atoms/how-a-replay-works-out-where-a-ladders-change-had-got-to.md) |
+| P179-02 | What happens before a lost protection's close is attempted | written | [what-happens-before-a-lost-protections-close-is-attempted.md](atoms/what-happens-before-a-lost-protections-close-is-attempted.md) |
+
+### Re-seed, after writing package 179
+
+The first subject answers a question the article six packages ago left standing. That
+one said the resumed grid comes from the last completed change; this one says that
+record exists only where the change's own start was in the window read.
+
+| What it found | What came of it |
+|---|---|
+| A completion whose start fell outside the replayed window leaves no completed grid. | Stated, with what follows: the resuming falls back to the ladder's first grid |
+| A grid recorded without its plan has a size of nought. | Stated |
+| A halted change comes back at the phase its record carried. | Stated. The phase is read from the record rather than guessed |
+| The freezing comes before the close on this road. | Stated as what it licenses: a bracket closed out here had the account's other work frozen first |
+
+Worth recording: both articles are about order of writes, and in each the order is the
+only thing a reader cannot work out from the names. Four writes in a routine look
+interchangeable until one of them is a freeze and another is a durable record.
+
+## Package 178 — what poisons an account, and what picks a stalled ladder change up again
+
+Scope: the four failures that mark an account untrustworthy and what that mark costs,
+and the scan that drives a stalled ladder change on, part of a module the ledger marks
+`partial`. After the package before this one, three hundred and fifty-one of its two
+thousand four hundred and eighty-seven statements were uncited. The mark is named by
+several articles as a refusal and set in none of them; the scan is in no article.
+
+### Merge and promote, package 178
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1607 | Four failures poison an account: applying outside news, applying an admitted event, the account's own loop dying, and a failure ending a command on a dead account's queue. | Promote. Articles name the mark as a refusal and none says what sets it |
+| Row H-1608 | The task being stopped travels on each of those roads rather than poisoning anything. | Merge with H-1607 |
+| Row H-1609 | A poisoned account refuses an event, refuses to record and apply one, refuses a command, and is no longer counted able to carry orders. | Merge with H-1607 |
+| Row H-1610 | The mark is only ever set, never cleared, and a poisoned account's waiting news is dropped unapplied. | Merge with H-1607 |
+| Row H-1611 | Work with no phase written, or no context held, is passed over, so both marks have to be there. | Promote. The scan is in no article, and the context being read twice is the finding |
+| Row H-1612 | The pass ends for an account the manager does not hold, and otherwise walks a copy of the account's live work. | Merge with H-1611 |
+| Row H-1613 | The driving the scan calls does nothing where the context is gone. | Merge with H-1611 |
+| Row H-1614 | The held-protection scan selects on a stamped moment and reads no standing at all. | Merge with H-1611 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P178-01 | What poisons an account | written | [what-poisons-an-account.md](atoms/what-poisons-an-account.md) |
+| P178-02 | What picks a stalled ladder change up again | written | [what-picks-a-stalled-ladder-change-up-again.md](atoms/what-picks-a-stalled-ladder-change-up-again.md) |
+
+### Re-seed, after writing package 178
+
+The first subject was drafted as one road and is four. A draft said the applying of
+outside news is the one place the mark is set; counting the sites gave four, and two of
+them are nothing to do with news.
+
+| What it found | What came of it |
+|---|---|
+| Four failures set the mark. | Counted and named. Each is a failure of the machinery that keeps the account's picture true, which is why none is retried |
+| The mark is never cleared anywhere. | Stated. The account comes back only with the process |
+| The task being stopped travels on all four roads. | Stated. Shutting an account down does not poison it |
+| Two scans in this module choose their work on unlike grounds. | Stated in the second article, which names the other and what each reads |
+
+Worth recording: the draft's "the one place" was the same error as the package before
+this one's "or" — a survey of one site standing in for a survey. Both were caught by
+counting, and neither by any check.
+
+## Package 177 — what moves a scheme on to its next part, and when a call-off goes unreported
+
+Scope: the turn that sends one part of a schedule and advances it, and the report a
+call-off makes or fails to make, part of a module the ledger marks `partial`. After the
+package before this one, three hundred and sixty-one of its two thousand four hundred
+and eighty-seven statements were uncited. Neither subject is in an article.
+
+### Merge and promote, package 177
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1599 | The cursor moves on by one whatever the part filled, nothing about the fill being consulted. | Promote. The turn is in no article, and the cursor advancing on the clock is the finding |
+| Row H-1600 | A send that answers nothing freezes the work and the pass ends with the cursor where it was. | Merge with H-1599 |
+| Row H-1601 | Where parts remain the next run time is set a gap ahead and progress recorded; where none remain progress is recorded only while live children stand. | Merge with H-1599 |
+| Row H-1602 | The settling is attempted at the end of every turn and does nothing while a live child remains. | Merge with H-1599 |
+| Row H-1603 | A command with no trade name remembered reports nothing at all, the call-off standing in the record regardless. | Promote. The call-off's report is in no article, and the unreported road is the finding |
+| Row H-1604 | The call-off is recorded and applied before any report is worked out. | Merge with H-1603 |
+| Row H-1605 | The figures are the admitted totals, with an average price only where something has filled. | Merge with H-1603 |
+| Row H-1606 | A trade's name is remembered on seven roads. | Merge with H-1603 |
+
+Two subjects promote and six rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P177-01 | What moves a scheme on to its next part | written | [what-moves-a-scheme-on-to-its-next-part.md](atoms/what-moves-a-scheme-on-to-its-next-part.md) |
+| P177-02 | When a call-off goes unreported | written | [when-a-call-off-goes-unreported.md](atoms/when-a-call-off-goes-unreported.md) |
+
+### Re-seed, after writing package 177
+
+The second article's last section began as a guess and became a count. The draft said a
+trade's name is remembered as a command is replayed or its intent recorded; there are
+seven roads, and naming two of them would have read as a complete list.
+
+| What it found | What came of it |
+|---|---|
+| Seven roads remember a trade's name. | Counted and named by kind, so the gap the article describes is bounded by something real |
+| The call-off is written before the report is worked out. | Stated. The order is called off at the venue and in the record whether or not Nexus hears |
+| The cursor advances on the clock rather than on fills. | Stated. A part that filled nothing advances the schedule exactly as a part that filled in full |
+| A last part whose order has already ended writes no progress. | Stated as the second arm of the same reading |
+
+Worth recording: "or" in a draft claim is where an incomplete survey hides. Two roads
+joined by "or" look exhaustive and are not, and the check that would catch it does not
+exist — only counting does.
 
 ## Package 176 — what rescuing a protective pair by its list name answers, and what hearing a protection has ended does
 
@@ -12166,7 +12348,39 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1596 | The record names the pair's current name as both the old one and the new, where the watchdog asks about a name appearing twice once. | `execution_manager.py` 6845-6857, the two names set at 6855, and 6856, against 7366-7373 | package one hundred and seventy-six | folds into P176-02 |
 | H-1597 | The version used is the standing one or the first, whichever is greater. | `execution_manager.py` 6837-6839 | package one hundred and seventy-six | folds into P176-02 |
 | H-1598 | A scan over protection is then asked for. | `execution_manager.py` 6863 | package one hundred and seventy-six | folds into P176-02 |
+| H-1599 | The cursor moves on by one whatever the part filled, and an order not already ended joins the live children. | `execution_manager.py` 5919, then 5920 into 5921, then 5923 | package one hundred and seventy-seven | is P177-01 |
+| H-1600 | The part at the cursor is the one sent, and a send that answers nothing freezes the work and ends the pass. | `execution_manager.py` 5904, then 5905, then 5908, then 5910, then 5911-5916, then 5917 | package one hundred and seventy-seven | folds into P177-01 |
+| H-1601 | Where parts remain the next run time is set a gap ahead and progress recorded; where none remain progress is recorded only while live children stand. | `execution_manager.py` 5925, then 5926, then 5927, or 5928, then 5929, then 5930 into 5931 | package one hundred and seventy-seven | folds into P177-01 |
+| H-1602 | The settling is attempted at the end of every turn and does nothing while a live child remains. | `execution_manager.py` 5933, reaching 6355, then 6356 | package one hundred and seventy-seven | folds into P177-01 |
+| H-1603 | A command with no trade name remembered reports nothing at all. | `execution_manager.py` 8557, then 8558, then 8566, against 8568-8576 | package one hundred and seventy-seven | is P177-02 |
+| H-1604 | The call-off is recorded and applied before any report is worked out. | `execution_manager.py` 8540-8545, then 8546, then 8547, then 8549 | package one hundred and seventy-seven | folds into P177-02 |
+| H-1605 | The figures are the admitted totals, with an average price only where something has filled. | `execution_manager.py` 8549-8551, then 8552, then 8554 into 8555 | package one hundred and seventy-seven | folds into P177-02 |
+| H-1606 | A trade's name is remembered on seven roads: a replayed intent, a resumed ladder, a resumed scheme, a command taken in, and the three closing commands. | `execution_manager.py` 1156, and 1386, and 2010, and 3566, and 5018, and 7815, and 8032 | package one hundred and seventy-seven | folds into P177-02 |
+| H-1607 | Four failures poison an account: applying outside news, applying an admitted event, the account's own loop dying, and a failure ending a command on a dead account's queue. | `execution_manager.py` 3768, then 3769, then 3772, then 3773, then 3780, or 3249, then 3250, then 3253, then 3254, or 4025, then 4026, or 7003, then 7011 | package one hundred and seventy-eight | is P178-01 |
+| H-1608 | The task being stopped travels on each of those roads rather than poisoning anything. | `execution_manager.py` 3770, then 3771, or 3251, then 3252, or 4022, then 4024, or 7002 | package one hundred and seventy-eight | folds into P178-01 |
+| H-1609 | A poisoned account refuses an event, refuses to record and apply one, refuses a command, and is no longer counted able to carry orders. | `execution_manager.py` 3183, and 3229, and 3235, and 3434, and 3348 | package one hundred and seventy-eight | folds into P178-01 |
+| H-1610 | The mark is only ever set, never cleared, and a poisoned account's waiting news is dropped unapplied. | `execution_manager.py` 601, against 3773, and 3254, and 4026, and 7011, the dropping at 3764, then 3766 into 3767 | package one hundred and seventy-eight | folds into P178-01 |
+| H-1611 | Work with no phase written, or no context held, is passed over, so both marks have to be there. | `execution_manager.py` 7328 into 7329 | package one hundred and seventy-eight | is P178-02 |
+| H-1612 | The pass ends for an account the manager does not hold, and otherwise walks a copy of the account's live work. | `execution_manager.py` 7323, then 7324 into 7325, or 7327 | package one hundred and seventy-eight | folds into P178-02 |
+| H-1613 | The driving the scan calls does nothing where the context is gone, so the context is read twice. | `execution_manager.py` 7328, then 7331, reaching 8970, then 8971 into 8972 | package one hundred and seventy-eight | folds into P178-02 |
+| H-1614 | The held-protection scan selects on a stamped moment and reads no standing at all. | `execution_manager.py` 7328, against 9834 into 9835 | package one hundred and seventy-eight | folds into P178-02 |
+| H-1615 | A completed change records the generation, the settings from its own start and the size from its plan, and only where that start was found. | `execution_manager.py` 1272, then 1273, then 1274, then 1275, then 1276-1283, then 1285 into 1286-1288, against 1281 | package one hundred and seventy-nine | is P179-01 |
+| H-1616 | A change that started is remembered at cancelling, a plan moves it to placing, and a state-unknown sets it to whichever phase that record carried. | `execution_manager.py` 1253, then 1254, then 1255, or 1257, then 1258, then 1259, then 1261 into 1262, or 1264, then 1265, then 1267 into 1268-1270 | package one hundred and seventy-nine | folds into P179-01 |
+| H-1617 | The size of a completed grid stands at nought where no plan was found. | `execution_manager.py` 1275 | package one hundred and seventy-nine | folds into P179-01 |
+| H-1618 | A completed change and an abandoned one both forget the change in flight. | `execution_manager.py` 1290, or 1292, then 1293 | package one hundred and seventy-nine | folds into P179-01 |
+| H-1619 | The freezing of the account's other work comes before the failure is recorded, and the record before the standing is moved. | `execution_manager.py` 6913-6917, then 6918-6920, then 6921 | package one hundred and seventy-nine | is P179-02 |
+| H-1620 | The close is attempted only where the account's settings answer flatten-then-halt. | `execution_manager.py` 6933-6936, then 6937, then 6938-6941 | package one hundred and seventy-nine | folds into P179-02 |
+| H-1621 | The version is lifted to the first where it stands below it. | `execution_manager.py` 6911 | package one hundred and seventy-nine | folds into P179-02 |
+| H-1622 | The remediation is remembered against the account, and the remembered ones drained last. | `execution_manager.py` 6922-6924, then 6943 | package one hundred and seventy-nine | folds into P179-02 |
+| H-1623 | A full queue has the acceptance and any call-off against the command forgotten, and the command refused. | `execution_manager.py` 3550, then 3551, then 3555, then 3556, then 3561 | package one hundred and eighty | is P180-01 |
+| H-1624 | A place in the queue is reserved before the acceptance is built, and given back whatever happens. | `execution_manager.py` 3513, then 3514, then 3515-3520, then 3562, then 3563 | package one hundred and eighty | folds into P180-01 |
+| H-1625 | The acceptance is applied to the trading record directly, not by the routing that poisons an account on failure. | `execution_manager.py` 3573, against 3769, then 3772, then 3773 | package one hundred and eighty | folds into P180-01 |
+| H-1626 | An account parked by a failed startup is refused before any of it, and the command installed and its trade remembered on the road that succeeds. | `execution_manager.py` 3438, then 3439-3443, against 3565, then 3566 | package one hundred and eighty | folds into P180-01 |
+| H-1627 | The closing side gets a command name of its own, an order name with a fixed place, a command of its own and a budget against it. | `execution_manager.py` 4915, then 4916-4920, then 4921-4924, then 4927 | package one hundred and eighty | is P180-02 |
+| H-1628 | The bracket is marked as having had its protection placed before anything is sent, and that mark is what the boot's pass reads to pass one over. | `execution_manager.py` 4906, then 4929-4935, against 4739, then 4740 | package one hundred and eighty | folds into P180-02 |
+| H-1629 | The protective side is the opposite of the entry's and the three prices come from the entry's average. | `execution_manager.py` 4909-4911, then 4912-4914 | package one hundred and eighty | folds into P180-02 |
+| H-1630 | The intent names the closing command rather than the entry's. | `execution_manager.py` 4929-4935, the command named at 4932 | package one hundred and eighty | folds into P180-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 08:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 10:30 UTC

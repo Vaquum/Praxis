@@ -82,6 +82,8 @@ the others where it appears.
 ## Getting an order to the venue
 
 - [Order placement](atoms/how-an-order-is-placed.md) — placing happens in two stages: recording the work and returning, then reaching the venue on a later pass.
+- [What a command's acceptance leaves behind if the queue is full](atoms/what-a-commands-acceptance-leaves-behind-if-the-queue-is-full.md) — the acceptance is written before the instruction reaches the queue, so a queue found full has a record to undo.
+- [What the closing side of a bracket is given](atoms/what-the-closing-side-of-a-bracket-is-given.md) — the protective pair gets its own instruction, name and budget, which keeps what it fills apart from the entry.
 - [What a queue reservation is for](atoms/what-a-queue-reservation-is-for.md) — a place in the queue is held before the command is put there, so that two commands admitted at the same moment cannot both be told there is room.
 - [What a caller-supplied command name must be](atoms/what-a-caller-supplied-command-name-must-be.md) — a name the caller chooses is held to three demands a made-up name never has to meet, being trusted instead by the way it is made.
 - [Which failed protections a boot re-flattens](atoms/which-failed-protections-a-boot-re-flattens.md) — the recovery runs only for accounts whose settings ask for a flatten at all, and it tells a flatten that went out from one that never did by asking the venue rather than reading the record.
@@ -158,6 +160,8 @@ the others where it appears.
 - [What a finished protection change leaves on the bracket](atoms/what-a-finished-protection-change-leaves-on-the-bracket.md) — the replacement pair becomes the live one by writing over the figures describing the old one, and one ending writes the name but keeps the old prices.
 - [What a failed protection replacement is looked for](atoms/what-a-failed-protection-replacement-is-looked-for.md) — a send that fails is not believed; the venue is asked whether the pair is resting after all, and the answer picks one of three endings.
 - [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
+- [How a replay works out where a ladder's change had got to](atoms/how-a-replay-works-out-where-a-ladders-change-had-got-to.md) — reading the record back builds both the change still owing and the last one that completed, and the second needs its own start to have been read.
+- [What happens before a lost protection's close is attempted](atoms/what-happens-before-a-lost-protections-close-is-attempted.md) — four things are done to a trade whose cover is lost before any order goes out, and their order is what a restart depends on.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
 - [What calling off a scheme's children leaves behind](atoms/what-calling-off-a-schemes-children-leaves-behind.md) — each still-working part is asked to stop, and a part that cannot be stopped stays on the list the settling reads.
 - [What a boot's rejection of an orphan says](atoms/what-a-boots-rejection-of-an-orphan-says.md) — an instruction accepted and never carried out is reported as refused, in figures that are stand-ins because nothing of it was ever read.
@@ -205,6 +209,8 @@ the others where it appears.
 - [How a ladder's prices are changed](atoms/how-a-ladders-prices-are-changed.md) — the whole grid replaced: every old rung cancelled and seen to be over before one new rung goes out.
 - [What stops a ladder's new rungs](atoms/what-stops-a-ladders-new-rungs.md) — a grid can be left short: nothing worth placing, a freeze, or a rung that halts the run each time it is tried.
 - [When a price change leaves no new order](atoms/when-a-price-change-places-nothing.md) — a price change can end with nothing resting in place of the order it replaced: the cancel never settles, the order is still working, too little is left to trade, or the send goes out and comes back unconfirmed.
+- [What moves a scheme on to its next part](atoms/what-moves-a-scheme-on-to-its-next-part.md) — each turn sends the part at the cursor and then moves the cursor, reading nothing about what that part filled.
+- [When a call-off goes unreported](atoms/when-a-call-off-goes-unreported.md) — the call-off is written down before the report is worked out, and one missing lookup leaves the order stopped with Nexus never told.
 - [Cancellation](atoms/how-a-trade-is-cancelled.md) — asking Praxis to stop a request already submitted, answered at once or taken up in the line of its own.
 - [Abandoning work outright](atoms/abandoning-work-outright.md) — asking Praxis to give up on one command rather than alter it, cancelling at the venue where an order is out.
 - [Where an abandonment lands](atoms/where-an-abandonment-lands.md) — what giving up on a command does, by how far that command had got.
@@ -682,6 +688,8 @@ the others where it appears.
 - [How the strategies are built](atoms/how-the-strategies-are-built.md) — every strategy is built inside one attempt, so any one of them failing arrives as a single complaint that names the step rather than the strategy.
 - [What a start wraps, and what it lets through](atoms/what-a-start-wraps-and-what-it-lets-through.md) — most steps turn whatever went wrong into one complaint of their own, and one of them passes a complaint already shaped for a caller straight out.
 - [What a starting host reports](atoms/what-a-starting-host-reports.md) — what the figures a starting host publishes actually confirm, and why reading healthy does not mean every account is ready.
+- [What poisons an account](atoms/what-poisons-an-account.md) — four failures mark an account as no longer trustworthy about its own state, and nothing in the running system lifts the mark.
+- [What picks a stalled ladder change up again](atoms/what-picks-a-stalled-ladder-change-up-again.md) — a grid change that stopped halfway is driven on by a scan that requires both marks the change leaves behind.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [What startup does with orphaned work](atoms/what-startup-does-with-orphaned-work.md) — work the record cannot account for, and orders at the venue it has never heard of.
 - [Stopping a host](atoms/stopping-a-host.md) — a host comes down when its stop flag is set, which a signal or an escaping exception does.
@@ -789,7 +797,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 692
+Both sides are the subject, and Praxis is the side that has been written. 700
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -800,4 +808,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 08:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-16 10:30 UTC
