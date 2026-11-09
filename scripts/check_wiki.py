@@ -252,6 +252,8 @@ FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|(.*)\|$', re.MULTILINE
 FINDING_ROW_CELLS_RE = re.compile(
     r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
 )
+MERGE_ROW_RE = re.compile(r'^\| Row (H-\d+) \|[^|]*\|([^|]*)\|', re.MULTILINE)
+SETTLING_WORDS = ('promote', 'merge', 'folds into', 'decline')
 UNNAMED = 'cited with no file named before it'
 LINE_COUNT_RE = re.compile(
     r'`([a-z_/]+\.py)`[,]?\s+(?:is|at)\s+(\d[\d,]*)\s+lines',
@@ -7305,6 +7307,40 @@ def _unresolved_questions(text: str) -> set[str]:
     }
 
 
+def _settled_candidates() -> list[str]:
+
+    '''Check that no harvest row reads `candidate` after it was settled.
+
+    A row's disposition is the row's own note about what became of it,
+    and the merge table of the same package supersedes that note. Where
+    the two disagree the row is stale, and every check that reads a
+    disposition reads the stale word rather than the fate: one such word
+    held a module short of `full` for a hundred and eighty-seven
+    packages, and four more went unseen because the check reading them
+    covers one side of the ledger only.
+
+    A merge row that queues a finding as its own candidate settles
+    nothing, so a row agreeing with it is left alone.
+
+    Returns:
+        list[str]: One failure per row a merge table has settled.
+    '''
+
+    text = REGISTER.read_text(encoding='utf-8')
+    settled = {
+        row: disposition.strip()
+        for row, disposition in MERGE_ROW_RE.findall(text)
+        if any(word in disposition.lower() for word in SETTLING_WORDS)
+    }
+
+    return [
+        f'{REGISTER}: {row} reads `candidate` while its merge row '
+        f'settles it as: {settled[row]}'
+        for row, _, disposition in FINDING_ROW_CELLS_RE.findall(text)
+        if 'candidate' in disposition.lower() and row in settled
+    ]
+
+
 def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
 
     '''Check that no module carrying an open candidate reads as `full`.
@@ -7995,6 +8031,7 @@ def main() -> int:
     failures += _index_sections()
     failures += _pinned_table()
     failures += _finding_citations(cache)
+    failures += _settled_candidates()
     failures += _review_states()
     failures += _reviewed_versions()
 

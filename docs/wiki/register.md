@@ -857,6 +857,60 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 190 — the check for a stale disposition, and the tests two corrections broke
+
+Scope: the gate itself. A defect class found twice becomes a check, and the two
+corrections that found it had quietly broken three tests of the gate's own.
+
+### The check
+
+A harvest row's disposition is the row's own note about what became of it. The merge
+table of the same package supersedes that note, and nothing compared the two — so a row
+could read `candidate` for a hundred and eighty-seven packages while a table three
+hundred lines above it said `promoted`. `_settled_candidates` reads both and fails on
+any row whose disposition still says `candidate` where its merge row says promoted,
+merged, folded or declined.
+
+A merge row that queues a finding as its own candidate settles nothing, so a row
+agreeing with one is left alone. That is the line between a contradiction, which a check
+may judge, and a judgement, which it may not.
+
+### The survey that came first
+
+Measured against the register as it stands: one thousand six hundred and fifty-three
+harvest rows, one thousand five hundred and sixty-one merge rows, one thousand five
+hundred and sixty rows appearing in both, and no row at all reading `candidate` while a
+merge row settles it. The check fires nowhere on clean text, which is what made it safe
+to make blocking.
+
+### What the corrections had broken
+
+Running the gate's own tests — which the gate does not do — turned up three:
+
+One test took `H-071` as its example of an open candidate. Package 187 settled that row,
+so the test failed, and had been failing silently since.
+
+Two more borrowed a real open row through a helper that skips when none exists. Package
+189 left none, so both began to skip, and the check they exercise went untested while
+reading as passing.
+
+All three now build the open row they need in a copy of the register: an unsettled
+candidate for the two about candidates, and a question row set back to `unassigned` for
+the one about questions. The helper that borrowed real rows is gone.
+
+### Re-seed, after writing package 190
+
+| What it found | What came of it |
+|---|---|
+| A test that borrows a real defect stops testing when the defect is fixed, and says nothing about it. | Both such tests now synthesise. A skip that reads as a pass is worse than a failure |
+| Correcting the register broke the gate's tests, and the gate cannot tell. | Recorded. The gate checks the wiki; only the suite checks the gate, and the suite has to be run by hand |
+| The check's own fixture nearly passed for the wrong reason. | Caught before it landed: the row is five cells wide, and the substring the first draft matched does not occur, so the test would have passed against an unmodified register |
+| The survey the rules ask for came before the check, not after. | Recorded with its figures, so a later reader can repeat it |
+
+Worth recording: the suite takes eight minutes and the gate twenty, and the suite is the
+one nothing runs automatically. Two corrections that each took a minute to write cost
+three broken tests, and only a full run found them.
+
 ## Package 189 — the last four stale dispositions, and the register read against itself
 
 Scope: four harvest rows from the first Nexus package, and no article. With these
@@ -12870,4 +12924,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-16 15:30 UTC

@@ -4852,23 +4852,6 @@ class TestOpenCandidates:
         ) == []
 
     @staticmethod
-    def _an_open_row(wanted: str) -> str:
-        text = check_wiki.REGISTER.read_text(encoding='utf-8')
-        hanging = check_wiki._unresolved_questions(text)
-
-        for row, _, disposition in check_wiki.FINDING_ROW_CELLS_RE.findall(text):
-            named = hanging & set(check_wiki.UNRESOLVED_RE.findall(disposition))
-
-            if wanted == 'candidate' and 'candidate' in disposition.lower():
-                return row
-
-            if wanted == 'question' and named:
-                return row
-
-        pytest.skip(f'no finding leaves a {wanted} hanging')
-        raise AssertionError
-
-    @staticmethod
     def _a_full_praxis_module() -> str:
         body = check_wiki._ledger_sections(
             check_wiki.LEDGER.read_text(encoding='utf-8'),
@@ -4882,9 +4865,12 @@ class TestOpenCandidates:
         raise AssertionError
 
     @_NEEDS_BASELINE
-    def test_a_full_module_under_an_unanswered_question_is_caught(self) -> None:
+    def test_a_full_module_under_an_unanswered_question_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         name = self._a_full_praxis_module()
-        row = self._an_open_row('question')
+        register, row = _an_unassigned_question(tmp_path)
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
 
         assert check_wiki._open_candidates({name: {row}}) == [
             f'{check_wiki.LEDGER}: `{name}` is `full` '
@@ -4892,14 +4878,64 @@ class TestOpenCandidates:
         ]
 
     @_NEEDS_BASELINE
-    def test_a_full_module_with_a_candidate_is_caught(self) -> None:
+    def test_a_full_module_with_a_candidate_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         name = self._a_full_praxis_module()
-        row = self._an_open_row('candidate')
+        register, row = _an_unsettled_candidate(tmp_path)
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
 
         assert check_wiki._open_candidates({name: {row}}) == [
             f'{check_wiki.LEDGER}: `{name}` is `full` '
             f"while ['{row}'] leave a question on it",
         ]
+
+
+def _an_unassigned_question(tmp_path: Path) -> tuple[Path, str]:
+    text = check_wiki.REGISTER.read_text(encoding='utf-8')
+    lines = text.split('\n')
+
+    for index, line in enumerate(lines):
+        named = check_wiki.UNRESOLVED_RE.findall(line)
+
+        if not named or not line.startswith(('| Is ', '| Are ')):
+            continue
+
+        cells = line.rstrip().rstrip('|').split(' | ')
+        cells[-1] = 'unassigned'
+        lines[index] = ' | '.join(cells) + ' |'
+        register = tmp_path / 'asking-register.md'
+        register.write_text('\n'.join(lines), encoding='utf-8')
+
+        for row, _, disposition in check_wiki.FINDING_ROW_CELLS_RE.findall(text):
+            if named[0] in disposition:
+                return register, row
+
+    pytest.skip('no question row names a finding')
+    raise AssertionError
+
+
+def _an_unsettled_candidate(tmp_path: Path) -> tuple[Path, str]:
+    text = check_wiki.REGISTER.read_text(encoding='utf-8')
+    settled = {row for row, _ in check_wiki.MERGE_ROW_RE.findall(text)}
+    lines = text.split('\n')
+
+    for index, line in enumerate(lines):
+        found = check_wiki.FINDING_ROW_CELLS_RE.match(line)
+
+        if found is None or found.group(1) in settled or not line.rstrip().endswith('|'):
+            continue
+
+        cells = line.rstrip().rstrip('|').split(' | ')
+        cells[-1] = 'candidate'
+        lines[index] = ' | '.join(cells) + ' |'
+        register = tmp_path / 'open-register.md'
+        register.write_text('\n'.join(lines), encoding='utf-8')
+
+        return register, found.group(1)
+
+    pytest.skip('no harvest row stands outside every merge table')
+    raise AssertionError
 
 
 def _lagged_ledger(tmp_path: Path) -> Path:
@@ -4943,9 +4979,11 @@ class TestLaggingCells:
     ) -> None:
         lagged = _lagged_ledger(tmp_path)
         monkeypatch.setattr(check_wiki, 'LEDGER', lagged)
+        register, row = _an_unsettled_candidate(tmp_path)
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
 
         found = check_wiki._finding_file_citations()
-        found['nexus/strategy/context.py'] = {'H-071'}
+        found['nexus/strategy/context.py'] = {row}
 
         assert check_wiki._lagging_cells(found) == []
 
@@ -8780,3 +8818,39 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
         assert spans == []
+
+class TestSettledCandidates:
+
+    @staticmethod
+    def _with_disposition(tmp_path: Path, row: str, disposition: str) -> Path:
+        lines = check_wiki.REGISTER.read_text(encoding='utf-8').split('\n')
+        for index, line in enumerate(lines):
+            if line.startswith(f'| {row} |') and line.rstrip().endswith('|'):
+                cells = line.rstrip().rstrip('|').split(' | ')
+                cells[-1] = disposition
+                lines[index] = ' | '.join(cells) + ' |'
+        staled = tmp_path / 'register.md'
+        staled.write_text('\n'.join(lines), encoding='utf-8')
+
+        return staled
+
+    def test_no_row_reads_candidate_after_it_was_settled(self) -> None:
+        assert check_wiki._settled_candidates() == []
+
+    def test_a_stale_candidate_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        staled = self._with_disposition(tmp_path, 'H-072', 'candidate')
+        monkeypatch.setattr(check_wiki, 'REGISTER', staled)
+        failures = check_wiki._settled_candidates()
+
+        assert len(failures) == 1
+        assert failures[0].startswith(f'{staled}: H-072 reads `candidate`')
+
+    def test_a_row_queued_as_its_own_candidate_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        queued = self._with_disposition(tmp_path, 'H-075', 'candidate')
+        monkeypatch.setattr(check_wiki, 'REGISTER', queued)
+
+        assert check_wiki._settled_candidates() == []
