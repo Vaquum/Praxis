@@ -428,6 +428,9 @@ the others where it appears.
 - [How the walk over a strategy's actions ends each one](atoms/how-the-walk-over-a-strategys-actions-ends-each-one.md) — each instruction a strategy returns is dealt with in turn and leaves exactly one reply in a growing list, every route carrying its own reply rather than meeting at a common ending, and nothing is given back until the last one is done.
 - [What the ledger refuses to apply](atoms/what-the-ledger-refuses-to-apply.md) — an event for another account is rejected before the lock is even taken, then inside it a registration is handled first, anything arriving before one is rejected, a repeat registration is rejected, and only past those does a fill meet the symbol test; a close for an unknown trade is silently ignored.
 - [What a rebuilt ledger carries](atoms/what-a-rebuilt-ledger-carries.md) — the resumable state holds balances, per-trade realized and fee figures, and open lots, but no journal, so the posting history behind each figure is gone; lots return in the order the snapshot listed them, and under average costing there is one per trade to return.
+- [How a journal entry moves the balances](atoms/how-a-journal-entry-moves-the-balances.md) — the entry is written to the journal before any balance moves, and each of its lines shifts an account in the direction that account itself dictates, so the same pair of figures moves two accounts opposite ways.
+- [What the ledger refuses](atoms/what-the-ledger-refuses.md) — it will not be built without an account name, treats a fill in any other coin as something it was never built to do, and throws on a sale larger than the holdings it has open, naming the shortfall.
+- [What a reading of the ledger hands back](atoms/what-a-reading-of-the-ledger-hands-back.md) — every way of reading it takes its lock and returns freshly made values, copying each per-trade record rather than just the mapping, so what a reader keeps never shifts underneath them.
 - [The figures a fill is assumed to carry](atoms/the-figures-a-fill-is-assumed-to-carry.md) — the fill size, price, notional and fees are checked by assertion rather than by a test that could answer, the record's own validation having already required all four; the capital call runs before any position is read, so a failing call returns a failure while a missing trade or position raises later.
 - [The order the intake hooks stand in](atoms/the-order-the-intake-hooks-stand-in.md) — a mode check runs before any hook, then the duplicate-window hook is built first and the reference hook second, with a resolved rate cap inserted ahead of both; each rejects a non-integer or non-positive figure at build time, and each ignores anything but an entry.
 - [What the intake stage holds its hooks to](atoms/what-the-intake-stage-holds-its-hooks-to.md) — the first stage of checking throws an error rather than turning a trade away when a check it runs replies with the wrong sort of thing, and the stage's own approval is its own, not any check's.
@@ -599,8 +602,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 502
-articles exist. Of Praxis's own source files 79 are accounted for in full and 9 in
+Both sides are the subject, and Praxis is the side that has been written. 505
+articles exist. Of Praxis's own source files 80 are accounted for in full and 8 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -610,4 +613,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 21:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 22:00 UTC

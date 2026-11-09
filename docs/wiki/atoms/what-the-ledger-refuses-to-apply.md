@@ -2,7 +2,7 @@
 row: P54-01
 baseline: 49aa659
 created: 2026-11-12 11:30 UTC
-modified: 2026-11-12 12:00 UTC
+modified: 2026-11-13 20:30 UTC
 evidence:
   - claim: "An event naming another account raises before the lock is taken"
     source: "`account_ledger.py` 97-99, ahead of 101"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A fill naming any other trading pair raises as something the ledger does not do"
     source: "`account_ledger.py` 244-246, reached from 112-113"
   - claim: "A closing naming a trade the ledger holds nothing for passes through silently"
-    source: "`account_ledger.py` 259-262, reached from 115-116"
+    source: "`account_ledger.py` 259-262, reached from 115-116, the one other road taken at 118-119"
 ---
 # What the ledger refuses to apply
 

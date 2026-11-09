@@ -2,14 +2,14 @@
 row: P54-02
 baseline: 49aa659
 created: 2026-11-12 11:30 UTC
-modified: 2026-11-12 12:00 UTC
+modified: 2026-11-13 20:30 UTC
 evidence:
   - claim: "The state a ledger can be rebuilt from holds the account's name, whether it was registered, the way of costing, the balances, the per-trade figures and the open lots"
-    source: "`account_ledger.py` 131-135 and the fields following it"
+    source: "`account_ledger.py` 131-135 and the fields following it, the same shape answered at 199"
   - claim: "The journal is not among them"
     source: "`account_ledger.py` 131-135, which names no journal"
   - claim: "Rebuilding restores the way of costing, the balances, the per-trade figures and the lots"
-    source: "`account_ledger.py` 213-215, or 219-220, or 222-225, or 226-229"
+    source: "`account_ledger.py` 210-211 into 213-215, or 219-220, or 222-225, or 226-229, the ledger answered at 231"
   - claim: "The lots come back in the order the snapshot listed them"
     source: "`account_ledger.py` 226-229"
   - claim: "Under average costing there is one lot per trade to come back, purchases having been merged into it as they were booked"

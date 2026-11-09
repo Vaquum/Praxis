@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 501 not.**
+**6 of them reviewed, 504 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 87 — how the ledger posts and what it hands back
+
+Scope: the ledger of an account's own books, which the ledger of files marks
+`partial` with thirty-six of its hundred and thirty statements uncited. Articles
+have what it refuses to apply, what a fill changes, what a rebuilt ledger carries
+and what the journal is for. How an entry moves the balances, what the ledger
+refuses outright, and what a reading of it hands back are in no article.
+
+### Merge and promote, package 87
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-932 | A buy's entry is built with no realized figure where a sell's comes back with one, and both roads post by the one routine, which puts the entry on the journal before any balance moves. | Promote. How posting works is in no article, and the journal being written ahead of the balances is what bounds how the two can disagree |
+| Row H-933 | Each line moves its account by the debit less the credit where that account is debit-normal and by the credit less the debit otherwise, and posting also adds the realized figure and the fee to the trade's own record. | Merge with H-932. The direction being a property of the account rather than the entry is the point of the whole arrangement |
+| Row H-934 | A ledger refuses to be built without an account name, refuses a fill in any symbol but the one it books as something not built, and refuses a sell larger than the lots left open. | Promote. What it refuses outright is in no article, and a refusal saying the ledger cannot do this at all rather than that the fill was wrong is worth separating from the ones that judge a request |
+| Row H-935 | Every way of reading the ledger takes its lock and hands back something freshly made, the trade records copied one by one rather than the mapping alone. | Promote. What a reading hands back is in no article, and a reader never holding a live view is what makes the readings safe to keep |
+
+Three subjects promote and one row merges into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P87-01 | How a journal entry moves the balances | written | [how-a-journal-entry-moves-the-balances.md](atoms/how-a-journal-entry-moves-the-balances.md) |
+| P87-02 | What the ledger refuses | written | [what-the-ledger-refuses.md](atoms/what-the-ledger-refuses.md) |
+| P87-03 | What a reading of the ledger hands back | written | [what-a-reading-of-the-ledger-hands-back.md](atoms/what-a-reading-of-the-ledger-hands-back.md) |
+
+### Re-seed, after writing package 87
+
+The module is left with nothing uncited at all, the third in this run, and this one
+not for the reason the other two were: it holds log calls, but every one of them
+sits inside a statement an article cites around.
+
+| What it found | What came of it |
+|---|---|
+| The entry goes on the journal before any balance moves. | Stated, with what it bounds: a journal and a set of balances can disagree only one way |
+| A reading of the trade records copies each record rather than the mapping alone. | Stated. The mapping-only copy is the easy mistake to assume, and it would leave a reader holding figures that move |
+| A sell against a trade with no lots at all raises the same way as one against a trade with too few, and the figure in the refusal is the whole quantity asked for. | Stated. It follows from the lookup being allowed to find nothing, which the claim cites |
+| Eight statements were left over after the three articles: the fund-transaction road, the snapshot's shape and the rebuild's answer, and four answers of routines the articles describe. | Each went into the article that already owned its subject, by widening a citation |
+
+Worth recording: three modules in this run have ended with no gap at all, after
+nine that each ended with an exclusion of log calls. The difference is not how
+carefully they were read. It is whether a log call happens to stand alone as a
+statement, or inside an `if` or a `with` that an article cites as a whole. The
+exclusion count measures the code's shape, and a reader of the register should not
+take it for a measure of the reading.
 
 ## Package 86 — what a replay's report counts
 
@@ -7302,8 +7347,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-929 | A win is a trade whose net stands above nought and a loss one below, both strictly, so a trade landing exactly on nought falls into neither group. | `build_replay_report.py` 357, and 358, against 359, and 360, and 361 | package eighty-six | folds into P86-01 |
 | H-930 | A fill's bar is found by searching the settle moments for its own and taking the one before, held at nought at the least. | `build_replay_report.py` 212 | package eighty-six | is P86-02 |
 | H-931 | Both walks start their cash at the capital pool and their position at nought, each bar's worth being the cash standing plus the position priced at that bar's close. | `build_replay_report.py` 162-167, or 318-321, and 335, answered at 340 | package eighty-six | folds into P86-02 |
+| H-932 | A buy's entry is built with no realized figure where a sell's comes back with one, and both roads post by the one routine, which puts the entry on the journal before any balance moves. | `account_ledger.py` 248 into 249-250, or 252 into 253, both at 255, then 405 ahead of 407-409 | package eighty-seven | is P87-01 |
+| H-933 | Each line moves its account by the debit less the credit where that account is debit-normal and by the credit less the debit otherwise, and posting also adds the realized figure and the fee to the trade's own record. | `account_ledger.py` 408 applied at 409, and 413 then 415 then 416-417 | package eighty-seven | folds into P87-01 |
+| H-934 | A ledger refuses to be built without an account name, refuses a fill in any symbol but the one it books, and refuses a sell larger than the lots left open. | `account_ledger.py` 70 into 71-72, and 244 into 245-246, and 376-377 reached where 364 runs out | package eighty-seven | is P87-02 |
+| H-935 | Every way of reading the ledger takes its lock and hands back something freshly made, the trade records copied one by one rather than the mapping alone. | `account_ledger.py` 81, and 154 then 155, and 187 then 188, and 172 then 173-174, and 130 then 131 | package eighty-seven | is P87-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 22:00 UTC

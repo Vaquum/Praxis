@@ -12,7 +12,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 |---|---|---|
 | `praxis/core/execution_manager.py` | partial | N4-04, N5-03, N5-06, N7-02, N7-05, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11, P1-12, P1-13, P18-02, P2-11, P2-12, P2-13, P2-15, P2-16, P2-17, P2-18, P2-19, P2-20, P2-21, P2-22, P2-23, P2-24, P2-25, P2-27, P2-28, P2-29, P2-31, P2-32, P2-34, P2-38, P2-43, P2-44, P2-45, P2-49, P27-01, P28-01, P3-01, P3-02, P3-03, P3-13, P3-14, P3-18, P3-21, P3-22, P3-23, P3-25, P3-26, P4-04, P4-06, P4-07, P4-08, P4-09, P4-10, P4-11, P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P4-46, P4-47, P4-48, P4-49, P4-50, P4-52, P4-54, P4-56, P4-57, P4-58, P4-59, P7-03, P7-04, S-01, S-02, S-03, S-04, S-05, P70-01, P70-02 |
 | `praxis/core/domain/fill.py` | full | P7-01, P7-02, P7-03 |
-| `praxis/core/account_ledger.py` | partial | N3-12, P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51, P54-01, P54-02 |
+| `praxis/core/account_ledger.py` | full | N3-12, P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51, P54-01, P54-02, P87-01, P87-02, P87-03 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
 | `praxis/core/validate_trade_modify.py` | full | P20-01, P20-02, P3-13, P4-09, S-03 |
 | `praxis/infrastructure/binance_ws.py` | full | N7-02, P3-16, P68-01, P68-02, P68-03, P68-04, P68-05, P68-06, P68-07 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here: 79 are `full` and 9 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here: 80 are `full` and 8 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 22:00 UTC
