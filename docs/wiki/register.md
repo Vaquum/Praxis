@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 618 not.**
+**6 of them reviewed, 620 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 140 — what admitting an event refuses, and the two checks around an append
+
+Scope: the one road by which anything reaches an account's record, and the
+append-and-project step both roads into it share, part of a module the ledger marks
+`partial`. After the package before this one, eleven hundred and nineteen of its two
+thousand four hundred and eighty-seven statements were uncited. Neither is in an
+article. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 140
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1315 | Admitting refuses a call off the loop thread, an unregistered account, a fail-stopped account and one parked after a failed startup. | Promote. The road is in no article, and the thread test applying only where a loop thread was recorded is worth stating |
+| Row H-1316 | A recovery admission refuses where the account is not parked, the one refusal that asks for a state rather than against one. | Merge with H-1315. The parked state that stops an ordinary admission is what a recovery admission requires |
+| Row H-1317 | A recovery admission appends and projects there and then, where any other makes a promise, queues it with the event, wakes the worker and waits. | Merge with H-1315 |
+| Row H-1318 | Whether the account has fail-stopped is checked before the append and again after it, the append being awaited. | Promote. The step is in no article, and the second check is the only thing that sees a fail-stop during the append |
+| Row H-1319 | What the manager now holds under that name is compared against the account in hand by identity, so an account unregistered and registered again is refused. | Merge with H-1318. The refusal says the event is durable and will project when the record is read back |
+| Row H-1320 | The projection is wrapped: the interruption a cancelled task raises passes straight on, and any other failure marks the account fail-stopped and passes on too. | Merge with H-1318 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P140-01 | What admitting an event refuses | written | [what-admitting-an-event-refuses.md](atoms/what-admitting-an-event-refuses.md) |
+| P140-02 | The two checks around an append | written | [the-two-checks-around-an-append.md](atoms/the-two-checks-around-an-append.md) |
+
+### Re-seed, after writing package 140
+
+Both findings are about what an awaited step lets happen underneath it.
+
+| What it found | What came of it |
+|---|---|
+| The fail-stop check is written on both sides of the append, which is awaited. | Stated as one question asked twice. The second check exists for exactly the window the first cannot cover |
+| The account is compared by identity rather than by name, so a departure and return under one name is caught. | Stated, with what the refusal carries: the event is durable and will project on a later reading, so it is kept rather than lost |
+| A recovery admission requires the parked state that every other admission is refused for. | Stated as the one refusal that asks for a state rather than against one |
+| The thread test applies only where a loop thread was recorded. | Stated. A manager that never recorded one accepts any thread, which the test's shape says and its message does not |
+| The projection's failure marks the account fail-stopped rather than letting it hold a record it has not applied. | Stated |
+
+Worth recording: the identity comparison reads as a redundant check — the account was
+fetched a few lines above and nothing in between obviously replaces it. What makes it
+real is that the line between them is awaited. Both findings in this package come from
+the same question, which is worth asking of every await in a long routine: what can
+change while this is suspended, and does anything look again afterwards.
 
 ## Package 139 — which readings hand back a copy, and the three questions asked of an account's condition
 
@@ -10173,7 +10218,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1312 | Whether an account has fail-stopped is true only where it is registered and carries that mark, and whether it can send orders is false where unregistered and otherwise only where it is neither reconciling nor fail-stopped. | `execution_manager.py` 3324, then 3326, against 3344, then 3345 into 3346, or 3348 | package one hundred and thirty-nine | is P139-02 |
 | H-1313 | Whether anything still awaits handling is true where an admission is in flight or an outside event is queued, and false for an unregistered account. | `execution_manager.py` 2857, then 2858 into 2859, or 2861-2864 | package one hundred and thirty-nine | folds into P139-02 |
 | H-1314 | Asking for a protection sweep sets a flag and answers nothing. | `execution_manager.py` 3301, then 3302 into 3303, or 3305 | package one hundred and thirty-nine | folds into P139-02 |
+| H-1315 | Admitting refuses a call off the loop thread, an unregistered account, a fail-stopped account and one parked after a failed startup. | `execution_manager.py` 3168-3171 into 3176, or 3178, then 3179 into 3180-3181, or 3183 into 3184-3185, or 3187 into 3192 | package one hundred and forty | is P140-01 |
+| H-1316 | A recovery admission refuses where the account is not parked. | `execution_manager.py` 3194, then 3195 into 3200 | package one hundred and forty | folds into P140-01 |
+| H-1317 | A recovery admission appends and projects there and then, where any other makes a promise, queues it with the event, wakes the worker and waits. | `execution_manager.py` 3202, then 3204 into 3205, then 3207, against 3209-3211, then 3212, then 3214 | package one hundred and forty | folds into P140-01 |
+| H-1318 | Whether the account has fail-stopped is checked before the append and again after it. | `execution_manager.py` 3229 into 3230-3231, then 3233, then 3235 into 3236-3237 | package one hundred and forty | is P140-02 |
+| H-1319 | What the manager now holds under that name is compared against the account in hand by identity, and an append answering with no sequence answers nothing. | `execution_manager.py` 3239 into 3240, or 3242 into 3243-3247 | package one hundred and forty | folds into P140-02 |
+| H-1320 | The projection is wrapped, the interruption a cancelled task raises passing straight on and any other failure marking the account fail-stopped, with the sequence answered only past all of it. | `execution_manager.py` 3249-3250, then 3251 into 3252, or 3253 into 3254-3261, or 3263 | package one hundred and forty | folds into P140-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 14:30 UTC

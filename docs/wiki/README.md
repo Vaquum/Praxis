@@ -95,6 +95,8 @@ the others where it appears.
 ## The pass that takes work off the queues
 
 - [The account worker](atoms/how-waiting-work-is-drained.md) — each account has one worker going round the same circuit until it is stopped, taking work off a queue.
+- [What admitting an event refuses](atoms/what-admitting-an-event-refuses.md) — four things are turned away before anything reaches an account's record, and an admission made during recovery is refused unless the account is parked, which is the very state that turns an ordinary admission away.
+- [The two checks around an append](atoms/the-two-checks-around-an-append.md) — the same question is asked on both sides of the write because the write is awaited, and the account is matched by identity so one that left and came back under the same name is turned away with its event already safe.
 - [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
 - [Work already under way](atoms/work-already-under-way.md) — what a pass moves along between taking one request and the next — a cancel tried again, a slice now due, protection waiting to go up.
 - [When an account is reconciling or poisoned](atoms/when-an-account-is-reconciling-or-poisoned.md) — what a pass does for an account being brought back into step with the venue, or carrying a fault that needs a restart, and when there is no pass left to do it.
@@ -716,7 +718,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 619
+Both sides are the subject, and Praxis is the side that has been written. 621
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -727,4 +729,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 14:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 14:30 UTC
