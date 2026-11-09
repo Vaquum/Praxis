@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 547 not.**
+**6 of them reviewed, 549 not.**
 
 ## Package 1
 
@@ -856,6 +856,48 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 105 — what a failed start undoes, and what a stop will not leave running
+
+Scope: the facade's starting and stopping, part of a module the ledger marks
+`partial`. After the package before this one, eighty-seven of its five hundred and
+twenty-five statements were uncited. What a failed start undoes, and what a stop
+will not leave running, are in no article. The sweep of orphaned venue orders and
+the per-account startup are left for the package after this, and the cell stays
+`partial`.
+
+### Merge and promote, package 105
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1048 | The running loop is taken and held before any of the starting work begins, which is what closes the setters from that moment. | Promote. The start is in no article, and the loop being held first is what makes the setter refusal begin before anything has started |
+| Row H-1049 | Every account's stored events are read in one go and sorted into lists per account, and each configured account is registered as booting and started with its own. | Merge with H-1048 |
+| Row H-1050 | A failure anywhere lets the loop go, undoes what was built, and raises on, the undoing clearing each collection whether the closing or unregistering worked or not. | Merge with H-1048. An undoing that cannot fail to finish is the point of it |
+| Row H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | Promote. The stop is in no article, and the two flags' guarantees differing is what makes a failed stop readable |
+| Row H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go, so any other failure of it travels out of the stop. | Merge with H-1051 |
+| Row H-1053 | A closing of one account's stream reports its own failure and goes no further. | Merge with H-1051 |
+
+Two subjects promote and four rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P105-01 | What a failed start undoes | written | [what-a-failed-start-undoes.md](atoms/what-a-failed-start-undoes.md) |
+| P105-02 | What a stop will not leave running | written | [what-a-stop-will-not-leave-running.md](atoms/what-a-stop-will-not-leave-running.md) |
+
+### Three findings, each about a flag or a guarantee.
+
+| What it found | What came of it |
+|---|---|
+| The loop is held before the starting work begins, which is what closes the setters from that moment rather than from the end of starting. | Stated, linking the article that owns the refusal. It is the mechanism behind a finding written seven packages ago, and neither says it alone |
+| During a stop the facade reports itself started and stopping at once, and after a failed stop it reports itself started and not stopping. | Stated. It follows from one flag being lowered in a guaranteed clause and the other at the end of the work, and a reader of either flag alone would be misled |
+| The undoing after a failed start clears each collection whether the closing or unregistering worked or not. | Stated as what it buys: the undoing cannot fail to finish, and what it cannot do is retract anything the venue already knows |
+
+Worth recording: the first row is the mechanism for a finding already written. The
+earlier article states that the refusal begins partway through starting; this one
+says why, because the loop is taken on the first line of the work. Neither article
+is wrong alone and neither is complete alone, and the link is what makes the pair
+findable. A mechanism found later than the behaviour it explains should be linked
+from the behaviour, not merged into it.
 
 ## Package 104 — where a fund pass starts, and what holds its cursor back
 
@@ -8224,6 +8266,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1042 | The cutover is seeded from the moment the account was registered as the spine recorded it, with the clock standing in where the spine holds no such registering. | `praxis/trading.py` 1104 into 1105, then 1111-1113, the fallback at 1112 | package one hundred and four | folds into P104-01 |
 | H-1043 | The cursor is seeded from the latest fund movement the spine holds, and left unset where it holds none. | `praxis/trading.py` 1106-1109, then 1115 into 1116 | package one hundred and four | folds into P104-01 |
 | H-1047 | A venue that refuses the asking ends the pass with a warning, leaving both moments where they were. | `praxis/trading.py` 1145-1148 into 1149, then 1154 | package one hundred and four | folds into P104-01 |
+| H-1048 | The running loop is taken and held before any of the starting work begins. | `praxis/trading.py` 509, ahead of 511, against 506 into 507 | package one hundred and five | is P105-01 |
+| H-1049 | Every account's stored events are read in one go and sorted into lists per account, and each configured account is registered as booting and started with its own. | `praxis/trading.py` 515, then 517 into 518-519, then 521, then 522, then 523, then 524 | package one hundred and five | folds into P105-01 |
+| H-1050 | A failure anywhere lets the loop go, undoes what was built, and raises on, the undoing clearing each collection whether the closing or unregistering worked or not. | `praxis/trading.py` 525 into 526 then 527 then 528, and 806 into 807-810 then 811, and 813 into 814-817 then 818 and 819 and 820 | package one hundred and five | folds into P105-01 |
+| H-1054 | The reconciling loop is set going and the started flag raised only once all of that has passed. | `praxis/trading.py` 530, then 531 | package one hundred and five | folds into P105-01 |
+| H-1051 | The stopping flag is raised before anything is torn down, the started flag lowered at the end of the work, and the stopping flag lowered in a clause that runs however the stop ended. | `praxis/trading.py` 655, and 798 then 799, and 800-801, against 652 into 653 | package one hundred and five | is P105-02 |
+| H-1052 | The reconciling task is cancelled, awaited with the cancelling alone suppressed, and let go. | `praxis/trading.py` 657-658, then 659-660, then 661 | package one hundred and five | folds into P105-02 |
+| H-1053 | A closing of one account's stream reports its own failure and goes no further, and an account the manager has lost is skipped. | `praxis/trading.py` 640 into 641-642, against 644-645 into 646-647, and 689 then 690-691 into 692-693 | package one hundred and five | folds into P105-02 |
 | H-1044 | A movement in any asset but the quote one is skipped, and each of the rest is admitted to the manager whose answer says whether it was new. | `praxis/trading.py` 1158 into 1159-1160, then 1170 weighed at 1171 | package one hundred and four | is P104-02 |
 | H-1045 | A failed delivery marks the pass undelivered and leaves the walk at once. | `praxis/trading.py` 1179-1180 into 1181, then 1187, then 1188 | package one hundred and four | folds into P104-02 |
 | H-1046 | The cursor moves only where something was found and all of it was delivered, and moves to the latest moment among everything fetched. | `praxis/trading.py` 1190, then 1191-1193 | package one hundred and four | folds into P104-02 |
@@ -8242,4 +8291,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-14 16:00 UTC
