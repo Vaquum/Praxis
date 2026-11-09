@@ -189,6 +189,8 @@ the others where it appears.
 - [When an update fails](atoms/when-an-update-fails.md) — failing to update the order's own totals stops the account; failing to update the money record is logged and passed over.
 - [How an outside event enters the record](atoms/how-an-outside-event-enters-the-record.md) — news from outside is written by the account's own writer, and the caller waits to be told how it went.
 - [Where duplicates stop](atoms/where-duplicates-stop.md) — the same fill can arrive from the send, from the live feed and from a later query — it is written down once, and only that copy is acted on.
+- [Two ways of asking what a command filled](atoms/two-ways-of-asking-what-a-command-filled.md) — one road reports nothing filled rather than report a figure the accounting never capped, and the other is built on exactly that uncapped figure with the venue's fees taken off.
+- [What a boot ends an unfinished scheme with](atoms/what-a-boot-ends-an-unfinished-scheme-with.md) — a fed-out order a restart cannot resume is ended at boot from the figures the accounting admitted, so one whose fills never passed admission is ended as having filled nothing.
 - [The part of a fill a command counts](atoms/the-part-of-a-fill-a-command-counts.md) — the whole fill goes into the books, and only what fits the order's budget reaches the figures Nexus hears.
 
 ## The records Praxis keeps
@@ -720,7 +722,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 623
+Both sides are the subject, and Praxis is the side that has been written. 625
 articles exist. Of Praxis's own source files 85 are accounted for in full and 3 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -731,4 +733,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 15:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-15 15:30 UTC

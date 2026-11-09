@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 622 not.**
+**6 of them reviewed, 624 not.**
 
 ## Package 1
 
@@ -856,6 +856,52 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 142 — two ways of asking what a command filled, and what a boot ends an unfinished scheme with
+
+Scope: the two figures a command's fills can be reported as, and the ending written
+for a scheme a restart cannot resume, part of a module the ledger marks `partial`.
+After the package before this one, ten hundred and ninety-five of its two thousand
+four hundred and eighty-seven statements were uncited. Neither subject is in an
+article. The rest of the module is left for the packages after this, and the cell
+stays `partial`.
+
+### Merge and promote, package 142
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-1327 | The admitted totals are read from a mapping the account keeps, and where none are held the raw projected totals are weighed and nothing filled answered regardless. | Promote. The two figures are in no article, and one failing closed where the other does not is the finding |
+| Row H-1328 | The delivered amount is worked out from those same raw totals — the figure the first road refuses to report — less the base-asset fee of every order of that command, live and closed alike. | Merge with H-1327 |
+| Row H-1329 | So one figure is capped and may read as nothing while fills exist, and the other is uncapped and net of fees. | Merge with H-1327. Only one of the two tells a caller that something is wrong |
+| Row H-1330 | A scheme the boot ends reads its own projection first, abandoning the ending where there is none, and takes one moment for every record it writes. | Promote. The ending is in no article, and its using the admitted figures is what ties it to the first subject |
+| Row H-1331 | The figures written are the admitted totals, so a scheme whose fills never passed admission is ended as having filled nothing. | Merge with H-1330 |
+| Row H-1332 | A state change and an outcome are each written to the record and then applied, the command marked terminal between them. | Merge with H-1330 |
+| Row H-1333 | The outcome handed on carries the slices done as the cursor held to the total, so a cursor past the total reads as the total. | Merge with H-1330 |
+
+Two subjects promote and five rows merge into them, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P142-01 | Two ways of asking what a command filled | written | [two-ways-of-asking-what-a-command-filled.md](atoms/two-ways-of-asking-what-a-command-filled.md) |
+| P142-02 | What a boot ends an unfinished scheme with | written | [what-a-boot-ends-an-unfinished-scheme-with.md](atoms/what-a-boot-ends-an-unfinished-scheme-with.md) |
+
+### Re-seed, after writing package 142
+
+The first subject is a pair of roads that answer the same question differently, found
+by noticing that one of them reads the figure the other refuses to report.
+
+| What it found | What came of it |
+|---|---|
+| The admitted road answers nothing filled even where raw fills exist, having first weighed them. | Stated as failing closed. It would rather report nothing than report an uncapped figure, and it is the only one of the two that notices the inconsistency |
+| The delivered road is built on exactly the raw totals the admitted road declines to report. | Stated as where the two part. The same helper feeds both, and one wraps it in a refusal while the other subtracts fees from it |
+| A boot's ending of a scheme writes the admitted figures, so a scheme whose fills never passed admission is ended as having filled nothing. | Stated, linking the first article. The ending inherits the first road's fail-closed answer without saying so |
+| The slices done are trimmed to the total before being handed on. | Stated. A cursor past the total reads as the total, so nothing downstream sees more slices done than the scheme had |
+
+Worth recording: the pairing came from a helper name appearing twice. One caller
+wrapped it in a refusal and the other subtracted from it, and neither routine
+mentions the other. Searching for a helper's callers is a cheaper way to find a pair
+than reading two routines side by side, and it found this one in a module where
+reading everything side by side is not available.
 
 ## Package 141 — the active-protection test written twice, and what unregistering an account does in order
 
@@ -10275,7 +10321,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-1324 | The account is taken out of the manager's mapping first, by a removal that answers with what it removed. | `execution_manager.py` 2952, then 2953 into 2954-2955 | package one hundred and forty-one | is P141-02 |
 | H-1325 | The published amendable set is dropped, every waiting admission failed, and only then is the worker's task cancelled and waited for. | `execution_manager.py` 2957, then 2959-2964, then 2966, then 2967, then 2968 into 2969 | package one hundred and forty-one | folds into P141-02 |
 | H-1326 | Because the removal comes first, an admission in progress finds a different account under that name and is refused. | `execution_manager.py` 2952, ahead of 2966-2969, read by 3242 into 3243-3247 | package one hundred and forty-one | folds into P141-02 |
+| H-1327 | The admitted totals are read from a mapping the account keeps, and where none are held the raw projected totals are weighed and nothing filled answered regardless. | `execution_manager.py` 2588, then 2590 into 2591, or 2593, then 2595, then 2608 | package one hundred and forty-two | is P142-01 |
+| H-1328 | The delivered amount is worked out from those same raw totals less the base-asset fee of every order of that command, live and closed alike. | `execution_manager.py` 2638, reading what 2593 reads, then 2639, then 2641-2644, then 2645 into 2646, then 2648 | package one hundred and forty-two | folds into P142-01 |
+| H-1330 | A scheme the boot ends reads its own projection first, abandoning the ending where there is none, and takes one moment for every record it writes. | `execution_manager.py` 2701, then 2702 into 2709, or 2711, used at 2723, and 2736, and 2760 | package one hundred and forty-two | is P142-02 |
+| H-1331 | The figures written are the admitted totals, with the target the scheme's whole amount and the average price the admitted money over the admitted amount. | `execution_manager.py` 2712-2714, then 2715, then 2717-2718 | package one hundred and forty-two | folds into P142-02 |
+| H-1332 | A state change and an outcome are each written to the record and then applied, the command marked terminal between them. | `execution_manager.py` 2721-2730, then 2731, then 2732, then 2734-2744, then 2745, then 2746, then 2747 | package one hundred and forty-two | folds into P142-02 |
+| H-1333 | The outcome handed on carries the slices done as the cursor held to the total. | `execution_manager.py` 2757, then 2758 | package one hundred and forty-two | folds into P142-02 |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-15 15:30 UTC
