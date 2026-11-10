@@ -2,14 +2,14 @@
 row: P2-39
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A plan is worked out from the rows alone, for one account"
-    source: "`launcher.py` 1728-1745"
+    source: "`launcher.py` 1728-1745, the plan handed back at 1778"
   - claim: "Where each outcome was to be sent, and the ids already settled, are gathered first"
     source: "`launcher.py` 1733-1736"
   - claim: "Then the outcomes produced are walked"
-    source: "`launcher.py` 1749-1751"
+    source: "`launcher.py` 1749-1751, the replay refusing to run at all at 4517 into 4519, or reporting what it re-delivered at 4541"
   - claim: "An id counts as settled when it was acknowledged, or when an earlier start gave up on it"
     source: "`launcher.py` 1735-1736"
   - claim: "Each produced outcome is rebuilt from its rows and put through translation afresh"

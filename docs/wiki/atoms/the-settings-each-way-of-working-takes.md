@@ -2,7 +2,7 @@
 row: P4-08
 baseline: 49aa659
 created: 2026-10-03 14:12 UTC
-modified: 2026-10-11 19:33 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "Seven ways of working share six kinds of settings between them"
     source: "`execution_params.py` 30-38"
@@ -35,7 +35,9 @@ evidence:
   - claim: "Rounding while they are added can let a total slightly off one pass"
     source: "`scheduled_vwap_params.py` 62"
   - claim: "The count of parts for the weighted kind is taken as the count of weights"
-    source: "`execution_manager.py` 467-471, the parts planned at `plan_weighted_slices.py` 58-62 and counted at `execution_manager.py` 5767"
+    source: "`execution_manager.py` 467-471, then 473-474, the parts planned at `plan_weighted_slices.py` 58-62 by the road taken at `execution_manager.py` 489, then 490, against 492, and counted at 5767"
+  - claim: "Each leg of a protective pair takes exactly one of an outright price or a distance, every figure being a finite decimal above nought"
+    source: "`praxis/core/domain/bracket_params.py` 51-57, all five figures weighed at 59-71"
 ---
 # The settings each way of working takes
 
@@ -45,21 +47,25 @@ Every [way of working](ways-of-working-a-host-may-drive.md) carries its own sett
 
 Up to three prices, each of which may be left unset: the price to rest at, the price that triggers, and the price a triggered leg rests at. [Which are needed](the-prices-an-order-must-name.md) turns on the kind of order.
 
-A price that is set must be above nought. That is a comparison alone, so an endless price passes, as does a whole number or a floating-point one; a not-a-number, and anything a decimal cannot be weighed against, break on the comparison itself.
+A price that is set must be above nought. That is a comparison alone, so an endless price passes, as does a whole or floating-point number; a not-a-number breaks on the comparison itself.
 
 ## A fixed pace
 
 Two whole numbers, used as a count of parts and a gap in seconds. The count must be at least two; the gap must be above nought.
 
-Both refuse true and false outright, before either bound is weighed; what Python would otherwise make of them is Python's own affair.
+Both refuse true and false outright, before either bound is weighed.
 
 ## A weighted pace
 
 A gap in seconds, tested the same way, and a tuple of weights.
 
-There must be at least two weights, each a finite decimal above nought, and adding them must give exactly one. There is no tolerance in that comparison. Rounding while they are added is the slack: a pair whose true total sits a shade either side of one can still add to one, and pass.
+There must be at least two weights, each a finite decimal above nought, adding to exactly one with no tolerance. Rounding as they are added is the slack: a pair whose true total sits a shade either side of one can still add to one, and pass.
 
 No count of parts is carried here. It is taken as the count of weights.
+
+## A protective pair
+
+Each leg of [a protective pair](protection.md) takes exactly one of an outright price or a distance from the entry; both, or neither, is refused as the settings are built. Every figure set, the price a stopped leg rests at included, must be a finite decimal above nought.
 
 ## Related
 

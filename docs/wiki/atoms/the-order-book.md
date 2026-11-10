@@ -2,12 +2,14 @@
 row: P2-13
 baseline: 49aa659
 created: 2026-09-25 18:31 UTC
-modified: 2026-10-11 19:29 UTC
+modified: 2026-11-10 13:57 UTC
 evidence:
   - claim: "Two lists of levels, each level a price and an amount"
     source: "`venue_adapter.py` 419-420 for a level, 434-436 for the pair of lists"
   - claim: "Praxis asks the venue, names a count, and builds the lists from the reply"
     source: "asked with the count at `binance_adapter.py` 2265-2270, built at 2282-2292"
+  - claim: "The reply is decoded with the request still open, and the lists are built once it has closed"
+    source: "opened at `binance_adapter.py` 2264-2268, decoded at 2271, the lists built at 2282-2292"
   - claim: "The likely-price working-out asks for twenty levels a side"
     source: "`execution_manager.py` 4194-4197 with the count at 147"
   - claim: "Closing-out pricing asks without naming a count and reads only the top level"
@@ -29,7 +31,7 @@ evidence:
 
 An **order book** is what a [venue](what-a-venue-is.md) publishes about one trading pair: two lists of levels, buyers on one side and sellers on the other, each level a price and an amount wanted at that price.
 
-Praxis makes no book of its own. It asks the venue for one, says how many levels it wants, and builds the two lists from the reply.
+Praxis makes no book of its own. It asks the venue for one, says how many levels it wants, and builds the two lists from the reply. The decoding happens while the request is still open, and the lists are built once it has closed.
 
 ## Who asks, and how deep
 

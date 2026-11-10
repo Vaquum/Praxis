@@ -2,12 +2,16 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-10-11 21:17 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
+  - claim: "The commands counted in flight for an account are its live work, its live trades, every command pointing at an order, and every command accepted for it"
+    source: "`execution_manager.py` 983-992"
+  - claim: "Those are answered in name order with every command already ended left out"
+    source: "`execution_manager.py` 994-998"
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
   - claim: "It needs the work eligible: draining, no change in progress, children still working"
-    source: "`execution_manager.py` 7051-7057"
+    source: "`execution_manager.py` 7051-7057, the account looked up first at 6964, then 6965 into 6966"
   - claim: "A flagged retry drives it outright, otherwise the retry time must have come"
     source: "`execution_manager.py` 7089-7090, otherwise 7092-7094, read at 7061-7062"
   - claim: "Slice work and waiting protection come after that leaving point"
@@ -47,7 +51,7 @@ evidence:
   - claim: "With nothing held the record is put back and left for a later caller"
     source: "`execution_manager.py` 4887-4904, returning rather than reaching the flag set at 4906"
   - claim: "The sweep runs seven repair jobs in order"
-    source: "`execution_manager.py` 7290-7301, reached from 3976-3978"
+    source: "`execution_manager.py` 7289, then 7290-7301, reached from 3976-3978"
   - claim: "Its first job repeats the drain with the timing test dropped"
     source: "`execution_manager.py` 6968, which omits the test read at 7061"
 ---

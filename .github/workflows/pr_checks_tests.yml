@@ -21,6 +21,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The gate's Nexus-side checks resolve citations in the Nexus tree, which
+      # `check_wiki.NEXUS_ROOT` looks for beside this one. That sits outside the
+      # workspace, so `actions/checkout` cannot place it there and it is cloned
+      # instead. Fourteen tests skip without it, and the suite reported green
+      # having skipped them; they stay skipped until NEXUS_READ_TOKEN is set.
+      - name: Clone Nexus beside it
+        env:
+          NEXUS_READ_TOKEN: ${{ secrets.NEXUS_READ_TOKEN }}
+        run: |
+          if [ -z "${NEXUS_READ_TOKEN}" ]; then
+            echo 'NEXUS_READ_TOKEN is unset; the Nexus-side checks will skip.'
+            exit 0
+          fi
+
+          git clone --no-single-branch \
+            "https://x-access-token:${NEXUS_READ_TOKEN}@github.com/Vaquum/Nexus.git" \
+            ../Nexus
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 

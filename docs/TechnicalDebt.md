@@ -1568,3 +1568,27 @@ The cheapest close is to make the condition visible: queue depth and the age of 
 Closing the unbounded case itself is a policy question rather than a `maxsize` argument. Blocking the producer is not automatically backpressure: `_route_translated` runs on the Praxis event-loop thread, so a blocking put stalls the writer that fills, cancels and protects live orders. Dropping is not as absolute a loss as it first appears — the spine already records every outcome durably, and the TD-052 boot replay re-delivers produced outcomes with no matching acknowledgement — which suggests the lossless answer is to reuse that durable record for delivery rather than to invent a second one. Note also that stopping new commands does not stop fills and terminals arriving for orders already working, so a bounded queue still needs somewhere for those to go.
 
 Related, and deliberately not folded into the above: Nexus retains outcomes behind an unresolved command in `_unresolved_retries`, which is a second accumulation on the same path, in a different repository, with a different trigger, and it is not silent or indefinite — it warns on each park and drops the whole unresolved group once the retry delays are exhausted. Bounding the Praxis queue does not touch it, and end-to-end backlog monitoring has to cover both.
+
+## TD-160: The wiki gate decides a harvest row's fate by substring, so a merge row naming a candidate reads as settling one
+
+**Origin**: Greybeard pre-PR review, November 2026
+**Severity**: Minor today, latent — the check fires nowhere on the register as it stands, and a single disposition worded the other way round would make it refuse a row that is not stale
+**Module**: `scripts/check_wiki.py` (`SETTLING_WORDS`, `_settled_candidates`)
+
+`_settled_candidates` reads a harvest row as stale where its own disposition says `candidate` and a merge row over it says what became of it. Which merge rows count as saying that is decided by `any(word in disposition.lower() for word in SETTLING_WORDS)`, over the four words `promote`, `merge`, `folds into` and `decline`. The test is a substring test with no sense of where the word sits.
+
+The docstring states a carve-out the code does not implement: a merge row that queues a finding as its own candidate settles nothing, so a row agreeing with it is to be left alone. That holds only because the three dispositions reading `Candidate, …` happen to contain none of the four words. Six dispositions already contain both a settling word and the word `candidate` — `H-302`, `H-557` and `H-493` open `Promote.` and then discuss the candidate the re-seed named, and `H-1400`, `H-558` and `H-410` do the same for `Merge` and `Decline` — and each is correctly read as settling because the settling word is the disposition and the candidate is the discussion. A disposition written the other way round, `Candidate for promotion`, would be read as settling a row it leaves open, and the check would refuse a register that is correct.
+
+Closing it means reading the disposition's leading verb rather than scanning the whole cell, which is what the register's own convention already supplies: 971 of them open `Merge`, 530 `Promote.`, 10 `Decline.` and 4 `Folds`. The reason it is recorded rather than fixed is that the leading-verb reading needs measuring against all 1,561 merge rows first, and a check that refuses correct text is worse than one that misses a case nothing has yet written.
+
+## TD-161: The settled-candidate check reads the register off a module global rather than taking its text
+
+**Origin**: Greybeard pre-PR review, November 2026
+**Severity**: Minor — testability only; no behaviour depends on it
+**Module**: `scripts/check_wiki.py` (`_settled_candidates`)
+
+`_settled_candidates()` takes no arguments and opens `REGISTER` itself. Its neighbours on the same path do the opposite: `_unresolved_questions(text)` and `_row_states(text)` are handed the register's text and read nothing from disk, so a caller reads the file once and the checks compose over it.
+
+Two costs follow. Every test of the check has to patch a module attribute to point at a different file, which is why `TestSettledCandidates` monkeypatches `check_wiki.REGISTER` rather than passing a string. And the register is read once more per gate run than it needs to be, on a file the gate already holds in memory.
+
+Closing it means giving the function the signature its neighbours have and reading the register in `main()` alongside the other checks that share it. It is recorded rather than done because the change touches the call site in `main()` and the three tests, and none of that alters what the gate accepts or refuses.

@@ -2,7 +2,7 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 15:27 UTC
+modified: 2026-10-14 12:10 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
@@ -22,6 +22,10 @@ evidence:
     source: "`execution_manager.py` 7003-7019, the log at 7012-7018"
   - claim: "A cancelled worker stops the emptying and leaves the rest queued"
     source: "`execution_manager.py` 7000-7002"
+  - claim: "A failed or incomplete squaring at a start leaves the account gated"
+    source: "`trading.py` 1466-1472 and 1474-1480"
+  - claim: "The ordinary round of checks does not ask again, and a feed reconnection is what runs it a second time"
+    source: "`trading.py` 578-579 against 1363-1387"
 ---
 # When an account is reconciling or poisoned
 
@@ -41,7 +45,7 @@ A refusal that cannot be reported leaves the decision side with nothing, the log
 
 An account is poisoned while its worker runs when projecting fails, whether an admitted event or a venue update.
 
-All of it sits below the startup wait, so a pass still starting does none. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both. The two need not end together: startup can finish with the hold on, and a boot left not ready keeps that wait for good. Its hold is not settled by that boot either — the stream it opened is still live until the boot gives up, so a disconnect and a reconnect can put the hold back on and run another reconcile first.
+All of it sits below the startup wait, so a pass still starting does none. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both. The two need not end together: startup can finish with the hold on, and a boot left not ready keeps that wait for good. Its hold is not settled by that boot either — the stream it opened is still live until the boot gives up, so a disconnect and a reconnect can put the hold back on and run another reconcile first. A squaring that failed, or came back incomplete, leaves the hold on with nothing on the ordinary round asking again — a reconnection is what asks.
 
 ## Related
 
@@ -53,4 +57,4 @@ All of it sits below the startup wait, so a pass still starting does none. Start
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 15:27 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-14 12:10 UTC

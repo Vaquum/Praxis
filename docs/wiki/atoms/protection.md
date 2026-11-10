@@ -2,7 +2,7 @@
 row: P2-21
 baseline: 49aa659
 created: 2026-09-28 06:24 UTC
-modified: 2026-10-12 00:15 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The opening order is sent as a market order"
     source: "`execution_manager.py` 4521-4523 into 5968, where that kind is named"
@@ -13,13 +13,13 @@ evidence:
   - claim: "A part-filled one that finished does get it"
     source: "`execution_manager.py` 4704-4715"
   - claim: "The protective order goes on the side opposite the entry"
-    source: "`execution_manager.py` 4909-4911"
+    source: "`execution_manager.py` 4907, then 4909-4911"
   - claim: "It is a linked pair, one to take a profit and one to stop a loss"
     source: "`execution_manager.py` 4968-4977"
   - claim: "The two are handed to the venue as one linked pair, in the kind it keeps for a pair"
     source: "`praxis/core/domain/enums.py` 73 for the kind, sent as one at `binance_adapter.py` 1522-1536"
   - claim: "The profit price is given outright or worked out as a distance"
-    source: "either `execution_manager.py` 5208-5209 or 5210-5217"
+    source: "`execution_manager.py` 5203, then either 5208-5209 or 5210-5217"
   - claim: "The stop price likewise"
     source: "either `execution_manager.py` 5218-5219 or 5220-5226"
   - claim: "The distance runs the other way for a sell entry"

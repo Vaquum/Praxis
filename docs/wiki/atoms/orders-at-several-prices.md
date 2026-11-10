@@ -2,7 +2,7 @@
 row: P2-20
 baseline: 49aa659
 created: 2026-09-27 21:39 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-11-09 13:36 UTC
 evidence:
   - claim: "The prices are named outright, at least two of them"
     source: "`ladder_dca_params.py` 43-45 with the figure at 18, the prices held at 36"
@@ -25,7 +25,7 @@ evidence:
   - claim: "One that cannot be placed stops the rest"
     source: "`execution_manager.py` 6139-6146"
   - claim: "An order already finished when it returns is not counted among those working"
-    source: "`execution_manager.py` 6148-6150"
+    source: "`execution_manager.py` 6148-6150, the settling attempted at 6162"
   - claim: "Anything it filled at once is dealt with as it is sent"
     source: "`execution_manager.py` 6251-6270"
   - claim: "No next time is set, the field being left at its default"

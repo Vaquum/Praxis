@@ -2,7 +2,7 @@
 row: P4-28
 baseline: 49aa659
 created: 2026-10-02 09:37 UTC
-modified: 2026-10-11 19:29 UTC
+modified: 2026-11-08 16:42 UTC
 evidence:
   - claim: "A settings object of the right kind is handed straight back"
     source: "`command_translator.py` 330-331, and 261-262 for the plain single order"
@@ -26,6 +26,8 @@ evidence:
     source: "`command_translator.py` 283-297 against 348-352"
   - claim: "A settings object handed over whole skips that test"
     source: "`command_translator.py` 261-262"
+  - claim: "A change's settings are built from a table of their own, and a mode with no entry there refuses the change"
+    source: "`command_translator.py` 415-419"
   - claim: "A mode with no settings kind registered refuses the command"
     source: "`command_translator.py` 383-385"
 ---
@@ -52,6 +54,8 @@ Every mode has one registered, two of them sharing a kind. A mode with none woul
 It is the only kind that takes an omitted payload: nothing becomes a settings object with all three of its prices left unset, which is [the shape a market order takes](the-prices-an-order-must-name.md).
 
 Where a mapping arrives, it is also the only one testing each value where it is built, taking a decimal or nothing at all. The rest leave that to their own kinds. A settings object handed over whole skips the test either way.
+
+A change's settings come from a table of their own. A mode with no entry in that table refuses the change.
 
 ## Related
 

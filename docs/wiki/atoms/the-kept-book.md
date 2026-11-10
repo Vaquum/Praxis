@@ -2,12 +2,12 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-10-11 20:32 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
   - claim: "One poller per symbol among the paper accounts, where a venue was handed in, which the ordinary start does not do"
-    source: "`launcher.py` 3819-3831, reached only past 3799-3800, the ordinary start handing none in at 4984-4991"
+    source: "`launcher.py` 3819-3831, the asking bound at 628-641 into 641, reached only past 3799-3800, the ordinary start handing none in at 4984-4991"
   - claim: "Each poll overwrites the copy for that symbol"
     source: "`book_poller.py` 76-77 into `book_cache.py` 44-45"
   - claim: "One reader builds the gap and hands back the two moments an age is taken from"

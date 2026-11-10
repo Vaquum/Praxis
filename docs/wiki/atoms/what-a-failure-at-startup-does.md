@@ -2,10 +2,14 @@
 row: P4-20
 baseline: 49aa659
 created: 2026-10-01 10:18 UTC
-modified: 2026-10-11 20:42 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A key that can withdraw, or cannot trade spot, raises"
     source: "`launcher.py` 3101-3112"
+  - claim: "The asking refuses outright where the loop or the trading stack is missing, before any key is read"
+    source: "`launcher.py` 3065 into 3066-3067"
+  - claim: "Past that it insists the stack is there, takes the venue's adapter off it, and asks after each account's key in turn under a deadline apiece"
+    source: "`launcher.py` 3093, then 3094, then 3095, then 3096, then 3097"
   - claim: "That raise is caught, trading stopped, and the failure carried out"
     source: "`launcher.py` 3117-3120, out through 3069-3074 and 5003-5008"
   - claim: "No account has a thread by then"
@@ -20,6 +24,10 @@ evidence:
     source: "`launcher.py` 3043 with nothing catching it, out through 2828 before 2840, ending at 5004-5008, against the wait that is cancelled at 3075-3079"
   - claim: "An account's thread catches everything from building to shutting down, and sets the stop flag"
     source: "`launcher.py` 4034-4040 over the span opened at 3991"
+  - claim: "Before the flag it takes that account's runtime off the list the host keeps of them"
+    source: "`launcher.py` 4037-4038 before 4040"
+  - claim: "A runtime is put on that list only once the build has returned, so a failure inside the build leaves the removal nothing to take out"
+    source: "`launcher.py` 3994 reached only after 3992 returns, against the removal at 4037-4038"
   - claim: "That flag is what every other account is waiting on"
     source: "`launcher.py` 3999"
   - claim: "An account still building reaches that wait only after it has finished building"
@@ -42,6 +50,8 @@ Where instead the whole check runs out of time, the waiting is abandoned and tra
 ## An account
 
 An account's thread catches everything from building its account, through running it, to shutting it down, and sets the stop flag.
+
+Before the flag it drops that account's runtime from the host's list, which the build writes only on returning, so a failure inside it leaves nothing to drop.
 
 That flag is what every other account is waiting on, so one failing asks the rest to come down. Asks, not makes: an account still building reaches the wait only once it has finished building.
 

@@ -2,10 +2,10 @@
 row: P4-03
 baseline: 49aa659
 created: 2026-10-02 08:53 UTC
-modified: 2026-10-11 20:39 UTC
+modified: 2026-11-09 10:25 UTC
 evidence:
   - claim: "A host started from its settings reads the environment it was started in, and one manifest for each path it is given, each naming its account"
-    source: "`launcher.py` 4858 and 4882-4884"
+    source: "`launcher.py` 4858 and 4882-4884, the paths gathered and handed back at 4830"
   - claim: "Five settings must be present and not empty"
     source: "`launcher.py` 174-180, tested at 4683-4686"
   - claim: "Many more are read where they are there, among them a separate base for strategy state and an address for a simulated venue"

@@ -2,7 +2,7 @@
 row: P1-04
 baseline: 49aa659
 created: 2026-09-20 16:35 UTC
-modified: 2026-10-11 20:17 UTC
+modified: 2026-11-09 14:05 UTC
 evidence:
   - claim: "An unknown account is refused"
     source: "`execution_manager.py` 2995-2998"
@@ -37,7 +37,7 @@ evidence:
   - claim: "A venue failure leaves the order record untouched"
     source: "`execution_manager.py` 8534-8536, skipping 8539-8547"
   - claim: "The request is reported cancelled either way"
-    source: "`execution_manager.py` 8568-8570, built at 10567-10580"
+    source: "`execution_manager.py` 8568-8570, the moment taken at 10565 and the report built at 10567-10580"
   - claim: "A cancel reply missing its id, or carrying a status Praxis cannot read, builds no report and writes no reason"
     source: "a missing id raised at `binance_adapter.py` 1690, an unreadable status at 1691 via 895-897, or for a linked pair a missing list id at 1735, escaping either `execution_manager.py` 8532-8533 or 8534-8536, logged at 3944-3951"
   - claim: "A linked-pair cancel never reads a status, so an unknown one changes nothing"

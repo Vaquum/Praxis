@@ -2,12 +2,12 @@
 row: P1-12
 baseline: 49aa659
 created: 2026-10-12 07:10 UTC
-modified: 2026-10-12 13:29 UTC
+modified: 2026-11-09 13:45 UTC
 evidence:
   - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
     source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
   - claim: "A request whose refusal cannot be reported reaches the decision side with nothing, though the log line names it"
-    source: "`execution_manager.py` 7003-7019, the log at 7012-7018, reached from the emptying at 4042"
+    source: "`execution_manager.py` 7003-7019, the log at 7012-7018, the queue marked done at 7019, or at 7021, reached from the emptying at 4042"
   - claim: "A cancelled pass loses the request it had in hand, taken off the queue and neither carried out nor refused"
     source: "`execution_manager.py` 3984 taking it, 4010-4011 leaving, 4020-4021 counting it done"
   - claim: "A new order is turned away on the way in afterwards, while a change is still taken and queued"
@@ -45,4 +45,4 @@ A boot that raises instead is a cancelling: every account started so far is unre
 
 ---
 
-Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 13:29 UTC
+Created 2026-10-12 07:10 UTC · Last modified 2026-11-09 13:45 UTC

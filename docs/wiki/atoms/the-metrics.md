@@ -2,7 +2,7 @@
 row: P3-10
 baseline: 49aa659
 created: 2026-09-28 11:30 UTC
-modified: 2026-10-10 12:13 UTC
+modified: 2026-11-08 14:48 UTC
 evidence:
   - claim: "A replay's figures come from the record and from the scenario's own bars"
     source: "`build_replay_report.py` 53-57 and 77-83"
@@ -12,6 +12,8 @@ evidence:
     source: "`snapshot_result.py` 76-79 with the unit at `metric_conventions.py` 13"
   - claim: "Drawdown lengths are turned into days"
     source: "`snapshot_metrics.py` 162-165 with the unit at `metric_conventions.py` 15"
+  - claim: "The mean is the closed trades' profits summed over their count, and each side's volume is its own trades' entry notional summed, the whole being the two added together"
+    source: "`ledger_metrics.py` 62-65, the whole at 71"
   - claim: "Four figures over closed trades are rounded to a fixed step"
     source: "`ledger_metrics.py` 67-71 with the step at 20"
   - claim: "Those four come back as zeroes where no trade closed"
@@ -40,6 +42,8 @@ The rest are in whatever suits them — money, counts, percentages, plain ratios
 ## Where a figure is missing
 
 Four figures over closed trades are rounded to a fixed step, and those same four come back as zeroes where no trade closed at all.
+
+The four are reached plainly: the mean is the trades' profits summed over their count, each side's volume is its own trades' entry notional summed, and the whole is the two sides added together.
 
 Elsewhere an undefined figure is kept but left empty. A win rate with no trades behind it is still named in the report, holding nothing rather than nought.
 

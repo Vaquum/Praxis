@@ -2,7 +2,7 @@
 row: P3-11
 baseline: 49aa659
 created: 2026-09-28 12:14 UTC
-modified: 2026-10-11 22:51 UTC
+modified: 2026-11-08 14:48 UTC
 evidence:
   - claim: "There are five accounts and no others"
     source: "`chart_of_accounts.py` 20-24"
@@ -12,6 +12,8 @@ evidence:
     source: "`journal_entry.py` 42-44"
   - claim: "Neither may be a figure without end"
     source: "`journal_entry.py` 38-40"
+  - claim: "An entry's moment must carry a zone"
+    source: "`journal_entry.py` 73-75"
   - claim: "An entry with no lines is refused"
     source: "`journal_entry.py` 77-79"
   - claim: "An entry whose two sides differ is refused"
@@ -41,7 +43,7 @@ Five accounts hold everything: the money, the coin, the profit realised, the fee
 
 Every fill it accepts becomes one entry made of lines, each posting to one account. A line cannot carry a positive amount on both sides, neither side may be below zero, and neither may be a figure without end.
 
-An entry with no lines is refused, and so is one whose two sides do not come to the same total. That keeps each entry internally square — it does not keep the ledger level with anything else, since [a failure here is logged and passed over](what-a-fill-changes.md) while trading goes on.
+An entry's moment must carry a zone. An entry with no lines is refused, and so is one whose two sides do not come to the same total. That keeps each entry internally square — it does not keep the ledger level with anything else, since [a failure here is logged and passed over](what-a-fill-changes.md) while trading goes on.
 
 ## What it will take
 
