@@ -41,7 +41,8 @@ __all__ = ['main']
 
 _DEFAULT_HOST = '0.0.0.0'  # noqa: S104 — container service binds to all interfaces by design
 _DEFAULT_PORT = 8081
-_DEFAULT_DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+_DEFAULT_DEPTH_URL = 'https://binance-book-collector-a.onrender.com/latest/spot'
+_DEFAULT_FALLBACK_URL = 'https://binance-book-collector-b.onrender.com/latest/spot'
 _DEFAULT_STALENESS_MS = 5000
 _DEFAULT_POLL_INTERVAL_MS = 1000
 _DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
@@ -55,6 +56,8 @@ class _Config:
     port: int
     depth_url: str
     depth_token: str
+    fallback_url: str
+    fallback_token: str
     state_dir: Path
     staleness_threshold_ms: int
     poll_interval_ms: int
@@ -68,12 +71,14 @@ def _parse_env(env: dict[str, str]) -> _Config:
 
     Required:
         BINSIM_DEPTH_TOKEN      Bearer token for the hosted depth-20 endpoint.
+        BINSIM_DEPTH_FALLBACK_TOKEN Bearer token for the second region.
         BINSIM_STATE_DIR        Directory for the ledger snapshot (created if missing).
 
     Optional:
         BINSIM_HOST                       Bind host (default 0.0.0.0).
         BINSIM_PORT                       Bind port (default 8081).
-        BINSIM_DEPTH_URL                  Hosted depth source (default vaquum-hosted URL).
+        BINSIM_DEPTH_URL                  First regional Spot endpoint.
+        BINSIM_DEPTH_FALLBACK_URL         Second regional Spot endpoint.
         BINSIM_STALENESS_MS               Order-rejection threshold in ms (default 5000).
         BINSIM_POLL_INTERVAL_MS           Poll cadence in ms (default 1000).
         BINSIM_MIN_TOP20_DEPTH_BTC        Reject snapshots whose top-20 depth on either side sums below this floor (default 0.05).
@@ -85,6 +90,10 @@ def _parse_env(env: dict[str, str]) -> _Config:
     if not depth_token:
         msg = 'BINSIM_DEPTH_TOKEN is required'
         raise RuntimeError(msg)
+
+    fallback_token = env.get('BINSIM_DEPTH_FALLBACK_TOKEN', '').strip()
+    if not fallback_token:
+        raise RuntimeError('BINSIM_DEPTH_FALLBACK_TOKEN is required')
 
     state_dir_raw = env.get('BINSIM_STATE_DIR', '').strip()
 
@@ -113,6 +122,8 @@ def _parse_env(env: dict[str, str]) -> _Config:
         port=port,
         depth_url=depth_url,
         depth_token=depth_token,
+        fallback_url=env.get('BINSIM_DEPTH_FALLBACK_URL', _DEFAULT_FALLBACK_URL).strip() or _DEFAULT_FALLBACK_URL,
+        fallback_token=fallback_token,
         state_dir=Path(state_dir_raw),
         staleness_threshold_ms=staleness_threshold_ms,
         poll_interval_ms=poll_interval_ms,
@@ -189,6 +200,9 @@ async def _run(config: _Config) -> None:
         book,
         config.depth_url,
         config.depth_token,
+        fallback_url=config.fallback_url,
+        fallback_token=config.fallback_token,
+        staleness_threshold_ms=config.staleness_threshold_ms,
         poll_interval_ms=config.poll_interval_ms,
         min_top20_depth_btc=config.min_top20_depth_btc,
         max_stuck_update_id_polls=config.max_stuck_update_id_polls,
@@ -224,6 +238,7 @@ async def _run(config: _Config) -> None:
             host=config.host,
             port=config.port,
             depth_url=config.depth_url,
+            fallback_url=config.fallback_url,
             staleness_threshold_ms=config.staleness_threshold_ms,
             poll_interval_ms=config.poll_interval_ms,
             min_top20_depth_btc=str(config.min_top20_depth_btc),

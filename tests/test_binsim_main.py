@@ -12,6 +12,7 @@ from praxis.binsim.__main__ import _parse_env
 
 _BASE_ENV = {
     'BINSIM_DEPTH_TOKEN': 'token-1',
+    'BINSIM_DEPTH_FALLBACK_TOKEN': 'token-2',
     'BINSIM_STATE_DIR': '/var/lib/binsim',
 }
 
@@ -21,10 +22,12 @@ def test_parses_minimum_required_env_with_defaults() -> None:
     config = _parse_env(dict(_BASE_ENV))
 
     assert config.depth_token == 'token-1'
+    assert config.fallback_token == 'token-2'
+    assert config.fallback_url == 'https://binance-book-collector-b.onrender.com/latest/spot'
     assert config.state_dir == Path('/var/lib/binsim')
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
     assert config.port == 8081
-    assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+    assert config.depth_url == 'https://binance-book-collector-a.onrender.com/latest/spot'
     assert config.staleness_threshold_ms == 5000
     assert config.poll_interval_ms == 1000
     assert config.min_top20_depth_btc == Decimal('0.05')
@@ -37,7 +40,8 @@ def test_parses_full_env_overrides() -> None:
         **_BASE_ENV,
         'BINSIM_HOST': '127.0.0.1',
         'BINSIM_PORT': '9000',
-        'BINSIM_DEPTH_URL': 'https://example.com/top20',
+        'BINSIM_DEPTH_URL': 'https://example.com/latest/spot',
+        'BINSIM_DEPTH_FALLBACK_URL': 'https://peer.example.com/latest/spot',
         'BINSIM_STALENESS_MS': '7500',
         'BINSIM_POLL_INTERVAL_MS': '500',
         'BINSIM_MIN_TOP20_DEPTH_BTC': '0.25',
@@ -48,14 +52,15 @@ def test_parses_full_env_overrides() -> None:
 
     assert config.host == '127.0.0.1'
     assert config.port == 9000
-    assert config.depth_url == 'https://example.com/top20'
+    assert config.depth_url == 'https://example.com/latest/spot'
+    assert config.fallback_url == 'https://peer.example.com/latest/spot'
     assert config.staleness_threshold_ms == 7500
     assert config.poll_interval_ms == 500
     assert config.min_top20_depth_btc == Decimal('0.25')
     assert config.max_stuck_update_id_polls == 10
 
 
-@pytest.mark.parametrize('missing_var', ['BINSIM_DEPTH_TOKEN', 'BINSIM_STATE_DIR'])
+@pytest.mark.parametrize('missing_var', ['BINSIM_DEPTH_TOKEN', 'BINSIM_DEPTH_FALLBACK_TOKEN', 'BINSIM_STATE_DIR'])
 def test_missing_required_env_raises(missing_var: str) -> None:
 
     env = {k: v for k, v in _BASE_ENV.items() if k != missing_var}
@@ -103,7 +108,7 @@ def test_empty_optional_string_falls_back_to_default() -> None:
 
     config = _parse_env(env)
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
-    assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+    assert config.depth_url == 'https://binance-book-collector-a.onrender.com/latest/spot'
 
 
 @pytest.mark.parametrize(

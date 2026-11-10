@@ -52,3 +52,6 @@ jobs:
 
       - name: Run tests
         run: pytest -v
+
+      - name: Build isolated Binsim reader image
+        run: docker build -f Dockerfile.binsim-reader -t binsim-reader:check .

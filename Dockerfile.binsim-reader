@@ -1,0 +1,9 @@
+# Reader-only rollout on the exact deployed 0.78.0 runtime. Existing matching,
+# server, ledger and dependency bytes remain in the pinned base image.
+FROM ghcr.io/vaquum/praxis-binsim@sha256:c9f6719486adbe8d9b81200ce872d333d7b49ef2820442ed624563b2c29eb392
+USER root
+COPY praxis/binsim/feed.py /app/praxis/binsim/feed.py
+COPY deploy/binsim-reader.patch /tmp/binsim-reader.patch
+RUN git apply --unsafe-paths --directory=/app /tmp/binsim-reader.patch \
+    && rm /tmp/binsim-reader.patch
+USER binsim

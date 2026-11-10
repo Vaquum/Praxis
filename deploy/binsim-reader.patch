@@ -1,0 +1,50 @@
+--- a/praxis/binsim/__main__.py
++++ b/praxis/binsim/__main__.py
+@@ -35,7 +35,7 @@
+ 
+ _DEFAULT_HOST = '0.0.0.0'  # noqa: S104 — container service binds to all interfaces by design
+ _DEFAULT_PORT = 8081
+-_DEFAULT_DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
++_DEFAULT_DEPTH_URL = 'https://binance-book-collector-a.onrender.com/latest/spot'
+ _DEFAULT_STALENESS_MS = 5000
+ _DEFAULT_POLL_INTERVAL_MS = 1000
+ _DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
+@@ -49,6 +49,8 @@
+     port: int
+     depth_url: str
+     depth_token: str
++    fallback_url: str
++    fallback_token: str
+     state_dir: Path
+     staleness_threshold_ms: int
+     poll_interval_ms: int
+@@ -80,6 +82,10 @@
+         msg = 'BINSIM_DEPTH_TOKEN is required'
+         raise RuntimeError(msg)
+ 
++    fallback_token = env.get('BINSIM_DEPTH_FALLBACK_TOKEN', '').strip()
++    if not fallback_token:
++        raise RuntimeError('BINSIM_DEPTH_FALLBACK_TOKEN is required')
++
+     state_dir_raw = env.get('BINSIM_STATE_DIR', '').strip()
+ 
+     if not state_dir_raw:
+@@ -107,6 +113,8 @@
+         port=port,
+         depth_url=depth_url,
+         depth_token=depth_token,
++        fallback_url=env.get('BINSIM_DEPTH_FALLBACK_URL', 'https://binance-book-collector-b.onrender.com/latest/spot').strip() or 'https://binance-book-collector-b.onrender.com/latest/spot',
++        fallback_token=fallback_token,
+         state_dir=Path(state_dir_raw),
+         staleness_threshold_ms=staleness_threshold_ms,
+         poll_interval_ms=poll_interval_ms,
+@@ -183,6 +191,9 @@
+         book,
+         config.depth_url,
+         config.depth_token,
++        fallback_url=config.fallback_url,
++        fallback_token=config.fallback_token,
++        staleness_threshold_ms=config.staleness_threshold_ms,
+         poll_interval_ms=config.poll_interval_ms,
+         min_top20_depth_btc=config.min_top20_depth_btc,
+         max_stuck_update_id_polls=config.max_stuck_update_id_polls,
