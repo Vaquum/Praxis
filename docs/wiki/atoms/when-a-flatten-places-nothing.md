@@ -2,14 +2,16 @@
 row: P4-44
 baseline: 49aa659
 created: 2026-10-13 07:20 UTC
-modified: 2026-11-09 13:45 UTC
+modified: 2026-11-10 09:56 UTC
 evidence:
   - claim: "A long is closed by selling and a short by buying"
     source: "`execution_manager.py` 7607, then 7609-7611"
   - claim: "The venue's sizes must be at hand, and with them the name of the asset the cap is read in, either missing leaving the position open"
     source: "`execution_manager.py` 7613-7618 into 7625"
-  - claim: "A leg of the cancelled pair still live, part filled or unanswerable stops it"
-    source: "`execution_manager.py` 7627-7636"
+  - claim: "A leg the venue reports unfinished stops the flatten, and so does a query that fails"
+    source: "`execution_manager.py` 7552, or 7561"
+  - claim: "A list or leg the venue reports missing is read as cover already gone, so the flatten goes ahead"
+    source: "`execution_manager.py` 7554 against 7561"
   - claim: "Nothing remaining, or nothing filled on the way in, makes it a no-op"
     source: "`execution_manager.py` 7638-7645"
   - claim: "A size under the smallest, or worth under the smallest value, is dropped, both weighed after the cap"
@@ -29,7 +31,7 @@ A flatten is the order Praxis sends to close what is left of a position whose [p
 
 The venue's [sizes](the-sizes-a-venue-trades-in.md) must be at hand, and with them the asset the order is capped in; either missing leaves the position open.
 
-Every list the cancelled pair might still rest under is asked after; one leg live, part filled or unanswerable stops it, the cover being there or unknown.
+Every list the cancelled pair might still rest under is asked after. A leg reported unfinished stops it, and so does a query that fails. A list or leg the venue reports missing is read as cover already gone, so the flatten goes ahead and any leg behind it goes unasked.
 
 Nothing remaining, or nothing filled going in, makes it a no-op.
 
@@ -50,4 +52,4 @@ What is left is also [cut down](how-big-a-flatten-goes-out.md) to what the accou
 
 ---
 
-Created 2026-10-13 07:20 UTC · Last modified 2026-11-09 13:45 UTC
+Created 2026-10-13 07:20 UTC · Last modified 2026-11-10 09:56 UTC

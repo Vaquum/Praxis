@@ -359,6 +359,21 @@ def _pinned_paths(root: Path, commit: str) -> tuple[str, ...]:
 
 
 @functools.cache
+def _source_length(path: Path) -> int:
+
+    '''Return how many lines the file holds at its pinned commit.
+
+    Args:
+        path (Path): The file to measure.
+
+    Returns:
+        int: Its line count.
+    '''
+
+    return len(_source_text(path).splitlines())
+
+
+@functools.cache
 def _source_text(path: Path) -> str:
 
     '''Return the file's content at the baseline its repository is pinned to.'''
@@ -7508,6 +7523,14 @@ def _cited_lines() -> dict[str, set[int]]:
     A number with no file named before it is left out, the same reading
     `_evidence_totals` gives it.
 
+    A span is measured against the file before it is opened out. The
+    gate reports an impossible span elsewhere, and reaching it means
+    getting there: a number too long to be one at all would end the
+    run, and one naming a billionth line would ask for a billion
+    numbers to be held at once. Measuring means reading, so a file
+    whose tree is not checked out is passed over here as it is
+    everywhere else.
+
     Returns:
         dict[str, set[int]]: Path to the lines cited in it.
     '''
@@ -7533,11 +7556,19 @@ def _cited_lines() -> dict[str, set[int]]:
                 if path is None:
                     continue
 
-                first, last = match.group(1), match.group(2)
+                start = _as_line(match.group(1))
+                end = _as_line(match.group(2) or match.group(1))
+
+                try:
+                    held = _source_length(path)
+                except BaselineReadError:
+                    continue
+
+                if start < 1 or end < start or end > held:
+                    continue
+
                 key = _identity(naming[-1]) or _tree_relative(path)
-                cited.setdefault(key, set()).update(
-                    range(int(first), int(last) + 1) if last else (int(first),),
-                )
+                cited.setdefault(key, set()).update(range(start, end + 1))
 
     return cited
 

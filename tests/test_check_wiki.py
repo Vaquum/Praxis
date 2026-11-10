@@ -9105,3 +9105,62 @@ class TestSettledCandidates:
         monkeypatch.setattr(check_wiki, 'REGISTER', queued)
 
         assert check_wiki._settled_candidates() == []
+
+
+class TestWhatAnImpossibleSpanCites:
+
+    '''What a citation naming lines no file holds contributes.
+
+    The gate reports an impossible span in a check of its own, so
+    reaching that report means surviving the walk that gathers
+    citations. A span naming a billionth line asked for a billion
+    numbers to be held at once, and one of five thousand digits ended
+    the run where the report was meant to come from.
+    '''
+
+    _PAGE = (
+        '---\n'
+        'row: P1-01\n'
+        'baseline: 49aa659\n'
+        'created: 2026-10-01 00:00 UTC\n'
+        'modified: 2026-10-01 00:00 UTC\n'
+        'evidence:\n'
+        '  - claim: "A thing is so"\n'
+        '    source: "`execution_manager.py` {span}"\n'
+        '---\n'
+        '# A page\n'
+    )
+
+    def _cited(
+        self, span: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> dict[str, set[int]]:
+        atoms = tmp_path / 'atoms'
+        atoms.mkdir()
+        (atoms / 'a-page.md').write_text(
+            self._PAGE.format(span=span), encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+
+        return check_wiki._cited_lines()
+
+    def test_a_span_inside_the_file_is_cited(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cited = self._cited('7552-7554', tmp_path, monkeypatch)
+
+        assert list(cited.values()) == [{7552, 7553, 7554}]
+
+    @pytest.mark.parametrize(
+        'span',
+        ['999999999', '1-999999999', '7554-7552', '9' * 5000],
+        ids=[
+            'a-line-past-the-end',
+            'a-span-past-the-end',
+            'a-span-running-backwards',
+            'a-number-too-long-to-be-one',
+        ],
+    )
+    def test_an_impossible_span_cites_nothing(
+        self, span: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        assert self._cited(span, tmp_path, monkeypatch) == {}
