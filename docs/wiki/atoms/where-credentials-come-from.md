@@ -2,7 +2,7 @@
 row: P3-19
 baseline: 49aa659
 created: 2026-09-30 19:01 UTC
-modified: 2026-10-11 21:12 UTC
+modified: 2026-11-10 13:57 UTC
 evidence:
   - claim: "Credentials must be text and neither part may be empty"
     source: "`secret_store.py` 67-73"
@@ -16,6 +16,8 @@ evidence:
     source: "`launcher.py` 4954-4967 into `trading_inbound.py` 123-132"
   - claim: "The venue call keeps a reference to the same value and reads it back when sending"
     source: "`binance_adapter.py` 444, read back at 480 and 721"
+  - claim: "The mapping handed in at construction is copied, so a later addition to the caller's own mapping does not reach the adapter"
+    source: "`binance_adapter.py` 297"
   - claim: "On live a file is used where one is named, otherwise the system's own store"
     source: "past `launcher.py` 4945, either 4946-4948 or 4950"
   - claim: "A mapping in memory serves every other way of working"
@@ -31,7 +33,7 @@ evidence:
 
 The key and secret Praxis needs to act for an [account](what-an-account-is.md) are fetched once at startup and handed on to be kept. Each must be text, and neither may be empty.
 
-They are held as one value that cannot be altered. The venue call keeps a reference to that same value and reads it back each time it sends.
+They are held as one value that cannot be altered. The venue call keeps a reference to that same value and reads it back each time it sends. The mapping it is handed at construction is copied, so a later addition to the caller's own mapping does not reach it.
 
 ## What the hiding covers
 

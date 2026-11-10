@@ -2,7 +2,7 @@
 row: P109-02
 baseline: 49aa659
 created: 2026-11-09 08:28 UTC
-modified: 2026-11-09 08:28 UTC
+modified: 2026-11-10 13:57 UTC
 evidence:
   - claim: "Each order kind is looked up in a table of what it demands, and a kind the table lacks is refused as unsupported"
     source: "`binance_adapter.py` 775, then 777 into 778-779"
@@ -10,6 +10,8 @@ evidence:
     source: "`binance_adapter.py` 784 into 785-786, and 788 into 789-790"
   - claim: "A kind whose entry demands no price refuses an order that carries one"
     source: "`binance_adapter.py` 792"
+  - claim: "The five fields every order carries are assembled once the table's demands have been met, among them the full reply asked for and the name the venue knows the kind by"
+    source: "`binance_adapter.py` 784-798, then 800-806, with the venue's names at 234-254"
   - claim: "A price or a stop price is written out in full decimal rather than as a figure"
     source: "`binance_adapter.py` 808 into 809, and 811 into 812"
   - claim: "A time in force is filled in from a default where none was chosen"
@@ -34,6 +36,10 @@ Each kind is looked up in a table of what it demands. A kind the table lacks is 
 A price, or a stop price. A kind whose entry demands one refuses an order without it.
 
 An entry can also forbid: a kind whose entry demands no price refuses an order that carries one. So the table both requires and excludes, and a parameter that is merely unnecessary is treated as an error rather than ignored.
+
+## What every order carries
+
+Five fields are assembled once the table's demands have been met: the pair, the side, the amount, the full reply asked for, and the name the venue knows the kind by, which the table carries.
 
 ## How the figures are written
 

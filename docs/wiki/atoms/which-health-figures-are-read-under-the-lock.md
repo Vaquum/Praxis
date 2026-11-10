@@ -2,10 +2,12 @@
 row: P116-02
 baseline: 49aa659
 created: 2026-11-09 09:06 UTC
-modified: 2026-11-09 09:06 UTC
+modified: 2026-11-10 13:57 UTC
 evidence:
   - claim: "The adapter is built holding a lock of its own for the health figures"
     source: "`binance_adapter.py` 312"
+  - claim: "A tracker is made at construction for each account the adapter was handed credentials for"
+    source: "`binance_adapter.py` 297, then 308-310"
   - claim: "Reading the clock drift takes that lock for the read alone"
     source: "`binance_adapter.py` 2341, then 2342"
   - claim: "A health answer takes it for the tracker lookup and the drift, then lets it go"
@@ -35,7 +37,7 @@ The share of the venue's allowance in use. It is worked out after the lock has g
 
 ## The two answers
 
-An account the adapter holds no tracker for is answered with a snapshot carrying the allowance and the drift alone, its other three figures standing at the nought each defaults to.
+An account the adapter holds no tracker for is answered with a snapshot carrying the allowance and the drift alone, its other three figures standing at the nought each defaults to. A tracker is made at construction for each account whose credentials the adapter was handed.
 
 Otherwise the tracker is asked for the answer, those two figures handed to it, and whatever it keeps is added to them.
 
