@@ -464,9 +464,9 @@ _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
 _OPTIONAL_METADATA_KEYS = ('reviewed',)
 _PARTING = ' | '
 _SHOWS_NOTHING = frozenset({'Cc', 'Cf'})
-_UNPRINTABLE = re.compile(
-    '[\x00-\x08\x0a-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff\ufffe\uffff]',
-)
+_UNCARRIED = frozenset({'Cc', 'Cs'})
+_CARRIED_ANYWAY = frozenset({'\t', '\x85'})
+_NONCHARACTERS = frozenset({'\ufffe', '\uffff'})
 EVIDENCE_LINE = re.compile(
     r'^(  - claim: "[^"\\\x00-\x1f\x7f]*"'
     r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
@@ -6710,6 +6710,32 @@ def _written_under(key: str, meta: str) -> str | None:
     return None
 
 
+def _uncarried(row: str) -> bool:
+
+    '''Return whether a row holds a character its YAML cannot carry.
+
+    A control mark, a surrogate and the two code points closing the
+    basic multilingual plane each break the YAML the front matter is
+    read as. A tab and a next line are controls that YAML does carry,
+    and every other code point is carried as written, assigned or not.
+
+    Args:
+        row (str): The evidence row as the page wrote it.
+
+    Returns:
+        bool: Whether anything in it cannot be carried.
+    '''
+
+    return any(
+        letter not in _CARRIED_ANYWAY
+        and (
+            unicodedata.category(letter) in _UNCARRIED
+            or letter in _NONCHARACTERS
+        )
+        for letter in row
+    )
+
+
 def _metadata_shape(meta: str) -> list[str]:
 
     '''Return what a page's metadata block gets wrong in its shape.
@@ -6808,7 +6834,7 @@ def _metadata_shape(meta: str) -> list[str]:
         'evidence holds a character the YAML behind it cannot carry: '
         f'"{row.strip()[:40]}"'
         for row in held
-        if _UNPRINTABLE.search(row)
+        if _uncarried(row)
     )
 
     return notes + _evidence_pairs(held)

@@ -1995,7 +1995,9 @@
 
 - State the finite, positive requirement a protective pair's figures are held to, and the refusal of a change raising a buy's commitment, in the prose of the articles that cite them rather than in their front matter alone
 
-- Express the gate's unprintable-character class as the characters it refuses rather than as everything outside the characters it allows. The allowed form reached past the basic multilingual plane with an eight-digit escape that code scanning reads as a suspicious overlapping range, holding `py/overly-large-range` open against `scripts/check_wiki.py`. The refusing form needs no such escape and refuses exactly the same 2,113 of the 1,114,112 code points — the C0 controls but for a tab, the delete, the C1 controls but for a next line, the surrogates, and the two noncharacters closing the basic plane
+- Ask Unicode what a character is rather than matching a class of them, where the gate refuses a character the YAML behind the front matter cannot carry. The class was written as everything outside the characters it allows, which needed an eight-digit escape for the range past the basic multilingual plane; rewriting it as the characters it refuses only moved the complaint from that escape to the control range, `py/overly-large-range` holding against `scripts/check_wiki.py` either way. `_uncarried` now reads each character's Unicode category and refuses exactly the same 2,113 of the 1,114,112 code points: the controls but for a tab and a next line, the surrogates, and the two noncharacters closing the basic plane
+
+- Stop the test that reads the register's account of the obligation rule from backtracking exponentially. Its pattern let an open parenthesis be taken either by the run of plain characters or by the start of a nested group, so a string of many of them would have taken exponential time to reject; excluding it from the plain runs leaves one reading of every input and captures the same text. `py/redos` had held against `tests/test_check_wiki.py` since the branch's first analysis
 
 ### Change
 

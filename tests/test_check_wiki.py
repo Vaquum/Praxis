@@ -1306,7 +1306,7 @@ class TestTheRegisterNamesWhatTheGateRefuses:
 
     CAUSES = re.compile(r'\\b\(\?:([^)]*)\)\\b')
     OBLIGED = re.compile(
-        r'\\b\(\?:([^)]*(?:\([^)]*\)[^)]*)*)\)\\b\(\?!-\)',
+        r'\\b\(\?:([^()]*(?:\([^)]*\)[^()]*)*)\)\\b\(\?!-\)',
     )
 
     def _inside(self, which: re.Pattern[str]) -> str:
