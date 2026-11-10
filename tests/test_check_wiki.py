@@ -5184,6 +5184,18 @@ class TestLaggingCells:
 
         assert check_wiki._statement_lines(tmp_path / 'm.py') == {7}
 
+    @staticmethod
+    def test_an_annotation_given_a_value_is_a_statement(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "class C:\n    def f(self) -> None:\n        '''Doc.'''\n\n"
+            '        held: int\n        sent: bool = self.g()\n'
+        )
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _: source)
+
+        assert check_wiki._statement_lines(tmp_path / 'm.py') == {6}
+
 
 class TestMatchStatements:
 

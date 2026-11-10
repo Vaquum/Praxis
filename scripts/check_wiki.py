@@ -255,7 +255,7 @@ FINDING_ROW_CELLS_RE = re.compile(
 )
 MERGE_ROW_RE = re.compile(r'^\| Row (H-\d+) \|[^|]*\|([^|]*)\|', re.MULTILINE)
 SETTLING_WORDS = ('promote', 'merge', 'folds into', 'decline')
-DECLARATIONS = (ast.AnnAssign, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+DECLARATIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 UNNAMED = 'cited with no file named before it'
 LINE_COUNT_RE = re.compile(
     r'`([a-z_/]+\.py)`[,]?\s+(?:is|at)\s+(\d[\d,]*)\s+lines',
@@ -7471,6 +7471,10 @@ def _statement_lines(path: Path) -> set[int]:
     written inside another: `_signature_lines` refuses a citation to
     that heading, so counting it leaves a line the gate asks for and
     will not accept, which forty-four lines across three modules were.
+    An annotation given a value runs what it is given, so it counts as
+    the statement it is: a type written on a line that sends an order
+    exempted the send, which three hundred and twenty-six lines across
+    sixty-three modules were written as.
 
     Args:
         path (Path): The module, read at its pinned commit.
@@ -7493,6 +7497,9 @@ def _statement_lines(path: Path) -> set[int]:
             for inner in ast.walk(statement):
 
                 if not isinstance(inner, ast.stmt) or isinstance(inner, DECLARATIONS):
+                    continue
+
+                if isinstance(inner, ast.AnnAssign) and inner.value is None:
                     continue
 
                 if (
