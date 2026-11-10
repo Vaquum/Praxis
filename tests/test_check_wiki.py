@@ -6684,6 +6684,12 @@ class TestWhatTheMetadataMustLookLike:
     def test_the_shape_the_wiki_writes_passes(self) -> None:
         assert check_wiki._metadata_shape(self._GOOD) == []
 
+    def test_a_claim_reaching_past_the_basic_plane_passes(self) -> None:
+        held = self._GOOD.replace(
+            '"A thing is so"', '"A thing \U00020000 is so"',
+        )
+        assert check_wiki._metadata_shape(held) == []
+
     @pytest.mark.parametrize(
         'before',
         ['baseline:', 'created:', 'modified:', 'evidence:'],
@@ -6874,6 +6880,11 @@ class TestWhatTheMetadataMustLookLike:
                 _GOOD.replace('"A thing is so"', '"A thing\ufffe is so"'),
                 'a character the YAML behind it cannot carry',
                 id='a-claim-holding-a-noncharacter',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"A thing\ud800 is so"'),
+                'a character the YAML behind it cannot carry',
+                id='a-claim-holding-a-surrogate',
             ),
             pytest.param(
                 _GOOD.replace('"A thing is so"', '"A thing\x00is so"'),

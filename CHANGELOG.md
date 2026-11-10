@@ -1995,6 +1995,8 @@
 
 - State the finite, positive requirement a protective pair's figures are held to, and the refusal of a change raising a buy's commitment, in the prose of the articles that cite them rather than in their front matter alone
 
+- Express the gate's unprintable-character class as the characters it refuses rather than as everything outside the characters it allows. The allowed form reached past the basic multilingual plane with an eight-digit escape that code scanning reads as a suspicious overlapping range, holding `py/overly-large-range` open against `scripts/check_wiki.py`. The refusing form needs no such escape and refuses exactly the same 2,113 of the 1,114,112 code points — the C0 controls but for a tab, the delete, the C1 controls but for a next line, the surrogates, and the two noncharacters closing the basic plane
+
 ### Change
 
 - State the wiki's scope as both repositories, which is what [issue #185](https://github.com/Vaquum/Praxis/issues/185) asks for. The index and the register had come to say the wiki was about Praxis and that Nexus was not in the package — a narrowing that was never asked for and does not match the brief, which puts Nexus's 81 files in scope and requires boundary articles written from both ends. Seed the seven Nexus subjects a reader of the Praxis side is left needing, as candidates for their own Seed stage

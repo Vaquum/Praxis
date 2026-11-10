@@ -465,7 +465,7 @@ _OPTIONAL_METADATA_KEYS = ('reviewed',)
 _PARTING = ' | '
 _SHOWS_NOTHING = frozenset({'Cc', 'Cf'})
 _UNPRINTABLE = re.compile(
-    '[^\t\x20-\x7e\x85\xa0-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]',
+    '[\x00-\x08\x0a-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff\ufffe\uffff]',
 )
 EVIDENCE_LINE = re.compile(
     r'^(  - claim: "[^"\\\x00-\x1f\x7f]*"'
