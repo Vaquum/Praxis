@@ -16,7 +16,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 2. Read the architecture and intended scope in [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
 3. Run [Setup And Verification](Setup-And-Verification.md)
 4. Read [Trading](Trading.md) and [Trade Lifecycle](Trade-Lifecycle.md)
-5. Review [Binance Spot Testnet](Binance-Spot-Testnet.md) and [Binsim](Binsim.md) (the in-process paper-trading replacement)
+5. Run [Binsim Walkthrough](Binsim-Walkthrough.md) for a local paper buy and restart, or use [Binance Spot Testnet](Binance-Spot-Testnet.md) to verify testnet access
 6. Review the current known implementation gaps in [TechnicalDebt.md](TechnicalDebt.md)
 
 ### If You Want To Understand The Current Runtime
@@ -47,8 +47,8 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 ## Docs Map
 
 - `Overview`: [Product Home](../README.md), [this docs hub](README.md)
-- `Guides`: [Setup And Verification](Setup-And-Verification.md), [Launcher](Launcher.md), [Trading](Trading.md), [Trade Lifecycle](Trade-Lifecycle.md), [Binance Spot Testnet](Binance-Spot-Testnet.md)
-- `Reference`: [Execution Manager](Execution-Manager.md), [Event Spine](Event-Spine.md), [Trading State](Trading-State.md), [Venue Adapter](Venue-Adapter.md), [Recovery And Reconciliation](Recovery-And-Reconciliation.md), [Trade Outcomes](Trade-Outcomes.md), [Metric Snapshots](Metric-Snapshots.md), [Slippage And Order Book](Slippage-And-Order-Book.md)
+- `Guides`: [Setup And Verification](Setup-And-Verification.md), [Launcher](Launcher.md), [Trading](Trading.md), [Trade Lifecycle](Trade-Lifecycle.md), [Binsim](Binsim.md), [Binsim Walkthrough](Binsim-Walkthrough.md), [Binance Spot Testnet](Binance-Spot-Testnet.md)
+- `Reference`: [Command And Event Reference](Command-And-Event-Reference.md), [Execution Manager](Execution-Manager.md), [Event Spine](Event-Spine.md), [Trading State](Trading-State.md), [Venue Adapter](Venue-Adapter.md), [Recovery And Reconciliation](Recovery-And-Reconciliation.md), [Trade Outcomes](Trade-Outcomes.md), [Metric Snapshots](Metric-Snapshots.md), [Slippage And Order Book](Slippage-And-Order-Book.md)
 - `Developer`: [Developer Home](Developer/README.md), [Documentation System](Developer/Documentation-System.md)
 - `Operations`: [Technical Debt](TechnicalDebt.md)
 - `Architecture`: [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
