@@ -1,5 +1,12 @@
 import {test, expect} from '@playwright/test';
 
+test('book opens at the authored introduction', async ({page}) => {
+  await page.goto('./#praxis');
+  await expect(page.locator('.hero h1')).toHaveAttribute('id', 'praxis');
+  await expect(page.locator('.hero-lead')).toContainText('Event-sourced trade execution system');
+  await expect(page.locator('main article > :first-child')).toContainText('Praxis unifies order routing');
+});
+
 test('book links open references and return to the same passage', async ({page}) => {
   await page.goto('./overview/docs-hub/');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Praxis Docs');

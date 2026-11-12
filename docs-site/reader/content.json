@@ -9,7 +9,7 @@
     "subject": "Trade execution"
   },
   "pages": {
-    "README.md": {"route": "/", "part": "Book", "bookOrder": 0},
+    "README.md": {"route": "/", "part": "Book", "bookOrder": 0, "omitPreamble": true},
     "docs/README.md": {"route": "/overview/docs-hub/", "part": "Book", "bookOrder": 1},
     "docs/Setup-And-Verification.md": {"route": "/guides/setup-and-verification/", "part": "Book", "bookOrder": 2},
     "docs/Launcher.md": {"route": "/guides/launcher/", "part": "Book", "bookOrder": 3},
