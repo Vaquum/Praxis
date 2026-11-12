@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from copy import deepcopy
+from datetime import UTC, datetime
 from decimal import Decimal
 import hashlib
 import json
@@ -12,14 +15,35 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
+import aiosqlite
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 import pytest
 
+from praxis import Trading, TradingConfig
 from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
 from praxis.binsim.ledger import Ledger
 from praxis.binsim.server import make_app
+from praxis.core.domain import (
+    ExecutionMode,
+    MakerPreference,
+    OrderSide,
+    OrderType,
+    SingleShotParams,
+    STPMode,
+    TradeStatus,
+)
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderSubmitIntent,
+    OrderSubmitted,
+    RegisterAccount,
+    TradeOutcomeProduced,
+)
+from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.secret_store import Credentials
 
 _URL = 'https://binance-book-collector-a.onrender.com/latest/spot'
 _TOKEN = 'test-token'
@@ -266,6 +290,110 @@ async def test_regional_http_recovery_order_age_and_reader_restart(
         await poller.stop()
         await reader.close()
         await sources.close()
+
+
+@asynccontextmanager
+async def _trading_session(
+    db: Path, config: TradingConfig, clock: Callable[[], datetime],
+) -> AsyncIterator[Trading]:
+    '''Start Trading against a freshly opened connection to its event database.'''
+    async with aiosqlite.connect(db) as conn:
+        trading = Trading(
+            config=config,
+            event_spine=EventSpine(conn),
+            bootstrap_filter_symbols=frozenset({'BTCUSDT'}),
+            clock=clock,
+        )
+        await trading.start()
+        try:
+            yield trading
+        finally:
+            await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_recorded_binsim_buy_replays_after_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replay_clock: list[int],
+) -> None:
+    '''Recover one paper fill across a Trading restart against captured Spot depth.'''
+    account_id = 'walkthrough'
+    trade_id = 'first-buy'
+    symbol = 'BTCUSDT'
+    qty = Decimal('0.001')
+    epoch_id = 1
+    db = tmp_path / 'events.sqlite'
+    ledger_dir = tmp_path / 'binsim'
+    ledger = Ledger(ledger_dir)
+    api_key = await ledger.register_account(account_id, Decimal('10000'), Decimal('0'))
+
+    def clock() -> datetime:
+        return datetime.fromtimestamp(replay_clock[0] / 1_000_000, UTC)
+
+    async def source(_request: web.Request) -> web.Response:
+        return web.json_response(_PAYLOAD)
+
+    collector = web.Application()
+    collector.router.add_get('/latest/spot', source)
+    book = OrderBook()
+    async with TestServer(collector) as recorded, aiohttp.ClientSession() as session:
+        poller = DepthPoller(book, str(recorded.make_url('/latest/spot')), _TOKEN)
+        poller._session = session
+        await poller.poll_once()
+    assert book.last_update_id == _PAYLOAD['update_id']
+
+    async with TestServer(make_app(book, ledger, poller, 5000)) as venue:
+        rest_url = str(venue.make_url('/')).rstrip('/')
+        ws_url = rest_url.replace('http://', 'ws://', 1)
+        monkeypatch.setenv('BINSIM_URL', rest_url)
+        config = TradingConfig(
+            epoch_id=epoch_id,
+            venue_rest_url=rest_url,
+            venue_ws_url=ws_url,
+            venue_ws_api_url=ws_url + '/ws-api/v3',
+            account_credentials={account_id: Credentials(api_key, 'local-proof')},
+        )
+
+        async with _trading_session(db, config, clock) as trading:
+            command_id = await trading.submit_command(
+                trade_id=trade_id, account_id=account_id, symbol=symbol,
+                side=OrderSide.BUY, qty=qty, order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.SINGLE_SHOT, execution_params=SingleShotParams(),
+                timeout=30, reference_price=None, maker_preference=MakerPreference.NO_PREFERENCE,
+                stp_mode=STPMode.NONE, created_at=clock(), strategy_id=account_id,
+            )
+            await asyncio.wait_for(trading.quiesce(account_id), timeout=5)
+            events = await trading.event_spine.read(epoch_id)
+            registration, accepted, intent, submitted, fill, outcome = [event for _, event in events]
+            assert isinstance(registration, RegisterAccount)
+            assert isinstance(accepted, CommandAccepted)
+            assert isinstance(intent, OrderSubmitIntent)
+            assert isinstance(submitted, OrderSubmitted)
+            assert isinstance(fill, FillReceived)
+            assert isinstance(outcome, TradeOutcomeProduced)
+            assert accepted.command_id == intent.command_id == fill.command_id == outcome.command_id == command_id
+            assert intent.client_order_id == submitted.client_order_id == fill.client_order_id
+            assert submitted.venue_order_id == fill.venue_order_id
+            assert (fill.qty, fill.price, fill.fee, fill.fee_asset) == (
+                qty, Decimal('80514.49'), Decimal('0.000001'), 'BTC',
+            )
+            assert (outcome.status, outcome.filled_qty, outcome.cumulative_notional) == (
+                TradeStatus.FILLED, qty, Decimal('80.51449'),
+            )
+            positions = trading.pull_positions(account_id)
+            assert positions[trade_id, account_id].qty == Decimal('0.000999')
+            balances = await ledger.balance(account_id)
+            assert balances == (Decimal('9919.48551'), Decimal('0.000999'))
+
+        async with _trading_session(db, config, clock) as restarted:
+            assert restarted.pull_positions(account_id) == positions
+            assert await restarted.event_spine.read(epoch_id) == events
+            assert await ledger.balance(account_id) == balances
+
+    restored = Ledger(ledger_dir)
+    await restored.load()
+    assert await restored.balance(account_id) == balances
+
+
 @pytest.mark.parametrize('interval', [0, -1, -1000])
 def test_constructor_rejects_non_positive_poll_interval(interval: int) -> None:
 

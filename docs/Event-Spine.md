@@ -20,6 +20,8 @@ Today it stores:
 - `TradeClosed`
 - `TradeOutcomeProduced`
 
+For command inputs and the full event list, see [Command And Event Reference](Command-And-Event-Reference.md).
+
 ## Current Schema
 
 The schema is versioned by `PRAGMA user_version` and advanced by a transactional, fail-closed-on-newer migration in `EventSpine.ensure_schema`. Each migration is gated on the version that introduced it, so a database already past one does not re-run it. The shipped version is 4:

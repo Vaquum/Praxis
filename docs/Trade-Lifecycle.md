@@ -19,7 +19,7 @@ Praxis receives trade requests through `Trading.submit_command()` and `TradingIn
 - maker preference and self-trade-prevention mode
 - optional `strategy_id` for position attribution
 
-The code currently ships end-to-end runtime support for `SINGLE_SHOT`. Additional execution modes exist in the domain model and validation layer, but unsupported modes are rejected at execution time.
+`SINGLE_SHOT` is enabled by default. Other execution modes require explicit enablement for the deployment.
 
 ## Lifecycle Stages
 
@@ -31,8 +31,8 @@ At a high level, the current happy path is:
 4. order submitted to venue
 5. `OrderSubmitted` and optional inline `FillReceived` events appended
 6. WebSocket execution reports produce later fills or terminal order events
-7. `TradeClosed` emitted when the trade becomes terminal with fills
-8. `TradeOutcomeProduced` emitted and routed back to Nexus
+7. `TradeClosed` emitted when a terminal command closes the position
+8. `TradeOutcomeProduced` records command progress or its terminal outcome for routing back to Nexus
 
 The event sequence is not just audit data. It is what makes replay and recovery possible.
 
@@ -67,7 +67,7 @@ Expiry is enforced from the command timeout. If the deadline is exceeded, Praxis
 
 ## Current Boundary
 
-The deck and RFC discuss a broader execution-mode surface. The current code does not yet execute TWAP, VWAP, bracket, iceberg, or DCA modes end to end. Those remain future work despite their presence in enums and validation logic.
+Praxis checks the order type and parameters for the selected mode at admission. See [Command And Event Reference](Command-And-Event-Reference.md) for the supported shapes.
 
 ## Read Next
 

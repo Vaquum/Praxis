@@ -4,6 +4,8 @@ Binsim replaces Binance Spot testnet as Praxis's paper-trading venue. It removes
 
 For the design rationale see issue [#112](https://github.com/Vaquum/Praxis/issues/112). For implementation details see the `praxis.binsim` package.
 
+For a local paper buy and restart using captured Spot depth, see [Binsim Walkthrough](Binsim-Walkthrough.md).
+
 ## What Binsim Is
 
 A self-contained service that exposes a Binance-shaped REST + WebSocket surface:
