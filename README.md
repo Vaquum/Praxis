@@ -24,7 +24,7 @@
 
 <hr />
 
-<a id="praxis"></a>
+<a id="praxis" data-reader-heading="plain"></a>
 
 # Praxis — Execution system
 
