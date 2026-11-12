@@ -15,6 +15,37 @@ test('book links open references and return to the same passage', async ({page})
   expect(Math.abs((await link.boundingBox()).y - before)).toBeLessThan(3);
 });
 
+test('reference code links keep the chapter and reference history entries', async ({page}) => {
+  await page.goto('./#code-1-L1');
+  const chapter = page.url();
+  const opener = page.getByRole('link', {name: 'Health.md', exact: true});
+  await opener.click();
+  const reference = page.getByRole('dialog', {name: 'Reference'});
+  await expect(reference.getByRole('heading', {level: 1})).toHaveText('Health');
+  await expect(page).toHaveURL(/\/reference\/health\/$/);
+  const referenceUrl = page.url();
+
+  const code = reference.locator('figure.code').first();
+  const firstLine = code.getByRole('link', {name: 'Line 1', exact: true});
+  await firstLine.click();
+  await expect(page).toHaveURL(referenceUrl + '#code-1-L1');
+  await expect(code.locator('.selected-line')).toHaveCount(1);
+  await page.keyboard.press('Shift+ArrowDown');
+  await expect(page).toHaveURL(referenceUrl + '#code-1-L1-L2');
+  await expect(code.locator('.selected-line')).toHaveCount(2);
+  await page.goBack();
+  await expect(page).toHaveURL(referenceUrl + '#code-1-L1');
+  await expect(code.locator('.selected-line')).toHaveCount(1);
+  await page.goBack();
+  await expect(page).toHaveURL(referenceUrl);
+  await expect(code.locator('.selected-line')).toHaveCount(0);
+
+  await reference.getByRole('button', {name: 'Return to chapter'}).click();
+  await expect(reference).toBeHidden();
+  await expect(page).toHaveURL(chapter);
+  await expect(opener).toBeFocused();
+});
+
 test('search opens a wiki article with its authored evidence', async ({page}) => {
   await page.goto('./');
   await page.getByRole('button', {name: 'Search', exact: true}).click();

@@ -1,4 +1,4 @@
-export function initCode(root=document) {
+export function initCode(root=document,selectRange=href=>history.replaceState(history.state,'',href)) {
   for(const figure of root.querySelectorAll('.code')) {
     if(figure.dataset.enhanced)continue;
     figure.dataset.enhanced='true';
@@ -25,12 +25,12 @@ export function initCode(root=document) {
       if(!extend)start=index;
       const low=Math.min(start,index),high=Math.max(start,index);
       numbers.forEach((number,at)=>{number.tabIndex=at===index?0:-1;number.parentElement.classList.toggle('selected-line',at>=low&&at<=high);});
-      history.replaceState(history.state,'',numbers[low].getAttribute('href')+(low===high?'':'-L'+(high+1)));
+      return numbers[low].getAttribute('href')+(low===high?'':'-L'+(high+1));
     }
     numbers.forEach((number,index)=>{number.removeAttribute('aria-hidden');number.setAttribute('aria-label','Line '+(index+1));
-      number.addEventListener('click',event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.altKey)return;event.preventDefault();selectLine(index,event.shiftKey);});
+      number.addEventListener('click',event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.altKey)return;event.preventDefault();selectRange(selectLine(index,event.shiftKey));});
       number.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){
-        event.preventDefault();const next=Math.max(0,Math.min(numbers.length-1,index+(event.key==='ArrowDown'?1:-1)));selectLine(next,event.shiftKey);numbers[next].focus();
+        event.preventDefault();const next=Math.max(0,Math.min(numbers.length-1,index+(event.key==='ArrowDown'?1:-1)));selectRange(selectLine(next,event.shiftKey));numbers[next].focus();
       }});
     });
     function readRange(event){
@@ -43,4 +43,4 @@ export function initCode(root=document) {
     figure.addEventListener('reader-code-range',readRange);readRange();
   }
 }
-export function revealCodeRange({scroll=true}={}){for(const figure of document.querySelectorAll('.code[data-enhanced]'))figure.dispatchEvent(new CustomEvent('reader-code-range',{detail:{scroll}}));}
+export function revealCodeRange(root,{scroll=true}={}){for(const figure of root.querySelectorAll('.code[data-enhanced]'))figure.dispatchEvent(new CustomEvent('reader-code-range',{detail:{scroll}}));}

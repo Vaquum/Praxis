@@ -13,12 +13,12 @@ test('book, reference, developer and wiki pages reflow and meet automated WCAG c
   }
 });
 
-test('static routing applies security headers to pages, redirects and errors', async ({request}) => {
+test('static routing applies security headers to pages, redirects and errors', async ({request, baseURL}) => {
   const {basePath} = content.product;
   if (basePath) {
     const redirect = await request.get(basePath, {maxRedirects: 0});
     expect(redirect.status()).toBe(302);
-    expect(new URL(redirect.headers().location).pathname).toBe(basePath + '/');
+    expect(redirect.headers().location).toBe(new URL(basePath + '/', baseURL).href);
     expect(redirect.headers()['x-frame-options']).toBe('DENY');
   }
   for (const [route, status] of [['./', 200], ['./assets/fonts/archivo.woff2', 200], ['./absent/', 404]]) {
