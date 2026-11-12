@@ -1,52 +1,21 @@
-# Praxis Docs Site
+# Praxis docs site
 
-This is the standalone Praxis docs site scaffold. It follows the same model as Limen:
+Praxis uses the Limen static reader from Vaquum/Limen at `0927e47e`. The site reads `README.md`, `CHANGELOG.md`, the full `docs/` tree and the package READMEs. `reader/content.json` sets the Book order and the Reference and Developer navigation. Wiki articles and spines get their routes from their source paths. Their YAML evidence is available on the rendered page.
 
-- Docusaurus for the site runtime
-- repository markdown as the canonical content source
-- an assembly step that maps repo docs into a generated docs corpus for the site
+Run these commands from `docs-site` with Node.js 22.
 
-## Commands
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Assemble the generated docs corpus:
-
-```bash
-npm run prepare-docs
-```
-
-Run the local dev server:
-
-```bash
+```sh
+npm ci
 npm start
 ```
 
-The site uses the `basePath` from `product-docs.json`, so by default it serves at `http://localhost:3000/praxis/`. To serve at the root for local-only work, override the base URL:
+Open [the Praxis book](http://127.0.0.1:4330/praxis/). Run `npm run build` after editing a source. Use `DOCS_BASE_URL=/ npm start` for a root-mounted preview and `READER_PORT` to choose a port.
 
-```bash
-DOCS_BASE_URL=/ npm start
-```
-
-Run a production-style check build:
-
-```bash
+```sh
 npm run check
+npm run security:audit
+npx playwright install chromium webkit
+npm run check:reader
 ```
 
-Build the static site:
-
-```bash
-npm run build
-```
-
-## Notes
-
-- The canonical source remains the repository markdown in `README.md` and `/docs`.
-- Generated docs land in `docs-site/.generated/docs` and should not be committed.
-- This scaffold currently maps the shipped Praxis docs plus a few honest bootstrap pages for guides, reference, and packages.
-- The current environment here hit a webpack progress-plugin failure on Node `v25.9.0`. Use a supported LTS runtime such as Node `20` or `22` for local site work.
+The build writes static assets to `reader-build/`. `routes.json` records each source and its SHA-256 digest. `build.json` records the checkout commit and the generated file hashes. `npm run check` verifies source coverage, links and search against the built pages. The browser checks exercise the reader on desktop and mobile using the same asset routing and headers as `src/worker.js`.

@@ -1,0 +1,37 @@
+name: Docs Site Checks
+
+on:
+  push:
+    branches: [main]
+    paths: &docs_paths
+      - 'docs-site/**'
+      - 'docs/**'
+      - 'praxis/**/README.md'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - '.github/workflows/pr_checks_docs_site.yml'
+  pull_request:
+    paths: *docs_paths
+
+permissions:
+  contents: read
+
+jobs:
+  pr_checks_docs_site:
+    name: PR Checks Docs Site
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: docs-site/.nvmrc
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run security:audit
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run check:reader

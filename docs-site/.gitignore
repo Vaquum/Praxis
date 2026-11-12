@@ -1,4 +1,3 @@
 node_modules/
-.docusaurus/
-.generated/
-build/
+reader-build/
+test-results/

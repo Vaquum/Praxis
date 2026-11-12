@@ -1,0 +1,43 @@
+{
+  "product": {
+    "id": "praxis",
+    "name": "Praxis",
+    "wordmark": "PRAXIS",
+    "basePath": "/praxis",
+    "origin": "https://docs.vaquum.fi",
+    "repository": "https://github.com/Vaquum/Praxis",
+    "subject": "Trade execution"
+  },
+  "pages": {
+    "README.md": {"route": "/", "part": "Book", "bookOrder": 0},
+    "docs/README.md": {"route": "/overview/docs-hub/", "part": "Book", "bookOrder": 1},
+    "docs/Setup-And-Verification.md": {"route": "/guides/setup-and-verification/", "part": "Book", "bookOrder": 2},
+    "docs/Launcher.md": {"route": "/guides/launcher/", "part": "Book", "bookOrder": 3},
+    "docs/Trading.md": {"route": "/guides/trading/", "part": "Book", "bookOrder": 4},
+    "docs/Trade-Lifecycle.md": {"route": "/guides/trade-lifecycle/", "part": "Book", "bookOrder": 5},
+    "docs/Binsim.md": {"route": "/guides/binsim/", "part": "Book", "bookOrder": 6},
+    "docs/Binance-Spot-Testnet.md": {"route": "/guides/binance-spot-testnet/", "part": "Book", "bookOrder": 7},
+    "docs/TechnicalDebt.md": {"route": "/overview/technical-debt/", "part": "Book"},
+    "docs/Execution-Manager.md": {"route": "/reference/execution-manager/", "part": "Reference", "navigationGroup": "Execution and state"},
+    "docs/Event-Spine.md": {"route": "/reference/event-spine/", "part": "Reference", "navigationGroup": "Execution and state"},
+    "docs/Trading-State.md": {"route": "/reference/trading-state/", "part": "Reference", "navigationGroup": "Execution and state"},
+    "docs/Venue-Adapter.md": {"route": "/reference/venue-adapter/", "part": "Reference", "navigationGroup": "Execution and state"},
+    "docs/Recovery-And-Reconciliation.md": {"route": "/reference/recovery-and-reconciliation/", "part": "Reference", "navigationGroup": "Operations"},
+    "docs/Health.md": {"route": "/reference/health/", "part": "Reference", "navigationGroup": "Operations"},
+    "docs/Trade-Outcomes.md": {"route": "/reference/trade-outcomes/", "part": "Reference", "navigationGroup": "Outcomes and metrics"},
+    "docs/Slippage-And-Order-Book.md": {"route": "/reference/slippage-and-order-book/", "part": "Reference", "navigationGroup": "Outcomes and metrics"},
+    "docs/Metric-Snapshots.md": {"route": "/reference/metric-snapshots/", "part": "Reference", "navigationGroup": "Outcomes and metrics"},
+    "docs/wiki/README.md": {"route": "/wiki/", "part": "Reference", "navigationGroup": "Wiki"},
+    "docs/wiki/BASELINE.md": {"route": "/wiki/baseline/", "part": "Reference", "navigationGroup": "Wiki"},
+    "docs/wiki/TEMPLATE.md": {"route": "/wiki/template/", "part": "Reference", "navigationGroup": "Wiki"},
+    "docs/wiki/ledger.md": {"route": "/wiki/ledger/", "part": "Reference", "navigationGroup": "Wiki"},
+    "docs/wiki/register.md": {"route": "/wiki/register/", "part": "Reference", "navigationGroup": "Wiki"},
+    "docs/Developer/README.md": {"route": "/developer/home/", "part": "Developer", "navigationGroup": "Maintenance"},
+    "docs/Developer/Documentation-System.md": {"route": "/developer/documentation-system/", "part": "Developer", "navigationGroup": "Maintenance"},
+    "CHANGELOG.md": {"route": "/changelog/", "part": "Developer", "navigationGroup": "Maintenance"},
+    "praxis/README.md": {"route": "/packages/praxis/", "part": "Developer", "navigationGroup": "Packages"},
+    "praxis/core/README.md": {"route": "/packages/core/", "part": "Developer", "navigationGroup": "Packages"},
+    "praxis/core/domain/README.md": {"route": "/packages/core-domain/", "part": "Developer", "navigationGroup": "Packages"},
+    "praxis/infrastructure/README.md": {"route": "/packages/infrastructure/", "part": "Developer", "navigationGroup": "Packages"}
+  }
+}
