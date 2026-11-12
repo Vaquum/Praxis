@@ -2,27 +2,30 @@
   "name": "praxis-docs-site",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "engines": {
-    "node": ">=20 <25"
+    "node": ">=22"
   },
   "scripts": {
-    "prepare-docs": "node ./scripts/assemble-docs.mjs",
-    "start": "npm run prepare-docs && docusaurus start --host 0.0.0.0",
-    "build": "npm run prepare-docs && docusaurus build",
-    "check": "npm run prepare-docs && docusaurus build --no-minify",
-    "serve": "docusaurus serve . --dir build --host 0.0.0.0 --port 3001 --no-open",
-    "clear": "docusaurus clear"
+    "security:audit": "node ./scripts/audit-security.mjs",
+    "start": "npm run build && npm run serve",
+    "build": "node scripts/build-reader.mjs",
+    "check": "npm run build && node scripts/check-links.mjs",
+    "serve": "node scripts/serve-reader.mjs",
+    "check:reader": "node scripts/check-reader.mjs"
   },
   "dependencies": {
-    "@docusaurus/core": "3.9.2",
-    "@docusaurus/preset-classic": "3.9.2",
-    "@easyops-cn/docusaurus-search-local": "0.55.1",
-    "prism-react-renderer": "^2.4.1",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@fontsource-variable/archivo": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "markdown-it": "14.3.3",
+    "prismjs": "1.30.0"
   },
   "overrides": {
-    "@docusaurus/plugin-content-docs": "3.9.2",
-    "@docusaurus/theme-common": "3.9.2"
+    "markdown-it": "$markdown-it"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.63.0"
   }
 }
