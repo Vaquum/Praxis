@@ -6,5 +6,3 @@ initCode();await document.fonts.ready;initPlace();initNavigation();initSearch();
 addEventListener('hashchange',()=>{
   if(!history.state?.readerReference)revealCodeRange(document.querySelector('main article'));
 });
-
-if(!matchMedia("(prefers-reduced-motion: reduce)").matches)document.querySelector(".hero-inner")?.animate([{transform:"translateY(6px)"},{transform:"none"}],{duration:220,easing:"cubic-bezier(.2,.7,.2,1)"});

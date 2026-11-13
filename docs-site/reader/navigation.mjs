@@ -1,4 +1,4 @@
-import {spring} from './motion.mjs';
+import {openDialog,closeDialog} from './motion.mjs';
 import {position,restore,announce} from './place.mjs';
 import {initCode,revealCodeRange} from './code.mjs';
 export function initNavigation(){
@@ -12,7 +12,6 @@ export function initNavigation(){
     const state=history.state;
     if(state?.readerReference&&href!==location.href)history.pushState({...state,readerDepth:state.readerDepth+1},'',href);
   }
-  const camera=spring(x=>{dialog.style.transform=`translateX(${x}px)`;dialog.querySelector('.return-rule').style.opacity=String(1-x/Math.max(innerWidth,1)*.5);},innerWidth);
   async function show(link,{updateHistory=true,originOverride=null,referenceURL=link.href}={}){
     const attempt=++token,nested=dialog.open;
     if(!nested)opener=link;
@@ -29,9 +28,9 @@ export function initNavigation(){
       for(const node of fragment.querySelectorAll('[href^="#"]')){const id=node.getAttribute('href').slice(1);if(names.has(id)){node.setAttribute('href',new URL('#'+id,referenceURL).href);node.dataset.referenceFragment=id;}}
       const title=document.createElement('h1');title.textContent=parsed.querySelector('h1')?.textContent||'Reference';
       const intro=parsed.querySelector('.hero-lead')?.cloneNode(true);if(intro)intro.className='reference-intro';body.replaceChildren(title,...(intro?[intro]:[]),...fragment.childNodes);
-      dialog.scrollTop=0;if(!dialog.open)dialog.showModal();referenceDocument=documentURL(referenceURL);
+      dialog.scrollTop=0;openDialog(dialog);referenceDocument=documentURL(referenceURL);
       if(updateHistory)history.pushState({readerReference:true,readerOrigin:origin,readerDepth:nested?(history.state?.readerDepth||0)+1:1},'',referenceURL);
-      initCode(body,pushFragment);camera.to(0);close.focus({preventScroll:true});revealAnchor();
+      initCode(body,pushFragment);close.focus({preventScroll:true});revealAnchor();
     }catch(error){
       if(attempt!==token)return;
       if(updateHistory&&history.state?.readerEntry===attemptOrigin.entry&&!history.state?.readerReference)
@@ -42,7 +41,7 @@ export function initNavigation(){
     }
   }
   function hide(){++token;if(!dialog.open)return;
-    camera.to(innerWidth,()=>{dialog.close();if(origin){
+    closeDialog(dialog,()=>{if(origin){
       if(origin.entry&&history.state?.readerEntry===origin.entry){
         if(origin.width===innerWidth)scrollTo({top:origin.scroll,behavior:'instant'});else restore(origin.place);
         history.replaceState({...history.state,readerPlace:null},'',location.href);opener?.focus({preventScroll:true});
@@ -65,12 +64,11 @@ export function initNavigation(){
   dialog.addEventListener('cancel',event=>{event.preventDefault();returnToChapter();});
   addEventListener('popstate',event=>{
     if(event.state?.readerReference){
-      if(dialog.open&&referenceDocument===documentURL(location.href)){camera.to(0);revealCodeRange(body,{scroll:false});revealAnchor();return;}
+      if(dialog.open&&referenceDocument===documentURL(location.href)){++token;openDialog(dialog);revealCodeRange(body,{scroll:false});revealAnchor();return;}
       const link=document.getElementById(event.state.readerOrigin.focus);
       if(link)show(link,{updateHistory:false,originOverride:event.state.readerOrigin,referenceURL:location.href});
       else location.reload();
     }
     else hide();
   });
-  for(const name of ['wheel','touchstart','pointerdown'])dialog.addEventListener(name,()=>camera.finish(),{passive:true});
 }
