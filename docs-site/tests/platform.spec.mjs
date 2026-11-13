@@ -59,3 +59,23 @@ test('search fades in and out and restores focus, with an immediate reduced-moti
   await expect(dialog).toBeHidden();
   await expect(opener).toBeFocused();
 });
+
+test('chapter navigation crossfades only when motion is enabled', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await page.addInitScript(() => {
+    addEventListener('pagereveal', event => {
+      window.chapterTransition = Boolean(event.viewTransition);
+    });
+  });
+  await page.goto('./');
+  test.skip(!await page.evaluate(() => 'onpagereveal' in window), 'Requires native document transitions');
+  const parts = page.getByRole('navigation', {name: 'Parts'});
+  await parts.getByRole('link', {name: 'Developer', exact: true}).click();
+  await expect(page).toHaveURL(/developer\/home\/$/);
+  await expect.poll(() => page.evaluate(() => window.chapterTransition)).toBe(true);
+
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await parts.getByRole('link', {name: 'Book', exact: true}).click();
+  await expect(page).toHaveURL(/\/praxis\/$/);
+  await expect.poll(() => page.evaluate(() => window.chapterTransition)).toBe(false);
+});
