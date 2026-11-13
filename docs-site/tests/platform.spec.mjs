@@ -27,3 +27,35 @@ test('static routing applies security headers to pages, redirects and errors', a
     expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
   }
 });
+
+test('search fades in and out and restores focus, with an immediate reduced-motion path', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await page.goto('./');
+  const opener = page.getByRole('button', {name: 'Search', exact: true});
+  await expect(opener).toBeVisible();
+  const dialog = page.locator('[data-search-dialog]');
+  await opener.evaluate(button => {
+    const panel = document.querySelector('[data-search-dialog]');
+    window.searchMotion = {};
+    panel.addEventListener('transitionrun', event => {
+      if (event.target === panel && event.propertyName === 'opacity') {
+        window.searchMotion[panel.hasAttribute('data-closing') ? 'exit' : 'enter'] = true;
+      }
+    });
+    button.focus();
+    button.click();
+  });
+  await expect.poll(() => page.evaluate(() => window.searchMotion.enter)).toBe(true);
+  await expect(dialog.getByRole('searchbox')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.searchMotion.exit)).toBe(true);
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await opener.evaluate(button => button.click());
+  expect(await dialog.evaluate(panel => panel.getAnimations().length)).toBe(0);
+  await dialog.getByRole('button', {name: 'Close', exact: true}).evaluate(button => button.click());
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+});
