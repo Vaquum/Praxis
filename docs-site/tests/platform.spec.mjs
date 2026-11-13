@@ -60,7 +60,7 @@ test('search fades in and out and restores focus, with an immediate reduced-moti
   await expect(opener).toBeFocused();
 });
 
-test('chapter navigation crossfades only when motion is enabled', async ({page}) => {
+test('chapter navigation crossfades only when motion is enabled', async ({page, baseURL}) => {
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.addInitScript(() => {
     addEventListener('pagereveal', event => {
@@ -76,6 +76,6 @@ test('chapter navigation crossfades only when motion is enabled', async ({page})
 
   await page.emulateMedia({reducedMotion: 'reduce'});
   await parts.getByRole('link', {name: 'Book', exact: true}).click();
-  await expect(page).toHaveURL(/\/praxis\/$/);
+  await expect(page).toHaveURL(baseURL);
   await expect.poll(() => page.evaluate(() => window.chapterTransition)).toBe(false);
 });
